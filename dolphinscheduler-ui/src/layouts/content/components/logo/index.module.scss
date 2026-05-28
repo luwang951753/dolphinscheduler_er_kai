@@ -16,15 +16,35 @@
  */
 
 .logo {
-  width: 180px;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  width: 142px;
   height: 100%;
-  margin-left: 12px;
+  margin-left: 16px;
+  color: var(--n-text-color);
 }
 
-.logo-dark {
-  background: url('../../../../assets/images/logo-dark.svg') 100% no-repeat;
+.mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #1f7aff 0%, #23b7d9 100%);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0;
+  box-shadow: 0 6px 14px rgba(31, 122, 255, 0.24);
 }
 
-.logo-light {
-  background: url('../../../../assets/images/logo-light.svg') 100% no-repeat;
+.name {
+  color: #1f2937;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0;
+  white-space: nowrap;
 }

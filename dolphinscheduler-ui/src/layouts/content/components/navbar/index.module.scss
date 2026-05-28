@@ -23,9 +23,31 @@
   border-bottom: 1px solid var(--n-border-color);
 
   .nav {
-    margin-left: 12px;
+    margin-left: 8px;
     flex: 1;
     min-width: 0;
+    overflow: hidden;
+  }
+
+  .nav :global(.n-menu.n-menu--horizontal) {
+    display: flex;
+    flex-wrap: nowrap;
+    min-width: 0;
+  }
+
+  .nav :global(.n-menu.n-menu--horizontal .n-menu-item) {
+    flex: 0 0 auto;
+  }
+
+  .nav :global(.n-menu.n-menu--horizontal .n-menu-item-content) {
+    padding: 0 14px;
+  }
+
+  .nav :global(.n-menu-item-content-header) {
+    max-width: none;
+    overflow: visible;
+    text-overflow: clip;
+    white-space: nowrap;
   }
 
   .settings {

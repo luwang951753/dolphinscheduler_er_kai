@@ -342,10 +342,22 @@ export function useDataList() {
   }
 
   const changeHeaderMenuOptions = (state: any) => {
+    const headerLabels: Record<string, string> = {
+      home: '首页',
+      projects: '项目',
+      resource: '资源',
+      datasource: '数据源',
+      'sync-task': '同步',
+      'data-preview': '预览',
+      'theme-library': '主题库',
+      'data-governance': '治理',
+      monitor: '监控',
+      security: '安全'
+    }
     state.headerMenuOptions = state.menuOptions.map(
       (item: { label: string; key: string; icon: any }) => {
         return {
-          label: item.label,
+          label: headerLabels[item.key] || item.label,
           key: item.key,
           icon: item.icon
         }

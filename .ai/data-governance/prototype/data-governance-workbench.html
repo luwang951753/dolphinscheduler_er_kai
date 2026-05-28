@@ -1,0 +1,2517 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="icon" href="data:," />
+  <title>数据治理工作台原型</title>
+  <style>
+    :root {
+      --bg: #f5f7fb;
+      --panel: #fff;
+      --line: #dde4ef;
+      --line-soft: #edf1f6;
+      --text: #1f2937;
+      --muted: #667085;
+      --faint: #98a2b3;
+      --blue: #1677ff;
+      --blue-soft: #eaf3ff;
+      --green: #15a36d;
+      --green-soft: #e9f8f1;
+      --amber: #d9822b;
+      --amber-soft: #fff6e7;
+      --red: #d92d20;
+      --red-soft: #fff1f1;
+      --shadow: 0 8px 18px rgba(31, 41, 55, .05);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      font-size: 13px;
+    }
+
+    button, input, select { font: inherit; }
+
+    .app {
+      min-height: 100vh;
+      display: grid;
+      grid-template-rows: 56px minmax(0, 1fr);
+    }
+
+    .topnav {
+      display: flex;
+      align-items: center;
+      gap: 28px;
+      padding: 0 22px;
+      border-bottom: 1px solid var(--line);
+      background: #fff;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 220px;
+      font-size: 17px;
+      font-weight: 700;
+    }
+
+    .brand-mark {
+      width: 34px;
+      height: 24px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, #18a0fb, #7fd3ff);
+      position: relative;
+    }
+
+    .brand-mark::after {
+      content: "";
+      position: absolute;
+      right: -7px;
+      bottom: -4px;
+      width: 14px;
+      height: 14px;
+      border: 3px solid #18a0fb;
+      border-radius: 50%;
+      background: #fff;
+    }
+
+    .nav {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex: 1;
+      min-width: 0;
+    }
+
+    .nav-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      height: 36px;
+      padding: 0 12px;
+      color: #2f3b4c;
+      border-radius: 6px;
+      white-space: nowrap;
+    }
+
+    .nav-item.active {
+      color: var(--blue);
+      background: var(--blue-soft);
+      font-weight: 700;
+    }
+
+    .nav-icon {
+      width: 16px;
+      height: 16px;
+      border: 1.8px solid currentColor;
+      border-radius: 3px;
+    }
+
+    .user {
+      color: #344054;
+      white-space: nowrap;
+    }
+
+    .page {
+      display: grid;
+      grid-template-rows: auto auto minmax(0, 1fr);
+      gap: 12px;
+      min-width: 0;
+      padding: 16px 22px;
+      overflow: hidden;
+    }
+
+    .toolbar {
+      display: grid;
+      grid-template-columns: minmax(260px, 1fr) 360px auto;
+      gap: 12px;
+      align-items: center;
+      min-height: 52px;
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      box-shadow: var(--shadow);
+    }
+
+    .title-block {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+    }
+
+    .title-block h1 {
+      margin: 0;
+      font-size: 18px;
+      line-height: 1.2;
+    }
+
+    .title-block span {
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
+    .search {
+      width: 100%;
+      height: 34px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 0 10px;
+      outline: none;
+    }
+
+    .actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+
+    .btn {
+      height: 32px;
+      padding: 0 12px;
+      border: 1px solid var(--line-strong, #c8d2e1);
+      border-radius: 6px;
+      background: #fff;
+      color: #344054;
+      cursor: pointer;
+    }
+
+    .btn.primary {
+      border-color: var(--blue);
+      background: var(--blue);
+      color: #fff;
+      font-weight: 700;
+    }
+
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .metric {
+      min-width: 0;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      box-shadow: var(--shadow);
+      cursor: pointer;
+    }
+
+    .metric.active {
+      border-color: #9dc2ff;
+      background: #f4f8ff;
+    }
+
+    .metric span {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .metric strong {
+      display: block;
+      margin-top: 6px;
+      font-size: 22px;
+      line-height: 1;
+    }
+
+    .metric em {
+      display: block;
+      margin-top: 6px;
+      color: var(--faint);
+      font-size: 12px;
+      font-style: normal;
+    }
+
+    .workspace {
+      --side-width: 220px;
+      --side-gap: 12px;
+      display: grid;
+      grid-template-columns: var(--side-width) 6px minmax(0, 1fr);
+      gap: var(--side-gap);
+      min-height: 0;
+    }
+
+    .panel {
+      min-width: 0;
+      min-height: 0;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .side {
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+    }
+
+    .workspace.sidebar-collapsed {
+      --side-width: 0px;
+      --side-gap: 6px;
+    }
+
+    .workspace.sidebar-collapsed .side {
+      border: 0;
+      box-shadow: none;
+      visibility: hidden;
+      pointer-events: none;
+    }
+
+    .side-resizer {
+      width: 6px;
+      min-height: 100%;
+      border-radius: 999px;
+      background: transparent;
+      cursor: col-resize;
+      position: relative;
+    }
+
+    .side-resizer::after {
+      content: "";
+      position: absolute;
+      top: 8px;
+      bottom: 8px;
+      left: 1px;
+      width: 4px;
+      border-radius: 999px;
+      background: #d7e0ee;
+      opacity: .75;
+    }
+
+    .workspace.sidebar-collapsed .side-resizer::after {
+      background: #9dc2ff;
+      opacity: .9;
+    }
+
+    .side-resizer:hover::after,
+    body.resizing-sidebar .side-resizer::after {
+      background: var(--blue);
+      opacity: 1;
+    }
+
+    body.resizing-sidebar {
+      cursor: col-resize;
+      user-select: none;
+    }
+
+    .panel-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      height: 42px;
+      padding: 0 12px;
+      border-bottom: 1px solid var(--line);
+      background: #fbfcff;
+      font-weight: 800;
+    }
+
+    .filters {
+      display: grid;
+      align-content: start;
+      gap: 14px;
+      padding: 12px;
+      overflow: auto;
+    }
+
+    .filter-group {
+      display: grid;
+      gap: 8px;
+    }
+
+    .filter-title {
+      color: #344054;
+      font-weight: 700;
+    }
+
+    .chip-list {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      height: 24px;
+      padding: 0 8px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: #fff;
+      color: #475467;
+      font-size: 12px;
+      cursor: pointer;
+    }
+
+    .chip em {
+      color: var(--faint);
+      font-style: normal;
+      font-size: 11px;
+    }
+
+    .chip.active em {
+      color: #0b63ce;
+    }
+
+    .chip.active {
+      border-color: #9dc2ff;
+      background: var(--blue-soft);
+      color: #0b63ce;
+      font-weight: 700;
+    }
+
+    .asset-panel {
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+    }
+
+    .asset-tools {
+      display: grid;
+      grid-template-columns: minmax(190px, 1.2fr) minmax(190px, 1.2fr) minmax(150px, .9fr) minmax(150px, .9fr) minmax(160px, .9fr);
+      gap: 8px;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--line);
+      background: #fff;
+    }
+
+    .select {
+      height: 30px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #fff;
+      color: var(--text);
+      padding: 0 8px;
+    }
+
+    .asset-table {
+      overflow: auto;
+    }
+
+    .asset-detail-row td {
+      height: auto;
+      padding: 0;
+      background: #f6f9ff;
+      border-bottom: 1px solid #cfe0ff;
+    }
+
+    .asset-inline-detail {
+      margin: 0;
+      border: 0;
+      border-top: 1px solid #9dc2ff;
+      border-bottom: 1px solid #9dc2ff;
+      border-radius: 0;
+      box-shadow: none;
+      background: #fff;
+    }
+
+    .asset-inline-detail.collapsed {
+      display: none;
+    }
+
+    .asset-inline-detail-wrap {
+      padding: 10px 12px 14px;
+      background: #f6f9ff;
+    }
+
+    .asset-inline-detail-shell {
+      overflow: hidden;
+      border: 1px solid #cfe0ff;
+      border-radius: 8px;
+      background: #fff;
+      box-shadow: 0 8px 24px rgba(15, 23, 42, .06);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    th {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      height: 36px;
+      padding: 0 10px;
+      border-bottom: 1px solid var(--line);
+      background: #f8fafc;
+      color: #475467;
+      font-size: 12px;
+      text-align: left;
+      white-space: nowrap;
+    }
+
+    td {
+      height: 46px;
+      padding: 6px 10px;
+      border-bottom: 1px solid var(--line-soft);
+      vertical-align: middle;
+    }
+
+    tr.asset-row {
+      cursor: pointer;
+    }
+
+    tr.asset-row.active,
+    tr.asset-row:hover {
+      background: #f5f9ff;
+    }
+
+    tr.asset-row.active td {
+      border-bottom-color: #cfe0ff;
+    }
+
+    .asset-name {
+      display: grid;
+      gap: 2px;
+      min-width: 0;
+    }
+
+    .asset-name strong {
+      color: #0f172a;
+    }
+
+    .asset-name span,
+    .muted {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      height: 22px;
+      padding: 0 7px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: #f8fafc;
+      color: #475467;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .tag.blue { border-color: #b7d3ff; background: #f2f7ff; color: #0b63ce; }
+    .tag.green { border-color: #bfead7; background: var(--green-soft); color: var(--green); }
+    .tag.amber { border-color: #ffe0a8; background: var(--amber-soft); color: var(--amber); }
+    .tag.red { border-color: #ffc9c9; background: var(--red-soft); color: var(--red); }
+
+    .tag-row {
+      display: flex;
+      gap: 5px;
+      flex-wrap: wrap;
+    }
+
+    .detail {
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+    }
+
+    .detail-main {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 8px;
+      min-height: 42px;
+      padding: 7px 12px;
+      border-bottom: 1px solid var(--line);
+      background: #fbfcff;
+    }
+
+    .asset-path {
+      color: var(--muted);
+      font-size: 12px;
+      word-break: break-all;
+    }
+
+    .detail-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .detail-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex: 0 0 auto;
+    }
+
+    .detail-title h2 {
+      margin: 0;
+      font-size: 18px;
+      line-height: 1.2;
+    }
+
+    .kv-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .kv {
+      min-width: 0;
+      padding: 8px 10px;
+      border: 1px solid var(--line-soft);
+      border-radius: 6px;
+      background: #fbfcff;
+    }
+
+    .kv span {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .kv strong {
+      display: block;
+      margin-top: 4px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .tabs {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      border-bottom: 1px solid var(--line);
+      background: #fff;
+    }
+
+    .tab {
+      height: 38px;
+      padding: 0 13px;
+      border: 0;
+      border-bottom: 2px solid transparent;
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+    }
+
+    .tab.active {
+      color: var(--blue);
+      border-bottom-color: var(--blue);
+      font-weight: 700;
+    }
+
+    .tab-content {
+      min-height: 0;
+      padding: 12px;
+      overflow: auto;
+    }
+
+    .mini-table {
+      table-layout: fixed;
+      border: 1px solid var(--line-soft);
+      border-radius: 6px;
+      overflow: hidden;
+      background: #fff;
+    }
+
+    .mini-table th {
+      position: static;
+      height: 36px;
+      padding: 0 14px;
+      background: #f8fafc;
+      color: #344054;
+      font-weight: 700;
+      vertical-align: middle;
+    }
+
+    .mini-table td {
+      height: 42px;
+      padding: 8px 14px;
+      vertical-align: middle;
+    }
+
+    .mini-table th:nth-child(1),
+    .mini-table td:nth-child(1) {
+      width: 26%;
+      font-weight: 700;
+    }
+
+    .mini-table th:nth-child(2),
+    .mini-table td:nth-child(2) {
+      width: 28%;
+    }
+
+    .mini-table th:nth-child(3),
+    .mini-table td:nth-child(3) {
+      width: 18%;
+    }
+
+    .mini-table th:nth-child(4),
+    .mini-table td:nth-child(4) {
+      width: 16%;
+    }
+
+    .mini-table th:nth-child(5),
+    .mini-table td:nth-child(5) {
+      width: 12%;
+      text-align: center;
+    }
+
+    .mini-table td:nth-child(5) {
+      color: var(--muted);
+    }
+
+    .quality-card,
+    .issue-card {
+      display: grid;
+      gap: 8px;
+      padding: 10px;
+      border: 1px solid var(--line-soft);
+      border-radius: 7px;
+      background: #fff;
+      margin-bottom: 8px;
+    }
+
+    .card-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 10px;
+    }
+
+    .card-title {
+      display: grid;
+      gap: 4px;
+      min-width: 0;
+    }
+
+    .card-actions {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .btn.tiny {
+      height: 26px;
+      padding: 0 8px;
+      font-size: 12px;
+    }
+
+    .status-flow {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 6px;
+      align-items: center;
+    }
+
+    .status-step {
+      display: grid;
+      gap: 4px;
+      padding: 7px 8px;
+      border: 1px solid var(--line-soft);
+      border-radius: 6px;
+      background: #fbfcff;
+      color: var(--muted);
+      text-align: center;
+      font-size: 12px;
+    }
+
+    .status-step.active {
+      border-color: #9dc2ff;
+      background: #f2f7ff;
+      color: var(--blue);
+      font-weight: 700;
+    }
+
+    .lineage {
+      display: grid;
+      gap: 10px;
+    }
+
+    .lineage-guide {
+      display: grid;
+      gap: 8px;
+      padding: 10px;
+      border: 1px solid #d7e7ff;
+      border-radius: 7px;
+      background: #f2f7ff;
+      color: #475467;
+      line-height: 1.6;
+    }
+
+    .lineage-guide strong {
+      color: #0b63ce;
+    }
+
+    .lineage-flow {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 58px minmax(0, 1fr) 58px minmax(0, 1fr);
+      gap: 8px;
+      align-items: center;
+    }
+
+    .node {
+      min-width: 0;
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: #fbfcff;
+    }
+
+    .node.clickable {
+      cursor: pointer;
+    }
+
+    .node.clickable:hover {
+      border-color: #9dc2ff;
+      background: #f3f8ff;
+    }
+
+    .node.current {
+      border-color: #9dc2ff;
+      background: #f3f8ff;
+    }
+
+    .lineage-task {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      padding: 10px;
+      border: 1px solid #d7e7ff;
+      border-radius: 7px;
+      background: #fbfdff;
+    }
+
+    .lineage-task strong,
+    .lineage-task span {
+      display: block;
+    }
+
+    .arrow {
+      display: grid;
+      place-items: center;
+      color: var(--blue);
+      font-weight: 800;
+    }
+
+    .modal-mask {
+      position: fixed;
+      display: none;
+      inset: 0;
+      z-index: 20;
+      place-items: center;
+      background: rgba(15, 23, 42, .36);
+      padding: 24px;
+    }
+
+    .modal-mask.open {
+      display: grid;
+    }
+
+    .modal {
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr) auto;
+      width: min(860px, 100%);
+      max-height: min(760px, calc(100vh - 48px));
+      border-radius: 8px;
+      background: #fff;
+      box-shadow: 0 20px 60px rgba(15, 23, 42, .22);
+      overflow: hidden;
+    }
+
+    .modal-head,
+    .modal-foot {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--line);
+      background: #fbfcff;
+    }
+
+    .modal-foot {
+      border-top: 1px solid var(--line);
+      border-bottom: 0;
+      justify-content: flex-end;
+      background: #fff;
+    }
+
+    .modal-title {
+      display: grid;
+      gap: 3px;
+    }
+
+    .modal-title strong {
+      font-size: 16px;
+    }
+
+    .modal-title span {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .modal-body {
+      display: grid;
+      gap: 14px;
+      padding: 16px;
+      overflow: auto;
+    }
+
+    .rule-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .rule-section {
+      display: grid;
+      gap: 10px;
+      padding: 12px;
+      border: 1px solid var(--line-soft);
+      border-radius: 7px;
+      background: #fff;
+    }
+
+    .rule-section-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .rule-section-head strong {
+      font-size: 14px;
+    }
+
+    .rule-section-head span {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .rule-field {
+      display: grid;
+      gap: 6px;
+      min-width: 0;
+    }
+
+    .rule-field.hidden {
+      display: none;
+    }
+
+    .rule-field.span-2 {
+      grid-column: 1 / -1;
+    }
+
+    .rule-field label {
+      color: #344054;
+      font-weight: 700;
+    }
+
+    .textarea {
+      min-height: 86px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 9px 10px;
+      resize: vertical;
+      outline: none;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+
+    .rule-preview {
+      display: grid;
+      gap: 8px;
+      padding: 12px;
+      border: 1px solid var(--line-soft);
+      border-radius: 7px;
+      background: #fbfcff;
+    }
+
+    .preview-tabs {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .preview-tab {
+      height: 32px;
+      padding: 0 12px;
+      border: 0;
+      border-bottom: 2px solid transparent;
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+    }
+
+    .preview-tab.active {
+      color: var(--blue);
+      border-bottom-color: var(--blue);
+      font-weight: 700;
+    }
+
+    .preview-pane {
+      display: none;
+      gap: 8px;
+      padding-bottom: 8px;
+    }
+
+    .preview-pane.active {
+      display: grid;
+    }
+
+    .sql-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .sql-toolbar-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    .sql-toolbar-left .muted {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .sql-editor {
+      min-height: 260px;
+      line-height: 1.5;
+      background: #fff;
+      color: #1f2937;
+    }
+
+    .sql-editor:focus {
+      border-color: #7fb3ff;
+      box-shadow: 0 0 0 3px rgba(11, 99, 206, 0.12);
+    }
+
+    .rule-preview code {
+      display: block;
+      padding: 10px;
+      border: 1px solid #e7edf6;
+      border-radius: 6px;
+      background: #fff;
+      color: #1f2937;
+      white-space: pre-wrap;
+      line-height: 1.5;
+    }
+
+    .param-panel {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      padding: 10px;
+      border: 1px dashed #cfd8e6;
+      border-radius: 7px;
+      background: #fbfdff;
+    }
+
+    .param-help {
+      grid-column: 1 / -1;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    .rule-alert {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      grid-column: 1 / -1;
+      padding: 9px 10px;
+      border: 1px solid #d7e7ff;
+      border-radius: 6px;
+      background: #f5f9ff;
+      color: #344054;
+      line-height: 1.45;
+    }
+
+    .rule-alert.warn {
+      border-color: #ffe0a8;
+      background: #fff9ee;
+    }
+
+    .rule-alert.error {
+      border-color: #ffc9c9;
+      background: #fff5f5;
+    }
+
+    .validation-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .validation-item {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      min-width: 0;
+      padding: 7px 9px;
+      border: 1px solid var(--line-soft);
+      border-radius: 6px;
+      background: #fff;
+      color: #344054;
+      white-space: nowrap;
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--green);
+      flex: 0 0 auto;
+    }
+
+    .dot.warn { background: var(--amber); }
+    .dot.error { background: var(--red); }
+
+    .check-list {
+      display: grid;
+      gap: 6px;
+    }
+
+    .check-item {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      color: #344054;
+    }
+
+    .test-result {
+      display: none;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .test-result.open {
+      display: grid;
+    }
+
+    .toast {
+      position: fixed;
+      right: 22px;
+      bottom: 22px;
+      z-index: 30;
+      display: none;
+      min-width: 220px;
+      padding: 10px 12px;
+      border: 1px solid #b7d3ff;
+      border-radius: 7px;
+      background: #f2f7ff;
+      color: #0b63ce;
+      box-shadow: var(--shadow);
+    }
+
+    .toast.open {
+      display: block;
+    }
+
+    .result-tile {
+      padding: 10px;
+      border: 1px solid var(--line-soft);
+      border-radius: 7px;
+      background: #fbfcff;
+    }
+
+    .result-tile span {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .result-tile strong {
+      display: block;
+      margin-top: 5px;
+      font-size: 18px;
+    }
+
+    @media (max-width: 1280px) {
+      .toolbar { grid-template-columns: 1fr; }
+      .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .workspace { grid-template-columns: 1fr; overflow: auto; }
+      .side { display: none; }
+      .side-resizer { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="topnav">
+      <div class="brand">
+        <span class="brand-mark"></span>
+        <span>DolphinScheduler</span>
+      </div>
+      <nav class="nav">
+        <span class="nav-item"><span class="nav-icon"></span>首页</span>
+        <span class="nav-item"><span class="nav-icon"></span>项目管理</span>
+        <span class="nav-item"><span class="nav-icon"></span>源中心</span>
+        <span class="nav-item"><span class="nav-icon"></span>同步任务</span>
+        <span class="nav-item"><span class="nav-icon"></span>数据预览</span>
+        <span class="nav-item active"><span class="nav-icon"></span>数据治理</span>
+        <span class="nav-item"><span class="nav-icon"></span>监控中心</span>
+      </nav>
+      <div class="user">admin⌄</div>
+    </header>
+
+    <main class="page">
+      <section class="toolbar">
+        <div class="title-block">
+          <h1>数据治理</h1>
+          <span>资产目录、质量规则、血缘和问题闭环</span>
+        </div>
+        <input class="search" id="searchInput" placeholder="搜索表名、字段、标签、Owner" />
+        <div class="actions">
+          <button class="btn" id="refreshBtn">同步元数据</button>
+          <button class="btn" id="ruleBtn">新建质量规则</button>
+        </div>
+      </section>
+
+      <section class="metrics">
+        <div class="metric active" data-filter="ALL"><span>数据资产</span><strong>128</strong><em>MySQL / PostgreSQL / Doris</em></div>
+        <div class="metric" data-filter="OWNER"><span>有 Owner 资产</span><strong>76%</strong><em>32 张表待补责任人</em></div>
+        <div class="metric" data-filter="QUALITY_WARN"><span>质量通过率</span><strong>92.4%</strong><em>8 条规则异常</em></div>
+        <div class="metric" data-filter="LINEAGE"><span>血缘关系</span><strong>46</strong><em>来自同步任务</em></div>
+        <div class="metric" data-filter="ISSUES"><span>待处理问题</span><strong>12</strong><em>3 个高优先级</em></div>
+      </section>
+
+      <section class="workspace">
+        <aside class="panel side">
+          <div class="panel-head">治理筛选</div>
+          <div class="filters">
+            <div class="filter-group">
+              <div class="filter-title">数据源类型</div>
+              <div class="chip-list">
+                <span class="chip active" data-filter="ALL">全部 <em data-count="ALL"></em></span>
+                <span class="chip" data-filter="MYSQL">MySQL <em data-count="MYSQL"></em></span>
+                <span class="chip" data-filter="POSTGRESQL">PostgreSQL <em data-count="POSTGRESQL"></em></span>
+                <span class="chip" data-filter="DORIS">Doris <em data-count="DORIS"></em></span>
+              </div>
+            </div>
+            <div class="filter-group">
+              <div class="filter-title">质量状态</div>
+              <div class="chip-list">
+                <span class="chip" data-filter="HEALTHY">健康 <em data-count="HEALTHY"></em></span>
+                <span class="chip" data-filter="WARNING">有风险 <em data-count="WARNING"></em></span>
+                <span class="chip" data-filter="FAILED">异常 <em data-count="FAILED"></em></span>
+              </div>
+            </div>
+            <div class="filter-group">
+              <div class="filter-title">标签</div>
+              <div class="chip-list">
+                <span class="chip" data-filter="核心表">核心表 <em data-count="核心表"></em></span>
+                <span class="chip" data-filter="敏感">敏感 <em data-count="敏感"></em></span>
+                <span class="chip" data-filter="ODS">ODS <em data-count="ODS"></em></span>
+                <span class="chip" data-filter="订单">订单 <em data-count="订单"></em></span>
+              </div>
+            </div>
+            <div class="filter-group">
+              <div class="filter-title">治理状态</div>
+              <div class="chip-list">
+                <span class="chip" data-filter="HAS_LINEAGE">有血缘 <em data-count="HAS_LINEAGE"></em></span>
+                <span class="chip" data-filter="NO_OWNER">无 Owner <em data-count="NO_OWNER"></em></span>
+                <span class="chip" data-filter="HAS_ISSUE">有问题 <em data-count="HAS_ISSUE"></em></span>
+              </div>
+            </div>
+          </div>
+        </aside>
+        <div class="side-resizer" id="sideResizer" title="拖拽调整筛选栏宽度"></div>
+
+        <section class="panel asset-panel">
+          <div class="asset-tools">
+            <select class="select" id="toolbarDatasourceFilter"><option value="">全部数据源</option></select>
+            <select class="select" id="toolbarDatabaseFilter"><option value="">全部数据库</option></select>
+            <select class="select" id="ownerFilter"><option value="">全部 Owner</option><option>张三</option><option>李四</option><option>王五</option><option>未分配</option></select>
+            <select class="select" id="toolbarQualityFilter"><option value="">全部质量状态</option><option value="HEALTHY">健康</option><option value="WARNING">有风险</option><option value="FAILED">异常</option></select>
+            <select class="select" id="sortFilter"><option value="UPDATED">最近更新优先</option><option value="NAME">资产名称</option><option value="ISSUE">问题数</option></select>
+          </div>
+          <div class="asset-table">
+            <table>
+              <thead>
+                <tr>
+                  <th style="width: 250px;">资产</th>
+                  <th>标签</th>
+                  <th>Owner</th>
+                  <th>质量</th>
+                  <th>血缘</th>
+                  <th>最近同步任务</th>
+                </tr>
+              </thead>
+              <tbody id="assetRows"></tbody>
+            </table>
+          </div>
+        </section>
+      </section>
+    </main>
+  </div>
+
+  <div class="modal-mask" id="ruleModal">
+    <div class="modal">
+      <div class="modal-head">
+        <div class="modal-title">
+          <strong>新建质量规则</strong>
+          <span>给当前数据资产配置检测规则，后续可由调度或手动执行。</span>
+        </div>
+        <button class="btn" id="closeModal">关闭</button>
+      </div>
+      <div class="modal-body">
+        <section class="rule-section">
+          <div class="rule-section-head">
+            <strong>1. 基础信息</strong>
+            <span>规则必须绑定到一个资产，可选字段级或表级检测。</span>
+          </div>
+          <div class="rule-grid">
+            <div class="rule-field">
+              <label>治理资产</label>
+              <input class="search" id="ruleAsset" value="pgsql_test1.test1.public.customer_orders_ods" readonly />
+            </div>
+            <div class="rule-field">
+              <label>规则名称</label>
+              <input class="search" id="ruleName" value="订单号不能为空" />
+            </div>
+            <div class="rule-field">
+              <label>规则类型</label>
+              <select class="select" id="ruleType">
+                <option value="NOT_NULL">非空校验</option>
+                <option value="UNIQUE">唯一性校验</option>
+                <option value="RANGE">范围校验</option>
+                <option value="ENUM">枚举值校验</option>
+                <option value="REGEX">正则校验</option>
+                <option value="CUSTOM_SQL">自定义 SQL</option>
+              </select>
+            </div>
+            <div class="rule-field">
+              <label>规则层级</label>
+              <select class="select" id="ruleLevel">
+                <option value="COLUMN">字段级</option>
+                <option value="TABLE">表级</option>
+              </select>
+            </div>
+            <div class="rule-field" id="ruleFieldWrap">
+              <label>检测字段</label>
+              <select class="select" id="ruleField">
+                <option>order_no</option>
+                <option>id</option>
+                <option>amount</option>
+                <option>phone</option>
+              </select>
+            </div>
+          </div>
+        </section>
+
+        <section class="rule-section">
+          <div class="rule-section-head">
+            <strong>2. 规则条件</strong>
+            <span>不同规则类型需要的参数不同，避免保存无效规则。</span>
+          </div>
+          <div class="param-panel" id="paramPanel"></div>
+        </section>
+
+        <section class="rule-section">
+          <div class="rule-section-head">
+            <strong>3. 执行与问题策略</strong>
+            <span>决定检测范围、失败阈值，以及异常后如何进入治理闭环。</span>
+          </div>
+          <div class="rule-grid">
+            <div class="rule-field">
+              <label>检测范围</label>
+              <select class="select" id="scopeType">
+                <option value="FULL">全表</option>
+                <option value="LAST_1_DAY">最近 1 天增量</option>
+                <option value="LAST_7_DAYS">最近 7 天增量</option>
+                <option value="WHERE">自定义 WHERE 条件</option>
+              </select>
+            </div>
+            <div class="rule-field">
+              <label>范围条件</label>
+              <input class="search" id="scopeWhere" value="dt = current_date" disabled />
+            </div>
+            <div class="rule-field">
+              <label>失败阈值</label>
+              <select class="select" id="failThreshold">
+                <option value="GT_0">异常行数 > 0 即失败</option>
+                <option value="RATE_GT_1">异常率 > 1% 即失败</option>
+                <option value="RATE_GT_5">异常率 > 5% 即失败</option>
+                <option value="CUSTOM">自定义阈值</option>
+              </select>
+            </div>
+            <div class="rule-field">
+              <label>严重程度</label>
+              <select class="select" id="severity">
+                <option>高</option>
+                <option>中</option>
+                <option>低</option>
+              </select>
+            </div>
+            <div class="rule-field">
+              <label>检测频率</label>
+              <select class="select" id="schedule">
+                <option>随同步任务完成后检测</option>
+                <option>每天 02:00</option>
+                <option>每小时</option>
+                <option>手动执行</option>
+              </select>
+            </div>
+          </div>
+          <div class="check-list">
+            <label class="check-item"><input type="checkbox" id="createIssue" checked /> 检测失败时自动生成治理问题</label>
+            <label class="check-item"><input type="checkbox" id="escalateIssue" checked /> 连续 3 次失败后升级严重程度</label>
+            <label class="check-item"><input type="checkbox" id="autoCloseIssue" /> 检测通过后自动关闭历史问题</label>
+          </div>
+        </section>
+
+        <div class="rule-preview">
+          <strong>规则预览与试运行</strong>
+          <span class="muted">保存后会绑定到当前资产，质量检测失败时自动生成治理问题。</span>
+          <div class="validation-grid" id="ruleValidation"></div>
+          <div class="preview-tabs">
+            <button class="preview-tab active" data-preview-tab="summary">规则预览</button>
+            <button class="preview-tab" data-preview-tab="sql">检测 SQL</button>
+          </div>
+          <div class="preview-pane active" id="previewSummaryPane">
+            <code id="rulePreview">规则：order_no 非空校验
+失败条件：order_no 为空
+问题生成：异常行数 > 0 时生成“质量异常”问题</code>
+          </div>
+          <div class="preview-pane" id="previewSqlPane">
+            <div class="sql-toolbar">
+              <div class="sql-toolbar-left">
+                <span class="tag green" id="sqlModeTag">系统生成</span>
+                <span class="muted" id="sqlModeHint">规则条件变化时自动刷新 SQL；手工编辑后不会被覆盖。</span>
+              </div>
+              <button class="btn tiny" id="regenerateSqlBtn" type="button">重新生成 SQL</button>
+            </div>
+            <textarea class="textarea sql-editor" id="ruleSqlEditor" spellcheck="false">select count(*) as abnormal_count
+from customer_orders_ods
+where order_no is null or trim(order_no) = '';</textarea>
+          </div>
+          <div class="test-result" id="testResult">
+            <div class="result-tile"><span>扫描行数</span><strong>128,642</strong></div>
+            <div class="result-tile"><span>异常行数</span><strong>16</strong></div>
+            <div class="result-tile"><span>异常率</span><strong>0.012%</strong></div>
+            <div class="result-tile"><span>预计结果</span><strong>失败</strong></div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn" id="testRuleBtn">试运行</button>
+        <button class="btn" id="saveRuleDraftBtn">保存草稿</button>
+        <button class="btn primary" id="saveRuleEnableBtn">保存并启用</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-mask" id="assetModal">
+    <div class="modal">
+      <div class="modal-head">
+        <div class="modal-title">
+          <strong>编辑资产元数据</strong>
+          <span>维护 Owner、标签和业务说明，便于后续质量问题分派和资产检索。</span>
+        </div>
+        <button class="btn" id="closeAssetModal">关闭</button>
+      </div>
+      <div class="modal-body">
+        <section class="rule-section">
+          <div class="rule-section-head">
+            <strong>基础治理信息</strong>
+            <span>这些信息会显示在资产目录、详情页和治理问题中。</span>
+          </div>
+          <div class="rule-grid">
+            <div class="rule-field span-2">
+              <label>资产路径</label>
+              <input class="search" id="assetEditPath" readonly />
+            </div>
+            <div class="rule-field">
+              <label>Owner</label>
+              <select class="select" id="assetEditOwner">
+                <option>张三</option>
+                <option>李四</option>
+                <option>王五</option>
+                <option>平台管理员</option>
+                <option>未分配</option>
+              </select>
+            </div>
+            <div class="rule-field">
+              <label>标签</label>
+              <input class="search" id="assetEditTags" placeholder="多个标签用逗号分隔" />
+            </div>
+            <div class="rule-field span-2">
+              <label>业务说明</label>
+              <textarea class="textarea" id="assetEditDesc">由同步任务沉淀的订单事实表，作为 ODS 层订单分析基础数据。</textarea>
+            </div>
+          </div>
+        </section>
+      </div>
+      <div class="modal-foot">
+        <button class="btn" id="cancelAssetEdit">取消</button>
+        <button class="btn primary" id="saveAssetEdit">保存元数据</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    const assets = [
+      {
+        name: 'customer_orders_ods',
+        path: 'pgsql_test1.test1.public.customer_orders_ods',
+        datasource: 'pgsql_test1',
+        database: 'test1',
+        schema: 'public',
+        type: 'POSTGRESQL',
+        tags: ['核心表', 'ODS', '订单'],
+        owner: '张三',
+        quality: 'WARNING',
+        qualityText: '有风险',
+        columns: 42,
+        lineage: 2,
+        syncTask: 'mysql_customer_to_pg_customer_ods',
+        lastCheck: '2026-05-20 09:14',
+        issues: 2
+      },
+      {
+        name: 'customer_orders',
+        path: 'mysql_case_workbench.case_workbench.customer_orders',
+        datasource: 'mysql_case_workbench',
+        database: 'case_workbench',
+        schema: '',
+        type: 'MYSQL',
+        tags: ['源表', '订单'],
+        owner: '李四',
+        quality: 'HEALTHY',
+        qualityText: '健康',
+        columns: 42,
+        lineage: 1,
+        syncTask: 'mysql_customer_to_pg_customer_ods',
+        lastCheck: '2026-05-20 09:10',
+        issues: 0
+      },
+      {
+        name: 'user_profile_wide',
+        path: 'doris_ods.ods.user_profile_wide',
+        datasource: 'doris_ods',
+        database: 'ods',
+        schema: '',
+        type: 'DORIS',
+        tags: ['宽表', '敏感'],
+        owner: '未分配',
+        quality: 'FAILED',
+        qualityText: '异常',
+        columns: 86,
+        lineage: 3,
+        syncTask: 'profile_sync_daily',
+        lastCheck: '2026-05-20 08:30',
+        issues: 5
+      },
+      {
+        name: 'payment_detail',
+        path: 'mysql_finance.finance.payment_detail',
+        datasource: 'mysql_finance',
+        database: 'finance',
+        schema: '',
+        type: 'MYSQL',
+        tags: ['敏感', '财务'],
+        owner: '王五',
+        quality: 'WARNING',
+        qualityText: '有风险',
+        columns: 33,
+        lineage: 0,
+        syncTask: '-',
+        lastCheck: '2026-05-19 22:11',
+        issues: 1
+      }
+    ]
+
+    const columns = [
+      ['id', 'bigint', '主键', 'PK', '非空', ''],
+      ['order_no', 'varchar(64)', '订单号', '', '非空', '唯一'],
+      ['customer_id', 'bigint', '客户 ID', '', '非空', ''],
+      ['amount', 'decimal(18,2)', '订单金额', '', '可空', '范围'],
+      ['phone', 'varchar(32)', '手机号', '', '可空', '敏感']
+    ]
+
+    let selected = assets[0]
+    let activeTab = 'overview'
+    let expandedAssetName = selected.name
+    let sqlEditMode = 'AUTO'
+    let lastGeneratedRuleSql = ''
+    const filterState = {
+      type: '',
+      datasource: '',
+      database: '',
+      quality: '',
+      owner: '',
+      governance: '',
+      tag: '',
+      keyword: '',
+      sort: 'UPDATED'
+    }
+    const qualityRules = [
+      { name: 'order_no 非空校验', level: '字段级', summary: '最近结果：通过率 99.2%，异常 16 行', status: '有风险', statusClass: 'amber' },
+      { name: 'id 唯一性校验', level: '字段级', summary: '最近结果：通过率 100%，异常 0 行', status: '健康', statusClass: 'green' },
+      { name: 'amount 范围校验', level: '字段级', summary: '规则：amount >= 0，最近异常 3 行', status: '有风险', statusClass: 'amber' }
+    ]
+
+    const qualityClass = (quality) => quality === 'HEALTHY' ? 'green' : quality === 'FAILED' ? 'red' : 'amber'
+
+    const ruleTypeMeta = {
+      NOT_NULL: {
+        label: '非空校验',
+        defaultName: '订单号不能为空',
+        defaultField: 'order_no',
+        level: 'COLUMN',
+        issueType: '空值异常',
+        abnormalRows: 16,
+        params: `
+          <div class="rule-alert">非空校验用于发现字段为空、空字符串或仅包含空格的记录。订单号、主键、业务编号这类字段通常必须配置。</div>
+          <div class="rule-field"><label>空值判断</label><select class="select" id="emptyPolicy"><option>NULL、空字符串、空格都算异常</option><option>仅 NULL 算异常</option><option>NULL 和空字符串算异常</option></select></div>
+          <div class="rule-field"><label>样本保存</label><select class="select" id="samplePolicy"><option>保存前 50 条异常样本</option><option>仅保存异常数量</option><option>保存前 200 条异常样本</option></select></div>
+        `
+      },
+      UNIQUE: {
+        label: '唯一性校验',
+        defaultName: '业务键不能重复',
+        defaultField: 'order_no',
+        level: 'COLUMN',
+        issueType: '重复数据',
+        abnormalRows: 0,
+        params: `
+          <div class="rule-alert">唯一性校验需要明确唯一键。单字段唯一适合订单号，多字段唯一适合业务主键组合。</div>
+          <div class="rule-field"><label>唯一键字段</label><input class="search" id="uniqueFields" value="order_no" /></div>
+          <div class="rule-field"><label>重复处理口径</label><select class="select" id="duplicatePolicy"><option>除第一条外均计为异常</option><option>重复组内全部记录计为异常</option></select></div>
+        `
+      },
+      RANGE: {
+        label: '范围校验',
+        defaultName: '金额必须在合理范围内',
+        defaultField: 'amount',
+        level: 'COLUMN',
+        issueType: '范围异常',
+        abnormalRows: 3,
+        params: `
+          <div class="rule-alert">范围校验适合金额、数量、比例、年龄等数值字段。边界必须明确，否则容易误报。</div>
+          <div class="rule-field"><label>最小值</label><input class="search" id="rangeMin" value="0" /></div>
+          <div class="rule-field"><label>最大值</label><input class="search" id="rangeMax" value="1000000" /></div>
+          <div class="rule-field"><label>边界包含</label><select class="select" id="rangeInclusive"><option>包含最小值和最大值</option><option>只包含最小值</option><option>只包含最大值</option><option>均不包含</option></select></div>
+          <div class="rule-field"><label>空值处理</label><select class="select" id="rangeNullPolicy"><option>空值不参与范围检测</option><option>空值也算异常</option></select></div>
+        `
+      },
+      ENUM: {
+        label: '枚举值校验',
+        defaultName: '订单状态必须在枚举范围内',
+        defaultField: 'status',
+        level: 'COLUMN',
+        issueType: '枚举异常',
+        abnormalRows: 8,
+        params: `
+          <div class="rule-alert">枚举校验用于状态、类型、渠道等有限取值字段。建议保存业务含义，后续可沉淀成数据标准。</div>
+          <div class="rule-field span-2"><label>允许值</label><input class="search" id="enumValues" value="CREATED, PAID, SHIPPED, CLOSED, CANCELLED" /></div>
+          <div class="rule-field"><label>大小写规则</label><select class="select" id="enumCase"><option>区分大小写</option><option>忽略大小写</option></select></div>
+          <div class="rule-field"><label>异常口径</label><select class="select" id="enumNullPolicy"><option>空值单独按非空规则处理</option><option>空值也按枚举异常处理</option></select></div>
+        `
+      },
+      REGEX: {
+        label: '正则校验',
+        defaultName: '手机号格式必须正确',
+        defaultField: 'phone',
+        level: 'COLUMN',
+        issueType: '格式异常',
+        abnormalRows: 27,
+        params: `
+          <div class="rule-alert">正则校验适合手机号、邮箱、证件号等格式字段。正则规则建议先试运行，避免误伤历史数据。</div>
+          <div class="rule-field span-2"><label>正则表达式</label><input class="search" id="regexPattern" value="^1[3-9][0-9]{9}$" /></div>
+          <div class="rule-field"><label>空值处理</label><select class="select" id="regexNullPolicy"><option>空值跳过格式检测</option><option>空值也算异常</option></select></div>
+          <div class="rule-field"><label>示例值</label><input class="search" id="regexSample" value="13800138000" /></div>
+        `
+      },
+      CUSTOM_SQL: {
+        label: '自定义 SQL',
+        defaultName: '自定义异常 SQL 检测',
+        defaultField: '',
+        level: 'TABLE',
+        issueType: '自定义质量异常',
+        abnormalRows: 5,
+        params: `
+          <div class="rule-alert warn">自定义 SQL 必须返回 abnormal_count 字段。建议只写 SELECT，不允许在质量规则里执行 DDL/DML。</div>
+          <div class="rule-field span-2"><label>检测 SQL</label><textarea class="textarea" id="customSql">select count(*) as abnormal_count
+from ${selected.name}
+where amount < 0 or order_no is null</textarea></div>
+        `
+      }
+    }
+
+    function getInlineDetailMarkup() {
+      return `
+        <div class="asset-inline-detail-wrap">
+          <div class="detail asset-inline-detail-shell">
+            <div class="detail-main">
+              <span class="muted">当前资产详情</span>
+              <span class="tag ${qualityClass(selected.quality)}" id="detailQuality">${selected.qualityText}</span>
+              <button class="btn tiny" id="editAssetBtn">编辑元数据</button>
+            </div>
+            <div class="tabs">
+              <button class="tab ${activeTab === 'overview' ? 'active' : ''}" data-tab="overview">概览</button>
+              <button class="tab ${activeTab === 'columns' ? 'active' : ''}" data-tab="columns">字段</button>
+              <button class="tab ${activeTab === 'quality' ? 'active' : ''}" data-tab="quality">质量</button>
+              <button class="tab ${activeTab === 'lineage' ? 'active' : ''}" data-tab="lineage">血缘</button>
+              <button class="tab ${activeTab === 'issues' ? 'active' : ''}" data-tab="issues">问题</button>
+            </div>
+            <div class="tab-content" id="tabContent"></div>
+          </div>
+        </div>
+      `
+    }
+
+    function bindInlineDetailEvents() {
+      document.querySelectorAll('.tab').forEach(btn => {
+        btn.addEventListener('click', (event) => {
+          event.stopPropagation()
+          activeTab = btn.dataset.tab
+          document.querySelectorAll('.tab').forEach(item => item.classList.toggle('active', item === btn))
+          renderTab()
+        })
+      })
+      const editBtn = document.getElementById('editAssetBtn')
+      if (editBtn) editBtn.addEventListener('click', (event) => {
+        event.stopPropagation()
+        openAssetModal()
+      })
+    }
+
+    function renderAssets(list = assets) {
+      const rows = document.getElementById('assetRows')
+      rows.innerHTML = list.map((asset) => {
+        const isExpanded = asset.name === expandedAssetName && asset.name === selected.name
+        return `
+          <tr class="asset-row ${isExpanded ? 'active' : ''}" data-name="${asset.name}">
+            <td><div class="asset-name"><strong>${asset.name}</strong><span>${asset.path}</span></div></td>
+            <td><div class="tag-row">${asset.tags.map(tag => `<span class="tag blue">${tag}</span>`).join('')}</div></td>
+            <td>${asset.owner}</td>
+            <td><span class="tag ${qualityClass(asset.quality)}">${asset.qualityText}</span></td>
+            <td>${asset.lineage} 条</td>
+            <td><span class="muted">${asset.syncTask}</span></td>
+          </tr>
+          ${isExpanded ? `<tr class="asset-detail-row"><td colspan="6">${getInlineDetailMarkup()}</td></tr>` : ''}
+        `
+      }).join('')
+      document.querySelectorAll('.asset-row').forEach(row => {
+        row.addEventListener('click', () => {
+          const clickedName = row.dataset.name
+          if (expandedAssetName === clickedName) {
+            expandedAssetName = ''
+            renderAssets(list)
+            return
+          }
+          selected = assets.find(item => item.name === clickedName) || assets[0]
+          expandedAssetName = selected.name
+          activeTab = 'overview'
+          renderAssets(list)
+        })
+      })
+      if (expandedAssetName) {
+        bindInlineDetailEvents()
+        renderDetail()
+      }
+    }
+
+    function datasourceOptions() {
+      const sources = [...new Set(assets
+        .filter(item => !filterState.type || item.type === filterState.type)
+        .map(item => item.datasource))]
+      return sources.sort()
+    }
+
+    function databaseOptions() {
+      const databases = [...new Set(assets
+        .filter(item => !filterState.type || item.type === filterState.type)
+        .filter(item => !filterState.datasource || item.datasource === filterState.datasource)
+        .map(item => `${item.database}${item.schema ? `.${item.schema}` : ''}`))]
+      return databases.sort()
+    }
+
+    function updateFilterCounts() {
+      const counters = {
+        ALL: assets.length,
+        MYSQL: assets.filter(item => item.type === 'MYSQL').length,
+        POSTGRESQL: assets.filter(item => item.type === 'POSTGRESQL').length,
+        DORIS: assets.filter(item => item.type === 'DORIS').length,
+        HEALTHY: assets.filter(item => item.quality === 'HEALTHY').length,
+        WARNING: assets.filter(item => item.quality === 'WARNING').length,
+        FAILED: assets.filter(item => item.quality === 'FAILED').length,
+        HAS_LINEAGE: assets.filter(item => item.lineage > 0).length,
+        NO_OWNER: assets.filter(item => item.owner === '未分配').length,
+        HAS_ISSUE: assets.filter(item => item.issues > 0).length
+      }
+      ;['核心表', '敏感', 'ODS', '订单'].forEach(tag => {
+        counters[tag] = assets.filter(item => item.tags.includes(tag)).length
+      })
+      document.querySelectorAll('[data-count]').forEach(el => {
+        const key = el.dataset.count
+        el.textContent = `(${counters[key] || 0})`
+      })
+    }
+
+    function syncSelectOptions() {
+      const sourceSelects = [document.getElementById('toolbarDatasourceFilter')]
+      sourceSelects.forEach(select => {
+        if (!select) return
+        const value = filterState.datasource
+        select.innerHTML = '<option value="">全部数据源</option>' + datasourceOptions().map(source => `<option value="${source}">${source}</option>`).join('')
+        select.value = value
+      })
+
+      const databaseSelects = [document.getElementById('toolbarDatabaseFilter')]
+      databaseSelects.forEach(select => {
+        if (!select) return
+        const value = filterState.database
+        select.innerHTML = '<option value="">全部数据库</option>' + databaseOptions().map(database => `<option value="${database}">${database}</option>`).join('')
+        select.value = value
+      })
+
+      document.getElementById('ownerFilter').value = filterState.owner
+      document.getElementById('toolbarQualityFilter').value = filterState.quality
+      document.getElementById('sortFilter').value = filterState.sort
+    }
+
+    function initSidebarResize() {
+      const workspace = document.querySelector('.workspace')
+      const resizer = document.getElementById('sideResizer')
+      if (!workspace || !resizer) return
+
+      const storageKey = 'dg_sidebar_width'
+      const defaultWidth = 220
+      const collapseThreshold = 96
+      const minWidth = 180
+      const maxWidth = 360
+      const clampWidth = width => {
+        if (width <= collapseThreshold) return 0
+        return Math.max(minWidth, Math.min(maxWidth, width))
+      }
+      const applyWidth = width => {
+        const nextWidth = clampWidth(width)
+        workspace.classList.toggle('sidebar-collapsed', nextWidth === 0)
+        workspace.style.setProperty('--side-width', `${nextWidth}px`)
+      }
+
+      const savedWidth = Number(localStorage.getItem(storageKey))
+      if (Number.isFinite(savedWidth) && savedWidth >= 0) {
+        applyWidth(savedWidth)
+      }
+
+      resizer.addEventListener('mousedown', event => {
+        if (window.matchMedia('(max-width: 1280px)').matches) return
+        event.preventDefault()
+        document.body.classList.add('resizing-sidebar')
+
+        const startX = event.clientX
+        const startWidth = parseFloat(getComputedStyle(workspace).getPropertyValue('--side-width')) || defaultWidth
+
+        const onMove = moveEvent => {
+          applyWidth(startWidth + moveEvent.clientX - startX)
+        }
+
+        const onUp = () => {
+          document.body.classList.remove('resizing-sidebar')
+          const currentWidth = parseFloat(getComputedStyle(workspace).getPropertyValue('--side-width'))
+          localStorage.setItem(storageKey, String(clampWidth(currentWidth)))
+          window.removeEventListener('mousemove', onMove)
+          window.removeEventListener('mouseup', onUp)
+        }
+
+        window.addEventListener('mousemove', onMove)
+        window.addEventListener('mouseup', onUp)
+      })
+
+      resizer.addEventListener('dblclick', () => {
+        applyWidth(defaultWidth)
+        localStorage.setItem(storageKey, String(defaultWidth))
+      })
+    }
+
+    function applyFilters() {
+      let list = assets.filter(item => {
+        const database = `${item.database}${item.schema ? `.${item.schema}` : ''}`
+        const keyword = `${item.name} ${item.path} ${item.tags.join(' ')} ${item.owner} ${item.datasource} ${database}`.toLowerCase()
+        return (!filterState.type || item.type === filterState.type)
+          && (!filterState.datasource || item.datasource === filterState.datasource)
+          && (!filterState.database || database === filterState.database)
+          && (!filterState.quality || item.quality === filterState.quality)
+          && (!filterState.owner || item.owner === filterState.owner)
+          && (!filterState.tag || item.tags.includes(filterState.tag))
+          && (!filterState.governance || (
+            filterState.governance === 'HAS_LINEAGE' ? item.lineage > 0
+              : filterState.governance === 'NO_OWNER' ? item.owner === '未分配'
+                : filterState.governance === 'HAS_ISSUE' ? item.issues > 0
+                  : true
+          ))
+          && (!filterState.keyword || keyword.includes(filterState.keyword))
+      })
+      if (filterState.sort === 'NAME') {
+        list = list.sort((left, right) => left.name.localeCompare(right.name))
+      }
+      if (filterState.sort === 'ISSUE') {
+        list = list.sort((left, right) => right.issues - left.issues)
+      }
+      selected = list[0] || assets[0]
+      expandedAssetName = list.length ? selected.name : ''
+      activeTab = 'overview'
+      syncSelectOptions()
+      renderAssets(list)
+    }
+
+    function renderDetail() {
+      if (!expandedAssetName || !document.getElementById('detailQuality')) return
+      document.getElementById('detailQuality').textContent = selected.qualityText
+      document.getElementById('detailQuality').className = `tag ${qualityClass(selected.quality)}`
+      renderTab()
+    }
+
+    function showToast(message) {
+      const toast = document.getElementById('toast')
+      toast.textContent = message
+      toast.classList.add('open')
+      clearTimeout(showToast.timer)
+      showToast.timer = setTimeout(() => toast.classList.remove('open'), 1800)
+    }
+
+    function bindTabActions() {
+      document.querySelectorAll('[data-action]').forEach(el => {
+        el.addEventListener('click', (event) => {
+          const action = event.currentTarget.dataset.action
+          const name = event.currentTarget.dataset.name || selected.name
+          if (action === 'run-rule') {
+            showToast(`已触发“${name}”试运行，结果会写入质量历史。`)
+          } else if (action === 'history') {
+            showToast(`已打开“${name}”最近 7 次检测历史。`)
+          } else if (action === 'edit-rule') {
+            openRuleModal()
+            document.getElementById('ruleName').value = name
+            updateRulePreview()
+          } else if (action === 'disable-rule') {
+            showToast(`“${name}”已禁用，后续同步完成后不再自动检测。`)
+          } else if (action === 'open-asset') {
+            selected = assets.find(item => item.name === name) || selected
+            expandedAssetName = selected.name
+            activeTab = 'overview'
+            renderAssets()
+            showToast(`已定位到上游资产：${selected.name}`)
+          } else if (action === 'open-downstream') {
+            showToast('下游资产 order_dashboard 暂未接入当前数据源，二开时跳转到资产详情。')
+          } else if (action === 'open-sync-task') {
+            showToast(`将跳转到同步任务详情：${selected.syncTask}`)
+          } else if (action === 'issue-note') {
+            showToast(`已为“${name}”添加处理备注入口。`)
+          } else if (action === 'issue-transfer') {
+            showToast(`已打开“${name}”转派责任人入口。`)
+          } else if (action === 'issue-resolve') {
+            showToast(`“${name}”状态已变更为已解决。`)
+          } else if (action === 'issue-ignore') {
+            showToast(`“${name}”状态已变更为已忽略。`)
+          }
+        })
+      })
+    }
+
+    function renderTab() {
+      const tab = document.getElementById('tabContent')
+      if (activeTab === 'overview') {
+        tab.innerHTML = `
+          <div class="kv-grid">
+            <div class="kv"><span>Owner</span><strong>${selected.owner}</strong></div>
+            <div class="kv"><span>字段数</span><strong>${selected.columns}</strong></div>
+            <div class="kv"><span>最近检测</span><strong>${selected.lastCheck}</strong></div>
+            <div class="kv"><span>最近同步</span><strong>${selected.syncTask}</strong></div>
+          </div>
+          <div class="quality-card">
+            <strong>资产说明</strong>
+            <span class="muted">由同步任务沉淀的订单事实表，作为 ODS 层订单分析基础数据。</span>
+          </div>
+          <div class="quality-card">
+            <strong>治理建议</strong>
+            <span class="muted">${selected.issues ? `存在 ${selected.issues} 个待处理问题，建议优先处理质量规则异常。` : '当前资产治理状态良好。'}</span>
+          </div>
+        `
+      } else if (activeTab === 'columns') {
+        tab.innerHTML = `
+          <table class="mini-table">
+            <thead><tr><th>字段</th><th>类型</th><th>注释</th><th>约束</th><th>标签</th></tr></thead>
+            <tbody>
+              ${columns.map(col => `<tr><td>${col[0]}</td><td>${col[1]}</td><td>${col[2]}</td><td>${col[3]} ${col[4]}</td><td>${col[5] ? `<span class="tag amber">${col[5]}</span>` : '-'}</td></tr>`).join('')}
+            </tbody>
+          </table>
+        `
+      } else if (activeTab === 'quality') {
+        tab.innerHTML = `
+          <div class="rule-alert">质量规则保存后展示在当前资产详情的“质量”Tab 中；治理首页和资产目录只展示质量状态汇总，点击后定位到这里。</div>
+          ${qualityRules.map(rule => `
+            <div class="quality-card">
+              <div class="card-head">
+                <div class="card-title"><strong>${rule.name}</strong><span class="muted">${rule.level}；${rule.summary}</span></div>
+                <span class="tag ${rule.statusClass}">${rule.status}</span>
+              </div>
+              <div class="card-actions">
+                <button class="btn tiny" data-action="run-rule" data-name="${rule.name}">立即检测</button>
+                <button class="btn tiny" data-action="history" data-name="${rule.name}">历史结果</button>
+                <button class="btn tiny" data-action="edit-rule" data-name="${rule.name}">编辑</button>
+                <button class="btn tiny" data-action="disable-rule" data-name="${rule.name}">禁用</button>
+              </div>
+            </div>
+          `).join('')}
+        `
+      } else if (activeTab === 'lineage') {
+        tab.innerHTML = `
+          <div class="lineage">
+            <div class="lineage-guide">
+              <strong>当前表血缘</strong>
+              <span>这里展示当前表和字段的上下游关系，来源于同步任务保存和执行时沉淀的源表、目标表、字段映射信息。</span>
+            </div>
+            <div class="lineage-flow">
+              <div class="node clickable" data-action="open-asset" data-name="customer_orders"><strong>customer_orders</strong><div class="muted">MySQL 源表</div></div>
+              <div class="arrow">→</div>
+              <div class="node current"><strong>${selected.name}</strong><div class="muted">当前资产</div></div>
+              <div class="arrow">→</div>
+              <div class="node clickable" data-action="open-downstream"><strong>order_dashboard</strong><div class="muted">下游分析表</div></div>
+            </div>
+            <div class="lineage-task">
+              <div>
+                <strong>血缘来源：${selected.syncTask}</strong>
+                <span class="muted">由同步任务保存/执行时自动沉淀，最近运行 SUCCESS。</span>
+              </div>
+              <button class="btn" data-action="open-sync-task">查看同步任务</button>
+            </div>
+          </div>
+        `
+      } else {
+        tab.innerHTML = `
+          <div class="issue-card">
+            <div class="card-head">
+              <div class="card-title"><strong>订单号空值异常</strong><span class="muted">严重程度：高；责任人：${selected.owner}；来源：order_no 非空校验</span></div>
+              <span class="tag red">质量异常</span>
+            </div>
+            <div class="status-flow">
+              <span class="status-step">待处理</span>
+              <span class="status-step active">处理中</span>
+              <span class="status-step">已解决</span>
+              <span class="status-step">已忽略</span>
+            </div>
+            <div class="card-actions">
+              <button class="btn tiny" data-action="issue-note" data-name="订单号空值异常">添加备注</button>
+              <button class="btn tiny" data-action="issue-transfer" data-name="订单号空值异常">转派</button>
+              <button class="btn tiny" data-action="issue-resolve" data-name="订单号空值异常">标记解决</button>
+              <button class="btn tiny" data-action="issue-ignore" data-name="订单号空值异常">忽略</button>
+            </div>
+          </div>
+          <div class="issue-card">
+            <div class="card-head">
+              <div class="card-title"><strong>手机号字段缺少敏感标签</strong><span class="muted">严重程度：中；责任人：平台管理员；来源：人工巡检</span></div>
+              <span class="tag amber">标签治理</span>
+            </div>
+            <div class="status-flow">
+              <span class="status-step active">待处理</span>
+              <span class="status-step">处理中</span>
+              <span class="status-step">已解决</span>
+              <span class="status-step">已忽略</span>
+            </div>
+            <div class="card-actions">
+              <button class="btn tiny" data-action="issue-note" data-name="手机号字段缺少敏感标签">添加备注</button>
+              <button class="btn tiny" data-action="issue-transfer" data-name="手机号字段缺少敏感标签">转派</button>
+              <button class="btn tiny" data-action="issue-resolve" data-name="手机号字段缺少敏感标签">标记解决</button>
+              <button class="btn tiny" data-action="issue-ignore" data-name="手机号字段缺少敏感标签">忽略</button>
+            </div>
+          </div>
+        `
+      }
+      bindTabActions()
+    }
+
+    document.querySelectorAll('.chip, .metric').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.chip, .metric').forEach(item => item.classList.remove('active'))
+        btn.classList.add('active')
+        const filter = btn.dataset.filter
+        if (filter === 'ALL') {
+          filterState.type = ''
+          filterState.quality = ''
+          filterState.governance = ''
+          filterState.tag = ''
+        } else if (filter === 'QUALITY_WARN') {
+          filterState.quality = ''
+          filterState.governance = 'HAS_ISSUE'
+        } else if (filter === 'ISSUES') {
+          filterState.governance = 'HAS_ISSUE'
+        } else if (['MYSQL', 'POSTGRESQL', 'DORIS'].includes(filter)) {
+          filterState.type = filter
+          filterState.datasource = ''
+          filterState.database = ''
+        } else if (['HEALTHY', 'WARNING', 'FAILED'].includes(filter)) {
+          filterState.quality = filter
+        } else if (['HAS_LINEAGE', 'NO_OWNER', 'HAS_ISSUE'].includes(filter)) {
+          filterState.governance = filter
+        } else {
+          filterState.tag = filter
+        }
+        applyFilters()
+      })
+    })
+
+    document.getElementById('searchInput').addEventListener('input', (event) => {
+      filterState.keyword = event.target.value.trim().toLowerCase()
+      applyFilters()
+    })
+
+    ;['toolbarDatasourceFilter'].forEach(id => {
+      document.getElementById(id).addEventListener('change', (event) => {
+        filterState.datasource = event.target.value
+        filterState.database = ''
+        applyFilters()
+      })
+    })
+
+    ;['toolbarDatabaseFilter'].forEach(id => {
+      document.getElementById(id).addEventListener('change', (event) => {
+        filterState.database = event.target.value
+        applyFilters()
+      })
+    })
+
+    document.getElementById('ownerFilter').addEventListener('change', (event) => {
+      filterState.owner = event.target.value
+      applyFilters()
+    })
+
+    document.getElementById('toolbarQualityFilter').addEventListener('change', (event) => {
+      filterState.quality = event.target.value
+      applyFilters()
+    })
+
+    document.getElementById('sortFilter').addEventListener('change', (event) => {
+      filterState.sort = event.target.value
+      applyFilters()
+    })
+
+    const openRuleModal = () => {
+      document.getElementById('ruleAsset').value = selected.path
+      applyRuleTypeDefaults()
+      document.getElementById('ruleModal').classList.add('open')
+    }
+
+    const closeRuleModal = () => {
+      document.getElementById('ruleModal').classList.remove('open')
+    }
+
+    document.getElementById('ruleBtn').addEventListener('click', openRuleModal)
+    document.getElementById('closeModal').addEventListener('click', closeRuleModal)
+    document.getElementById('ruleModal').addEventListener('click', (event) => {
+      if (event.target.id === 'ruleModal') closeRuleModal()
+    })
+
+    function openAssetModal() {
+      document.getElementById('assetEditPath').value = selected.path
+      document.getElementById('assetEditOwner').value = selected.owner
+      document.getElementById('assetEditTags').value = selected.tags.join(', ')
+      document.getElementById('assetModal').classList.add('open')
+    }
+
+    function closeAssetModal() {
+      document.getElementById('assetModal').classList.remove('open')
+    }
+
+    document.getElementById('closeAssetModal').addEventListener('click', closeAssetModal)
+    document.getElementById('cancelAssetEdit').addEventListener('click', closeAssetModal)
+    document.getElementById('assetModal').addEventListener('click', (event) => {
+      if (event.target.id === 'assetModal') closeAssetModal()
+    })
+    document.getElementById('saveAssetEdit').addEventListener('click', () => {
+      selected.owner = document.getElementById('assetEditOwner').value
+      selected.tags = document.getElementById('assetEditTags').value.split(',').map(item => item.trim()).filter(Boolean)
+      renderAssets()
+      closeAssetModal()
+      showToast('资产元数据已保存，Owner 和标签已回显到当前资产。')
+    })
+
+    function renderRuleFieldOptions(selectedField) {
+      const options = columns.map(col => col[0])
+      if (!options.includes('status')) options.push('status')
+      document.getElementById('ruleField').innerHTML = options.map(field => `<option ${field === selectedField ? 'selected' : ''}>${field}</option>`).join('')
+    }
+
+    function applyRuleTypeDefaults() {
+      const type = document.getElementById('ruleType').value
+      const meta = ruleTypeMeta[type]
+      sqlEditMode = 'AUTO'
+      document.getElementById('ruleName').value = meta.defaultName
+      document.getElementById('ruleLevel').value = meta.level
+      renderRuleFieldOptions(meta.defaultField || 'order_no')
+      document.getElementById('ruleField').disabled = meta.level === 'TABLE'
+      document.getElementById('ruleFieldWrap').classList.toggle('hidden', meta.level === 'TABLE')
+      renderRuleParams()
+      updateScopeWhereState()
+      updateRulePreview()
+    }
+
+    function renderRuleParams() {
+      const type = document.getElementById('ruleType').value
+      document.getElementById('paramPanel').innerHTML = ruleTypeMeta[type].params
+      document.getElementById('paramPanel').querySelectorAll('input, select, textarea').forEach(input => {
+        input.addEventListener('input', updateRulePreview)
+        input.addEventListener('change', updateRulePreview)
+      })
+    }
+
+    function updateScopeWhereState() {
+      const isCustomWhere = document.getElementById('scopeType').value === 'WHERE'
+      document.getElementById('scopeWhere').disabled = !isCustomWhere
+      if (!isCustomWhere) {
+        const scopeText = {
+          FULL: '',
+          LAST_1_DAY: "dt >= current_date - interval '1 day'",
+          LAST_7_DAYS: "dt >= current_date - interval '7 day'"
+        }[document.getElementById('scopeType').value]
+        document.getElementById('scopeWhere').value = scopeText
+      }
+    }
+
+    function getRuleCondition() {
+      const type = document.getElementById('ruleType').value
+      const field = document.getElementById('ruleField').value
+      const getValue = (id, fallback = '') => document.getElementById(id)?.value || fallback
+      if (type === 'NOT_NULL') return `${field} 不能为 NULL、空字符串或空格`
+      if (type === 'UNIQUE') return `${getValue('uniqueFields', field)} 组合值不能重复`
+      if (type === 'RANGE') return `${field} 必须在 ${getValue('rangeMin', '0')} 到 ${getValue('rangeMax', '1000000')} 之间`
+      if (type === 'ENUM') return `${field} 必须属于：${getValue('enumValues', 'CREATED, PAID, CLOSED')}`
+      if (type === 'REGEX') return `${field} 必须匹配正则：${getValue('regexPattern', '^1[3-9][0-9]{9}$')}`
+      return `SQL 必须返回 abnormal_count，且 abnormal_count 等于异常记录数`
+    }
+
+    function getScopeText() {
+      const scope = document.getElementById('scopeType').value
+      if (scope === 'FULL') return '全表'
+      if (scope === 'LAST_1_DAY') return '最近 1 天增量'
+      if (scope === 'LAST_7_DAYS') return '最近 7 天增量'
+      return `WHERE ${document.getElementById('scopeWhere').value || '未填写'}`
+    }
+
+    function getScopeSqlPrefix() {
+      const scope = document.getElementById('scopeType').value
+      if (scope === 'FULL') return ''
+      if (scope === 'LAST_1_DAY') return "dt >= current_date - interval '1 day'"
+      if (scope === 'LAST_7_DAYS') return "dt >= current_date - interval '7 day'"
+      return document.getElementById('scopeWhere').value || '1 = 1'
+    }
+
+    function joinWhere(...conditions) {
+      return conditions.filter(Boolean).map(item => `(${item})`).join('\n  and ')
+    }
+
+    function getSampleLimit() {
+      const policy = document.getElementById('samplePolicy')?.value || '保存前 50 条异常样本'
+      if (policy === '仅保存异常数量') return 0
+      if (policy === '保存前 200 条异常样本') return 200
+      return 50
+    }
+
+    function getThresholdExpression() {
+      const threshold = document.getElementById('failThreshold').value
+      if (threshold === 'RATE_GT_1') return 'abnormal_rate > 0.01'
+      if (threshold === 'RATE_GT_5') return 'abnormal_rate > 0.05'
+      if (threshold === 'CUSTOM') return 'abnormal_count > :custom_threshold'
+      return 'abnormal_count > 0'
+    }
+
+    function getNotNullCondition(field) {
+      const policy = document.getElementById('emptyPolicy')?.value || 'NULL、空字符串、空格都算异常'
+      if (policy === '仅 NULL 算异常') return `${field} is null`
+      if (policy === 'NULL 和空字符串算异常') return `${field} is null or cast(${field} as varchar) = ''`
+      return `${field} is null or trim(cast(${field} as varchar)) = ''`
+    }
+
+    function getRangeCondition(field) {
+      const min = document.getElementById('rangeMin')?.value || '0'
+      const max = document.getElementById('rangeMax')?.value || '1000000'
+      const inclusive = document.getElementById('rangeInclusive')?.value || '包含最小值和最大值'
+      const nullPolicy = document.getElementById('rangeNullPolicy')?.value || '空值不参与范围检测'
+      const lowOp = inclusive === '只包含最大值' || inclusive === '均不包含' ? '<=' : '<'
+      const highOp = inclusive === '只包含最小值' || inclusive === '均不包含' ? '>=' : '>'
+      const range = `${field} ${lowOp} ${min} or ${field} ${highOp} ${max}`
+      return nullPolicy === '空值也算异常' ? `${field} is null or ${range}` : range
+    }
+
+    function getEnumCondition(field) {
+      const values = (document.getElementById('enumValues')?.value || 'CREATED, PAID, CLOSED')
+        .split(',')
+        .map(item => item.trim())
+        .filter(Boolean)
+      const casePolicy = document.getElementById('enumCase')?.value || '区分大小写'
+      const nullPolicy = document.getElementById('enumNullPolicy')?.value || '空值单独按非空规则处理'
+      const left = casePolicy === '忽略大小写' ? `upper(${field})` : field
+      const normalizedValues = values.map(item => casePolicy === '忽略大小写' ? item.toUpperCase() : item)
+      const enumSql = `${left} not in (${normalizedValues.map(item => `'${item}'`).join(', ')})`
+      return nullPolicy === '空值也按枚举异常处理' ? `${field} is null or ${enumSql}` : enumSql
+    }
+
+    function getRegexCondition(field) {
+      const pattern = document.getElementById('regexPattern')?.value || '^1[3-9][0-9]{9}$'
+      const nullPolicy = document.getElementById('regexNullPolicy')?.value || '空值跳过格式检测'
+      const regex = `not regexp_like(${field}, '${pattern}')`
+      return nullPolicy === '空值也算异常' ? `${field} is null or ${regex}` : `${field} is not null and ${regex}`
+    }
+
+    function getRuleSqlParts() {
+      const type = document.getElementById('ruleType').value
+      const table = selected.name
+      const field = document.getElementById('ruleField').value
+      const scope = getScopeSqlPrefix()
+      const getValue = (id, fallback = '') => document.getElementById(id)?.value || fallback
+      if (type === 'CUSTOM_SQL') {
+        const countSql = `${getValue('customSql', 'select count(*) as abnormal_count from ' + table)};`
+        return { countSql, sampleSql: '-- 自定义 SQL 规则的异常样本由 SQL 自身决定。', thresholdSql: `-- 失败判定\nselect case when ${getThresholdExpression()} then 'FAILED' else 'PASSED' end as check_result\nfrom rule_result;` }
+      }
+      const abnormalCondition = {
+        NOT_NULL: getNotNullCondition(field),
+        UNIQUE: `${getValue('uniqueFields', field)} in (
+  select ${getValue('uniqueFields', field)}
+  from ${table}
+  group by ${getValue('uniqueFields', field)}
+  having count(*) > 1
+)`,
+        RANGE: getRangeCondition(field),
+        ENUM: getEnumCondition(field),
+        REGEX: getRegexCondition(field)
+      }[type]
+      const where = joinWhere(scope, abnormalCondition)
+      const sampleLimit = getSampleLimit()
+      const countSql = `-- 异常统计 SQL
+select count(*) as abnormal_count,
+       count(*) * 1.0 / nullif((select count(*) from ${table}${scope ? ` where ${scope}` : ''}), 0) as abnormal_rate
+from ${table}
+where ${where};`
+      const sampleSql = sampleLimit
+        ? `-- 异常样本 SQL，受“样本保存”控制
+select *
+from ${table}
+where ${where}
+limit ${sampleLimit};`
+        : `-- 异常样本 SQL
+-- 当前选择“仅保存异常数量”，不保存异常明细样本。`
+      const thresholdSql = `-- 失败判定 SQL，受“失败阈值”控制
+select case when ${getThresholdExpression()} then 'FAILED' else 'PASSED' end as check_result
+from rule_result;`
+      return { countSql, sampleSql, thresholdSql }
+    }
+
+    function getRuleSql() {
+      const parts = getRuleSqlParts()
+      return [parts.countSql, parts.sampleSql, parts.thresholdSql].join('\n\n')
+    }
+
+    function getEffectiveRuleSql() {
+      return document.getElementById('ruleSqlEditor')?.value.trim() || ''
+    }
+
+    function setSqlEditMode(mode) {
+      sqlEditMode = mode
+      const tag = document.getElementById('sqlModeTag')
+      const hint = document.getElementById('sqlModeHint')
+      if (!tag || !hint) return
+      const isManual = mode === 'MANUAL'
+      tag.textContent = isManual ? '手工编辑' : '系统生成'
+      tag.className = `tag ${isManual ? 'amber' : 'green'}`
+      hint.textContent = isManual
+        ? '当前 SQL 已由用户调整，修改规则条件不会自动覆盖；点击“重新生成 SQL”可恢复系统 SQL。'
+        : '规则条件变化时自动刷新 SQL；手工编辑后不会被覆盖。'
+    }
+
+    function syncRuleSqlEditor(force = false) {
+      const editor = document.getElementById('ruleSqlEditor')
+      if (!editor) return
+      lastGeneratedRuleSql = getRuleSql()
+      if (force || sqlEditMode === 'AUTO') {
+        editor.value = lastGeneratedRuleSql
+        setSqlEditMode('AUTO')
+      } else {
+        setSqlEditMode('MANUAL')
+      }
+    }
+
+    function regenerateRuleSql() {
+      syncRuleSqlEditor(true)
+      showToast('已按当前规则条件重新生成检测 SQL。')
+      renderRuleValidation()
+    }
+
+    function validateRule() {
+      const type = document.getElementById('ruleType').value
+      const level = document.getElementById('ruleLevel').value
+      const sql = getEffectiveRuleSql()
+      const validations = [
+        { label: selected ? '资产已选择' : '资产未选择', ok: Boolean(selected) },
+        { label: level === 'TABLE' ? '表级规则' : '字段已选择', ok: level === 'TABLE' || Boolean(document.getElementById('ruleField').value) },
+        { label: '失败阈值已设置', ok: Boolean(document.getElementById('failThreshold').value) },
+        { label: '检测 SQL 已填写', ok: Boolean(sql) },
+        { label: sql.toLowerCase().includes('abnormal_count') ? 'SQL 返回 abnormal_count' : 'SQL 缺少 abnormal_count', ok: sql.toLowerCase().includes('abnormal_count') }
+      ]
+      if (type !== 'CUSTOM_SQL') {
+        validations.push({ label: sql.toLowerCase().includes('check_result') ? 'SQL 包含失败判定' : 'SQL 缺少失败判定', ok: sql.toLowerCase().includes('check_result') })
+      }
+      return validations
+    }
+
+    function renderRuleValidation() {
+      document.getElementById('ruleValidation').innerHTML = validateRule().map(item => `
+        <div class="validation-item"><span class="dot ${item.ok ? '' : 'error'}"></span><span>${item.label}</span></div>
+      `).join('')
+    }
+
+    function updateRulePreview() {
+      const type = document.getElementById('ruleType').value
+      const meta = ruleTypeMeta[type]
+      const isTable = document.getElementById('ruleLevel').value === 'TABLE'
+      const field = isTable ? '整表' : (document.getElementById('ruleField').value || '未选择字段')
+      const thresholdText = document.getElementById('failThreshold').selectedOptions[0].textContent
+      const severity = document.getElementById('severity').value
+      const schedule = document.getElementById('schedule').value
+      const createIssue = document.getElementById('createIssue').checked ? '开启' : '关闭'
+      const escalation = document.getElementById('escalateIssue').checked ? '连续失败升级' : '不自动升级'
+      const autoClose = document.getElementById('autoCloseIssue').checked ? '检测通过自动关闭历史问题' : '历史问题需人工关闭'
+      syncRuleSqlEditor(false)
+      renderRuleValidation()
+      document.getElementById('rulePreview').textContent = [
+        `规则名称：${document.getElementById('ruleName').value}`,
+        `治理资产：${selected.path}`,
+        `规则类型：${meta.label}（${document.getElementById('ruleLevel').value === 'TABLE' ? '表级' : '字段级'}）`,
+        `检测对象：${field}`,
+        `检测范围：${getScopeText()}`,
+        `失败条件：${getRuleCondition()}`,
+        `失败阈值：${thresholdText}`,
+        `问题策略：${createIssue}自动生成“${meta.issueType}”问题，严重程度${severity}，${escalation}，${autoClose}`,
+        `执行频率：${schedule}`
+      ].join('\n')
+    }
+
+    function runRuleTest() {
+      const type = document.getElementById('ruleType').value
+      const meta = ruleTypeMeta[type]
+      const sql = getEffectiveRuleSql()
+      const rows = type === 'CUSTOM_SQL' ? 32680 : 128642
+      const hasUnsafeSql = /\b(delete|update|insert|drop|truncate|alter)\b/i.test(sql)
+      const hasCountSql = sql.toLowerCase().includes('abnormal_count')
+      if (!sql || hasUnsafeSql || !hasCountSql) {
+        document.getElementById('testResult').classList.remove('open')
+        updateRulePreview()
+        showToast(!sql ? '请先填写检测 SQL。' : hasUnsafeSql ? '检测 SQL 只允许查询类语句。' : '检测 SQL 必须返回 abnormal_count。')
+        return
+      }
+      const abnormal = sqlEditMode === 'MANUAL' && sql !== lastGeneratedRuleSql ? Math.max(1, Math.floor(meta.abnormalRows / 2) || 1) : meta.abnormalRows
+      const rate = `${((abnormal / rows) * 100).toFixed(3)}%`
+      const result = abnormal > 0 ? '失败' : '通过'
+      const tiles = document.querySelectorAll('#testResult .result-tile strong')
+      tiles[0].textContent = rows.toLocaleString()
+      tiles[1].textContent = abnormal.toLocaleString()
+      tiles[2].textContent = rate
+      tiles[3].textContent = result
+      document.getElementById('testResult').classList.add('open')
+      updateRulePreview()
+      document.getElementById('rulePreview').textContent += `\n\n试运行结果：使用${sqlEditMode === 'MANUAL' ? '手工编辑' : '系统生成'}检测 SQL，扫描 ${rows.toLocaleString()} 行，发现 ${abnormal} 行异常，预计${abnormal > 0 ? '生成 1 个治理问题' : '不生成治理问题'}。`
+    }
+
+    function persistRule(enabled = true) {
+      const validations = validateRule()
+      if (validations.some(item => !item.ok)) {
+        renderRuleValidation()
+        showToast('规则校验未通过，请先补齐检测字段和检测 SQL。')
+        return
+      }
+      const type = document.getElementById('ruleType').value
+      const meta = ruleTypeMeta[type]
+      const name = document.getElementById('ruleName').value.trim() || meta.defaultName
+      const level = document.getElementById('ruleLevel').value === 'TABLE' ? '表级' : '字段级'
+      const field = document.getElementById('ruleLevel').value === 'TABLE' ? '整表' : document.getElementById('ruleField').value
+      const scope = getScopeText()
+      const existing = qualityRules.find(rule => rule.name === name)
+      const rule = {
+        name,
+        level,
+        summary: `${meta.label}；对象：${field}；范围：${scope}；${enabled ? '已启用，等待首次检测' : '草稿，未启用'}`,
+        status: enabled ? '待检测' : '草稿',
+        statusClass: enabled ? 'blue' : ''
+      }
+      if (existing) {
+        Object.assign(existing, rule)
+      } else {
+        qualityRules.unshift(rule)
+      }
+      activeTab = 'quality'
+      expandedAssetName = selected.name
+      closeRuleModal()
+      renderAssets()
+      renderTab()
+      showToast(`“${name}”已${enabled ? '保存并启用' : '保存为草稿'}，可在当前资产的质量规则中查看和编辑。`)
+    }
+
+    document.getElementById('ruleType').addEventListener('change', applyRuleTypeDefaults)
+    document.getElementById('ruleLevel').addEventListener('change', () => {
+      const isTable = document.getElementById('ruleLevel').value === 'TABLE'
+      document.getElementById('ruleField').disabled = isTable
+      document.getElementById('ruleFieldWrap').classList.toggle('hidden', isTable)
+      updateRulePreview()
+    })
+    document.getElementById('scopeType').addEventListener('change', () => {
+      updateScopeWhereState()
+      updateRulePreview()
+    })
+    ;['ruleName', 'ruleField', 'scopeWhere', 'failThreshold', 'severity', 'schedule', 'createIssue', 'escalateIssue', 'autoCloseIssue'].forEach(id => {
+      document.getElementById(id).addEventListener('input', updateRulePreview)
+      document.getElementById(id).addEventListener('change', updateRulePreview)
+    })
+
+    document.getElementById('testRuleBtn').addEventListener('click', runRuleTest)
+    document.getElementById('saveRuleDraftBtn').addEventListener('click', () => persistRule(false))
+    document.getElementById('saveRuleEnableBtn').addEventListener('click', () => persistRule(true))
+    document.getElementById('ruleSqlEditor').addEventListener('input', () => {
+      if (document.getElementById('ruleSqlEditor').value !== lastGeneratedRuleSql) {
+        setSqlEditMode('MANUAL')
+      } else {
+        setSqlEditMode('AUTO')
+      }
+      renderRuleValidation()
+    })
+    document.getElementById('regenerateSqlBtn').addEventListener('click', regenerateRuleSql)
+    document.querySelectorAll('.preview-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        const target = tab.dataset.previewTab
+        document.querySelectorAll('.preview-tab').forEach(item => item.classList.toggle('active', item === tab))
+        document.getElementById('previewSummaryPane').classList.toggle('active', target === 'summary')
+        document.getElementById('previewSqlPane').classList.toggle('active', target === 'sql')
+      })
+    })
+    document.getElementById('refreshBtn').addEventListener('click', () => {
+      document.getElementById('refreshBtn').textContent = '同步中...'
+      showToast('正在扫描有权限的数据源、数据库、表和字段结构。')
+      setTimeout(() => document.getElementById('refreshBtn').textContent = '同步元数据', 1200)
+    })
+
+    updateFilterCounts()
+    initSidebarResize()
+    syncSelectOptions()
+    renderAssets()
+    applyRuleTypeDefaults()
+  </script>
+</body>
+</html>

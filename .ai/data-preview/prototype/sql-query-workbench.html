@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>数据预览 · SQL 查询原型</title>
+    <style>
+      :root {
+        --bg: #eef1f5;
+        --panel: #ffffff;
+        --panel-soft: #f7f8fa;
+        --line: #d8dde6;
+        --line-strong: #c6ccd6;
+        --text: #1f2937;
+        --text-soft: #596579;
+        --text-faint: #8a94a6;
+        --blue: #2563eb;
+        --blue-soft: #e8f0ff;
+        --green: #0f766e;
+        --green-soft: #e7f6f2;
+        --red: #b42318;
+        --red-soft: #fef3f2;
+        --yellow: #b54708;
+        --yellow-soft: #fff7ed;
+        --shadow: 0 12px 28px rgba(16, 24, 40, 0.08);
+      }
+
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        height: 100vh;
+        overflow: hidden;
+        color: var(--text);
+        background: var(--bg);
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+        font-size: 13px;
+      }
+      button, input, select, textarea { font: inherit; }
+      button { cursor: pointer; }
+
+      .app { height: 100vh; display: grid; grid-template-rows: 52px minmax(0, 1fr); }
+      .topbar {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 0 14px;
+        background: #fbfcfe;
+        border-bottom: 1px solid var(--line);
+      }
+      .brand { display: flex; align-items: center; gap: 8px; min-width: 122px; font-weight: 700; font-size: 14px; }
+      .brand-icon { width: 24px; height: 24px; border-radius: 6px; background: #2f6feb; display: grid; place-items: center; color: #fff; font-weight: 800; }
+      .selectbox { height: 32px; display: inline-flex; align-items: center; gap: 6px; padding: 0 10px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; min-width: 176px; }
+      .selectbox select { border: none; background: transparent; color: var(--text); font-weight: 650; outline: none; min-width: 118px; }
+      .table-context { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; color: var(--text-soft); }
+      .table-context strong { color: var(--text); font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .pill { display: inline-flex; align-items: center; height: 22px; padding: 0 7px; border: 1px solid var(--line); border-radius: 999px; background: var(--panel-soft); color: var(--text-soft); font-size: 12px; white-space: nowrap; }
+      .pill.blue { background: var(--blue-soft); color: #1649b8; border-color: #c8d7fb; }
+      .pill.green { background: var(--green-soft); color: #0f5f56; border-color: #bee4dc; }
+      .pill.yellow { background: var(--yellow-soft); color: var(--yellow); border-color: #fed7aa; }
+      .btn { height: 32px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--text); padding: 0 10px; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+      .btn.primary { border-color: #1d4ed8; background: #2563eb; color: #fff; }
+      .btn.danger { border-color: #fda29b; background: var(--red-soft); color: var(--red); }
+      .btn.icon { width: 32px; padding: 0; justify-content: center; }
+      .btn:active { transform: translateY(1px); }
+
+      .main { min-height: 0; display: grid; grid-template-columns: 288px minmax(0, 1fr); }
+      .sidebar { min-width: 0; display: grid; grid-template-rows: 44px 78px minmax(0, 1fr) 34px; border-right: 1px solid var(--line); background: #f8fafc; }
+      .tree-search { padding: 8px 10px; border-bottom: 1px solid var(--line); }
+      .tree-search input { width: 100%; height: 28px; border: 1px solid var(--line); border-radius: 6px; padding: 0 9px; background: #fff; color: var(--text); }
+      .recent { padding: 8px 10px; border-bottom: 1px solid var(--line); display: grid; gap: 6px; }
+      .section-title { color: var(--text-faint); font-size: 11px; text-transform: uppercase; letter-spacing: 0.03em; font-weight: 700; }
+      .recent-row { display: flex; align-items: center; gap: 7px; color: var(--text-soft); min-width: 0; cursor: pointer; }
+      .recent-row:hover { color: var(--blue); }
+      .recent-row span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .tree { overflow: auto; padding: 8px 6px 12px; }
+      .node { min-height: 30px; display: flex; align-items: center; gap: 6px; padding: 4px 8px; border-radius: 5px; color: var(--text-soft); user-select: none; }
+      .node.db { color: var(--text); font-weight: 650; }
+      .node.schema { margin-left: 14px; }
+      .node.group { margin-left: 28px; color: var(--text-faint); }
+      .node.table { margin-left: 42px; align-items: flex-start; min-height: 42px; cursor: pointer; }
+      .node.table:hover { background: #edf2f7; }
+      .node.active { background: var(--blue-soft); color: #1649b8; box-shadow: inset 3px 0 0 var(--blue); }
+      .node-main { min-width: 0; display: grid; gap: 2px; }
+      .node-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: inherit; }
+      .node-desc { color: var(--text-faint); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .sidebar-status { border-top: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; padding: 0 10px; color: var(--text-faint); font-size: 12px; }
+
+      .workspace { min-width: 0; min-height: 0; display: grid; grid-template-rows: 36px 42px 38px minmax(0, 1fr) 38px; background: var(--panel); }
+      .tabs { display: flex; align-items: end; gap: 4px; padding: 0 10px; background: #f4f6f9; border-bottom: 1px solid var(--line); overflow: hidden; }
+      .tab { height: 30px; display: flex; align-items: center; gap: 7px; padding: 0 10px; border: 1px solid var(--line); border-bottom: none; border-radius: 6px 6px 0 0; background: #e9edf3; color: var(--text-soft); max-width: 290px; }
+      .tab.active { background: #fff; color: var(--text); }
+      .table-tools { display: flex; align-items: center; gap: 8px; padding: 0 10px; border-bottom: 1px solid var(--line); background: #fff; }
+      .view-tabs { display: flex; align-items: center; gap: 4px; padding: 0 10px; border-bottom: 1px solid var(--line); background: #fbfcfe; }
+      .view-tab { height: 28px; border: 1px solid transparent; border-radius: 5px; background: transparent; color: var(--text-soft); padding: 0 10px; }
+      .view-tab.active { border-color: #c8d7fb; background: var(--blue-soft); color: #1649b8; font-weight: 650; }
+      .tool-spacer { flex: 1; }
+      .page-size { height: 28px; border: 1px solid var(--line); border-radius: 5px; background: #fff; color: var(--text-soft); padding: 0 7px; }
+      .content { min-height: 0; overflow: hidden; background: #fff; }
+      table { border-collapse: separate; border-spacing: 0; width: 100%; font-size: 13px; }
+      th, td { border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); height: 34px; padding: 0 9px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: left; }
+      th { position: sticky; top: 0; z-index: 2; background: #f1f4f8; color: #344054; font-weight: 650; height: 40px; }
+      .row-num { position: sticky; left: 0; z-index: 3; width: 54px; min-width: 54px; text-align: right; color: var(--text-faint); background: #f7f8fa; font-variant-numeric: tabular-nums; }
+      th.row-num { z-index: 4; }
+      .data-grid { width: max-content; min-width: 100%; }
+      .data-grid th, .data-grid td { max-width: 260px; }
+      .null { color: #6f7785; background: #eef0f3; border-radius: 4px; padding: 2px 5px; font-size: 12px; }
+      .statusbar { display: flex; align-items: center; gap: 14px; padding: 0 10px; border-top: 1px solid var(--line); background: #f8fafc; color: var(--text-soft); font-size: 12px; }
+      .status-left { display: flex; align-items: center; gap: 12px; min-width: 0; flex: 1; }
+      .status-dot { width: 7px; height: 7px; border-radius: 50%; background: #12b76a; }
+      .mini-btn { height: 24px; min-width: 26px; border: 1px solid var(--line); border-radius: 4px; background: #fff; color: var(--text-soft); display: inline-flex; align-items: center; justify-content: center; padding: 0 6px; cursor: pointer; }
+
+      .sql-workbench { height: 100%; min-height: 0; display: grid; grid-template-rows: 228px 36px minmax(0, 1fr); background: #fff; }
+      .sql-top { min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 320px; border-bottom: 1px solid var(--line); }
+      .editor-wrap { min-height: 0; display: grid; grid-template-rows: 38px minmax(0, 1fr); border-right: 1px solid var(--line); }
+      .sql-toolbar { display: flex; align-items: center; gap: 8px; padding: 0 10px; background: #fbfcfe; border-bottom: 1px solid var(--line); }
+      .sql-context { color: var(--text-soft); display: flex; align-items: center; gap: 8px; min-width: 0; }
+      .sql-editor-box { min-height: 0; display: grid; grid-template-columns: 48px minmax(0, 1fr); background: #0f172a; color: #dbeafe; }
+      .line-nums { padding: 10px 8px; text-align: right; color: #64748b; line-height: 1.55; border-right: 1px solid #233044; user-select: none; font: 13px/1.55 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; }
+      textarea.sql-editor {
+        width: 100%;
+        height: 100%;
+        resize: none;
+        border: none;
+        outline: none;
+        padding: 10px 12px;
+        color: #dbeafe;
+        background: #0f172a;
+        line-height: 1.55;
+        font: 13px/1.55 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      }
+      textarea.sql-editor::selection { background: rgba(96, 165, 250, 0.35); }
+      .side-panel { min-height: 0; display: grid; grid-template-rows: 38px minmax(0, 1fr); background: #fbfcfe; }
+      .side-head { display: flex; align-items: center; justify-content: space-between; padding: 0 10px; border-bottom: 1px solid var(--line); font-weight: 700; }
+      .history-list { overflow: auto; padding: 8px; display: grid; align-content: start; gap: 8px; }
+      .history-item { border: 1px solid var(--line); border-radius: 6px; background: #fff; padding: 8px; display: grid; gap: 5px; cursor: pointer; }
+      .history-item:hover { border-color: #c8d7fb; background: #f8fbff; }
+      .history-title { display: flex; justify-content: space-between; gap: 8px; font-weight: 700; }
+      .history-sql { color: var(--text-soft); font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .history-meta { color: var(--text-faint); font-size: 12px; }
+      .sql-message { display: flex; align-items: center; gap: 8px; padding: 0 10px; border-bottom: 1px solid var(--line); background: #fbfcfe; color: var(--text-soft); overflow: hidden; }
+      .sql-message.warn { background: var(--yellow-soft); color: var(--yellow); }
+      .sql-message.error { background: var(--red-soft); color: var(--red); }
+      .result-area { min-height: 0; display: grid; grid-template-rows: 36px minmax(0, 1fr); }
+      .result-tabs { display: flex; align-items: end; gap: 4px; padding: 0 10px; background: #f4f6f9; border-bottom: 1px solid var(--line); }
+      .result-tab { height: 28px; display: flex; align-items: center; gap: 7px; padding: 0 10px; border: 1px solid var(--line); border-bottom: none; border-radius: 6px 6px 0 0; background: #e9edf3; color: var(--text-soft); }
+      .result-tab.active { background: #fff; color: var(--text); }
+      .result-pane { min-height: 0; overflow: auto; }
+      .empty { padding: 32px; text-align: center; color: var(--text-faint); }
+      .explain { padding: 12px; display: grid; gap: 10px; }
+      .explain-card { border: 1px solid var(--line); border-radius: 7px; overflow: hidden; background: #fff; }
+      .explain-head { height: 36px; display: flex; align-items: center; gap: 8px; padding: 0 10px; background: #fbfcfe; border-bottom: 1px solid var(--line); font-weight: 700; }
+      .toast { position: fixed; left: 50%; bottom: 54px; transform: translateX(-50%); background: #101828; color: #fff; border-radius: 6px; padding: 9px 13px; box-shadow: var(--shadow); opacity: 0; pointer-events: none; transition: 0.18s ease; z-index: 30; }
+      .toast.show { opacity: 1; }
+
+      @media (max-width: 1200px) {
+        .main { grid-template-columns: 248px minmax(0, 1fr); }
+        .sql-top { grid-template-columns: minmax(0, 1fr) 260px; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <header class="topbar">
+        <div class="brand"><div class="brand-icon">D</div><span>数据预览</span></div>
+        <div class="selectbox">数据源&nbsp;<select id="datasourceSelect"></select></div>
+        <div class="selectbox">数据库&nbsp;<select id="databaseSelect"></select></div>
+        <div class="table-context">
+          <span>▦</span>
+          <strong id="currentTableTitle">ajxx_tab（案件信息表）</strong>
+          <span class="pill" id="fieldCount">10 字段</span>
+          <span class="pill blue" id="modePill">SQL查询</span>
+          <span class="pill green">只读模式</span>
+          <span class="pill yellow">最大 200 行</span>
+        </div>
+        <button class="btn primary" id="runTopBtn">▶ 执行</button>
+        <button class="btn" id="refreshBtn">刷新</button>
+        <button class="btn" id="exportBtn">导出</button>
+      </header>
+
+      <main class="main">
+        <aside class="sidebar">
+          <div class="tree-search"><input id="treeSearch" placeholder="搜索表名或注释" value="案件" /></div>
+          <div class="recent">
+            <div class="section-title">最近打开</div>
+            <div class="recent-row" data-table="ajxx_tab" data-comment="案件信息表"><span>▦</span><span>ajxx_tab · 案件信息表</span></div>
+            <div class="recent-row" data-table="case_flow_log" data-comment="案件流转日志"><span>▦</span><span>case_flow_log · 案件流转日志</span></div>
+          </div>
+          <div class="tree" id="tree"></div>
+          <div class="sidebar-status"><span id="treeStatus">已加载 4 张表</span><span id="treeReload">刷新</span></div>
+        </aside>
+
+        <section class="workspace">
+          <div class="tabs">
+            <div class="tab active"><span id="activeTab">ajxx_tab 案件信息表 · ds_demo</span><b>×</b></div>
+            <div class="tab"><span>case_flow_log</span><b>×</b></div>
+          </div>
+          <div class="table-tools">
+            <button class="btn icon" id="reloadIcon">↻</button>
+            <button class="btn">视图：默认视图 ▾</button>
+            <button class="btn">列设置</button>
+            <button class="btn">筛选</button>
+            <button class="btn">排序</button>
+            <button class="btn">关联</button>
+            <button class="btn" id="copySqlBtn">复制SQL</button>
+            <div class="tool-spacer"></div>
+            <select class="page-size" id="limitSelect"><option value="50">50 条/页</option><option value="100">100 条/页</option><option value="200">200 条/页</option></select>
+          </div>
+          <div class="view-tabs">
+            <button class="view-tab" data-mode="data">数据预览</button>
+            <button class="view-tab" data-mode="structure">表结构</button>
+            <button class="view-tab" data-mode="ddl">DDL</button>
+            <button class="view-tab" data-mode="relation">索引约束</button>
+            <button class="view-tab active" data-mode="sql">SQL查询</button>
+          </div>
+
+          <div class="content" id="content"></div>
+
+          <div class="statusbar">
+            <div class="status-left"><span class="status-dot" id="statusDot"></span><span id="rowStatus">SQL 查询就绪</span><span id="costStatus">未执行</span><span id="pathStatus">mysql_case_workbench / ds_demo / ajxx_tab</span></div>
+            <div id="rightStatus">当前连接：只读查询控制台</div>
+          </div>
+        </section>
+      </main>
+
+      <div class="toast" id="toast">已更新</div>
+    </div>
+
+    <script>
+      const catalogs = {
+        mysql_case_workbench: {
+          type: 'MySQL',
+          databases: {
+            ds_demo: [
+              { table: 'ajxx_tab', comment: '案件信息表' },
+              { table: 'case_flow_log', comment: '案件流转日志' },
+              { table: 'user_info', comment: '用户基础信息' },
+              { table: 'dept_dict', comment: '部门字典表' }
+            ]
+          }
+        },
+        pgsql_test1: {
+          type: 'PostgreSQL',
+          databases: {
+            public: [
+              { table: 'customer_profile', comment: '客户画像表' },
+              { table: 'order_snapshot', comment: '订单快照表' }
+            ]
+          }
+        }
+      };
+
+      const tableColumns = {
+        ajxx_tab: [
+          { name: 'id', comment: '主键 ID' },
+          { name: 'case_no', comment: '案件编号' },
+          { name: 'case_name', comment: '案件名称' },
+          { name: 'status', comment: '案件当前处理状态' },
+          { name: 'city', comment: '所属城市' },
+          { name: 'amount', comment: '涉案金额' },
+          { name: 'create_time', comment: '创建时间' },
+          { name: 'owner_dept', comment: '负责部门' },
+          { name: 'remark', comment: '备注说明' },
+          { name: 'update_user', comment: '最后更新人' }
+        ],
+        case_flow_log: [
+          { name: 'id', comment: '主键 ID' },
+          { name: 'case_no', comment: '案件编号' },
+          { name: 'node_name', comment: '流转节点' },
+          { name: 'handler', comment: '处理人' },
+          { name: 'handle_time', comment: '处理时间' },
+          { name: 'handle_result', comment: '处理结果' },
+          { name: 'remark', comment: '备注' }
+        ],
+        user_info: [
+          { name: 'user_id', comment: '用户 ID' },
+          { name: 'user_name', comment: '用户名' },
+          { name: 'real_name', comment: '真实姓名' },
+          { name: 'dept_code', comment: '部门编码' },
+          { name: 'enabled', comment: '是否启用' }
+        ],
+        dept_dict: [
+          { name: 'dept_id', comment: '部门 ID' },
+          { name: 'dept_code', comment: '部门编码' },
+          { name: 'dept_name', comment: '部门名称' },
+          { name: 'dept_manager', comment: '部门负责人' },
+          { name: 'region', comment: '所属区域' }
+        ]
+      };
+
+      const resultRows = [
+        { id: 10001, case_no: 'AJ-202605-0001', case_name: '合同资料核验', status: '有效', city: '杭州', amount: '2,300.00', create_time: '2026-05-12 09:42:18', owner_dept: '数据治理一组' },
+        { id: 10002, case_no: 'AJ-202605-0002', case_name: '同步结果抽查', status: '有效', city: '上海', amount: '880.50', create_time: '2026-05-12 09:18:47', owner_dept: '同步平台组' },
+        { id: 10003, case_no: 'AJ-202605-0003', case_name: '客户主数据复核', status: '有效', city: '南京', amount: '1,128.00', create_time: '2026-05-12 08:55:04', owner_dept: '客户数据组' },
+        { id: 10005, case_no: 'AJ-202605-0005', case_name: '审批链路核对', status: '有效', city: '苏州', amount: '3,010.00', create_time: '2026-05-11 16:42:11', owner_dept: '数据治理一组' }
+      ];
+
+      let currentDatasource = 'mysql_case_workbench';
+      let currentDatabase = 'ds_demo';
+      let currentTable = 'ajxx_tab';
+      let currentComment = '案件信息表';
+      let resultMode = 'result';
+      let history = [
+        { title: '最近一次成功', sql: 'SELECT id, case_no, status FROM ajxx_tab WHERE status = "有效";', meta: '09:42 · 4 行 · 0.31s' },
+        { title: '关联排查', sql: 'SELECT a.case_no, d.dept_name FROM ajxx_tab a LEFT JOIN dept_dict d ON a.owner_dept = d.dept_name;', meta: '昨天 · 50 行 · 0.82s' },
+        { title: '统计验证', sql: 'SELECT status, COUNT(*) cnt FROM ajxx_tab GROUP BY status;', meta: '昨天 · 3 行 · 0.19s' }
+      ];
+      let lastMessage = { type: 'info', text: '只读 SQL 查询：仅允许 SELECT / WITH / EXPLAIN，自动限制最大返回行数。' };
+      let lastExecutedSql = '';
+
+      const $ = (id) => document.getElementById(id);
+      const esc = (value) => String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+      const currentCols = () => tableColumns[currentTable] || tableColumns.ajxx_tab;
+
+      function toast(text) {
+        $('toast').textContent = text;
+        $('toast').classList.add('show');
+        setTimeout(() => $('toast').classList.remove('show'), 1300);
+      }
+
+      function renderSelectors() {
+        $('datasourceSelect').innerHTML = Object.keys(catalogs).map(key => `<option value="${key}" ${key === currentDatasource ? 'selected' : ''}>${key}</option>`).join('');
+        const dbs = Object.keys(catalogs[currentDatasource].databases);
+        if (!dbs.includes(currentDatabase)) currentDatabase = dbs[0];
+        $('databaseSelect').innerHTML = dbs.map(db => `<option value="${db}" ${db === currentDatabase ? 'selected' : ''}>${db}</option>`).join('');
+      }
+
+      function renderTree() {
+        const tables = catalogs[currentDatasource].databases[currentDatabase] || [];
+        $('tree').innerHTML = `
+          <div class="node db">▾ 🛢 ${currentDatasource}</div>
+          <div class="node schema">▾ 📁 ${currentDatabase}</div>
+          <div class="node group">▾ 表</div>
+          ${tables.map(item => `
+            <div class="node table ${item.table === currentTable ? 'active' : ''}" data-table="${item.table}" data-comment="${item.comment}">
+              <span>▦</span><div class="node-main"><div class="node-name">${item.table}</div><div class="node-desc">${item.comment}</div></div>
+            </div>
+          `).join('')}
+          <div class="node group">▸ 视图</div>`;
+        $('treeStatus').textContent = `已加载 ${tables.length} 张表`;
+      }
+
+      function updateContext() {
+        $('currentTableTitle').textContent = `${currentTable}（${currentComment}）`;
+        $('activeTab').textContent = `${currentTable} ${currentComment} · ${currentDatabase}`;
+        $('fieldCount').textContent = `${currentCols().length} 字段`;
+        $('pathStatus').textContent = `${currentDatasource} / ${currentDatabase} / ${currentTable}`;
+      }
+
+      function initialSql() {
+        return `-- 当前连接：${currentDatasource}.${currentDatabase}\n-- 只读查询，执行时自动限制最大返回行数\nSELECT\n  id,\n  case_no,\n  status,\n  city,\n  amount,\n  create_time\nFROM ${currentTable}\nWHERE status = '有效'\nORDER BY create_time DESC;`;
+      }
+
+      function renderSqlWorkbench() {
+        $('content').innerHTML = `
+          <div class="sql-workbench">
+            <div class="sql-top">
+              <div class="editor-wrap">
+                <div class="sql-toolbar">
+                  <button class="btn primary" id="executeBtn">▶ 执行选中/当前语句</button>
+                  <button class="btn" id="executeAllBtn">执行全部</button>
+                  <button class="btn" id="explainBtn">执行计划</button>
+                  <button class="btn" id="formatBtn">格式化</button>
+                  <button class="btn" id="clearBtn">清空</button>
+                  <div class="tool-spacer"></div>
+                  <span class="pill green">只读</span>
+                  <span class="pill yellow">超时 30s</span>
+                </div>
+                <div class="sql-editor-box">
+                  <div class="line-nums">1<br>2<br>3<br>4<br>5<br>6<br>7<br>8<br>9<br>10</div>
+                  <textarea class="sql-editor" id="sqlEditor" spellcheck="false">${esc(initialSql())}</textarea>
+                </div>
+              </div>
+              <div class="side-panel">
+                <div class="side-head"><span>执行历史</span><button class="btn" id="clearHistoryBtn">清空</button></div>
+                <div class="history-list" id="historyList"></div>
+              </div>
+            </div>
+            <div class="sql-message ${lastMessage.type === 'error' ? 'error' : lastMessage.type === 'warn' ? 'warn' : ''}" id="sqlMessage">
+              <span>${lastMessage.type === 'error' ? '✕' : lastMessage.type === 'warn' ? '!' : 'i'}</span>
+              <span>${esc(lastMessage.text)}</span>
+            </div>
+            <div class="result-area">
+              <div class="result-tabs">
+                <div class="result-tab ${resultMode === 'result' ? 'active' : ''}" data-result-tab="result">结果集 1</div>
+                <div class="result-tab ${resultMode === 'message' ? 'active' : ''}" data-result-tab="message">消息</div>
+                <div class="result-tab ${resultMode === 'explain' ? 'active' : ''}" data-result-tab="explain">执行计划</div>
+              </div>
+              <div class="result-pane" id="resultPane"></div>
+            </div>
+          </div>`;
+        bindSqlEvents();
+        renderHistory();
+        renderResultPane();
+      }
+
+      function renderHistory() {
+        $('historyList').innerHTML = history.map((item, index) => `
+          <div class="history-item" data-history="${index}">
+            <div class="history-title"><span>${item.title}</span><span class="history-meta">${item.meta.split(' · ')[0]}</span></div>
+            <div class="history-sql">${esc(item.sql)}</div>
+            <div class="history-meta">${item.meta}</div>
+          </div>`).join('');
+        document.querySelectorAll('[data-history]').forEach(item => {
+          item.onclick = () => {
+            $('sqlEditor').value = history[Number(item.dataset.history)].sql;
+            toast('已加载历史 SQL');
+          };
+        });
+      }
+
+      function selectedOrAllSql() {
+        const editor = $('sqlEditor');
+        const selected = editor.value.slice(editor.selectionStart, editor.selectionEnd).trim();
+        return selected || editor.value.trim();
+      }
+
+      function validateSql(sql, executeAll) {
+        const normalized = sql.replace(/--.*$/gm, '').trim().toLowerCase();
+        if (!normalized) return { ok: false, type: 'warn', text: 'SQL 为空，请输入 SELECT / WITH / EXPLAIN 查询。' };
+        const statements = normalized.split(';').map(s => s.trim()).filter(Boolean);
+        if (statements.length > 1 && !executeAll) return { ok: false, type: 'warn', text: '检测到多条语句，请选择“执行全部”或选中其中一条执行。' };
+        const blocked = /\b(insert|update|delete|drop|truncate|alter|create|grant|revoke|merge|replace)\b/.test(normalized);
+        if (blocked) return { ok: false, type: 'error', text: '只读查询控制台已阻止 DML/DDL。数据预览首期只允许 SELECT / WITH / EXPLAIN。' };
+        const allowed = statements.every(s => /^(select|with|explain)\b/.test(s));
+        if (!allowed) return { ok: false, type: 'error', text: '当前只允许 SELECT / WITH / EXPLAIN 开头的只读语句。' };
+        return { ok: true, type: 'info', text: `执行前将自动追加最大返回 ${$('limitSelect').value} 行限制，并记录审计日志。` };
+      }
+
+      function executeSql(executeAll = false) {
+        const sql = selectedOrAllSql();
+        const validation = validateSql(sql, executeAll);
+        lastMessage = validation;
+        lastExecutedSql = sql;
+        if (!validation.ok) {
+          resultMode = 'message';
+          renderSqlWorkbench();
+          return;
+        }
+        history.unshift({ title: '刚刚执行', sql, meta: `刚刚 · ${resultRows.length} 行 · 0.${Math.floor(28 + Math.random() * 40)}s` });
+        history = history.slice(0, 6);
+        lastMessage = { type: 'info', text: `执行成功：返回 ${resultRows.length} 行，已按只读策略限制结果集。` };
+        resultMode = 'result';
+        $('rowStatus').textContent = `SQL 返回 ${resultRows.length} 行`;
+        $('costStatus').textContent = '耗时 0.34s';
+        renderSqlWorkbench();
+      }
+
+      function renderResultPane() {
+        const pane = $('resultPane');
+        if (resultMode === 'message') {
+          pane.innerHTML = `<div class="empty">${esc(lastMessage.text)}<br><br>审计字段：用户 admin、数据源 ${currentDatasource}、数据库 ${currentDatabase}、执行时间 2026-05-20 10:24:32。</div>`;
+          return;
+        }
+        if (resultMode === 'explain') {
+          pane.innerHTML = `
+            <div class="explain">
+              <div class="explain-card">
+                <div class="explain-head">执行计划预览</div>
+                <table>
+                  <thead><tr><th>id</th><th>select_type</th><th>table</th><th>type</th><th>key</th><th>rows</th><th>Extra</th></tr></thead>
+                  <tbody>
+                    <tr><td>1</td><td>SIMPLE</td><td>${currentTable}</td><td>range</td><td>idx_status_time</td><td>1284</td><td>Using where; Using index condition</td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <div class="empty">首期执行计划只做只读查看，不自动优化 SQL。</div>
+            </div>`;
+          return;
+        }
+        const cols = ['id', 'case_no', 'case_name', 'status', 'city', 'amount', 'create_time', 'owner_dept'];
+        pane.innerHTML = `
+          <table class="data-grid">
+            <thead><tr><th class="row-num">#</th>${cols.map(col => `<th>${col}</th>`).join('')}</tr></thead>
+            <tbody>${resultRows.map((row, idx) => `<tr><td class="row-num">${idx + 1}</td>${cols.map(col => `<td>${row[col] == null ? '<span class="null">NULL</span>' : esc(row[col])}</td>`).join('')}</tr>`).join('')}</tbody>
+          </table>`;
+      }
+
+      function bindSqlEvents() {
+        $('executeBtn').onclick = () => executeSql(false);
+        $('executeAllBtn').onclick = () => executeSql(true);
+        $('explainBtn').onclick = () => {
+          const validation = validateSql(selectedOrAllSql(), false);
+          lastMessage = validation.ok ? { type: 'info', text: '已生成执行计划。' } : validation;
+          resultMode = validation.ok ? 'explain' : 'message';
+          lastExecutedSql = selectedOrAllSql();
+          renderSqlWorkbench();
+        };
+        $('formatBtn').onclick = () => {
+          $('sqlEditor').value = initialSql();
+          toast('已按当前表生成格式化 SELECT');
+        };
+        $('clearBtn').onclick = () => { $('sqlEditor').value = ''; };
+        $('clearHistoryBtn').onclick = () => { history = []; renderHistory(); toast('执行历史已清空'); };
+        document.querySelectorAll('[data-result-tab]').forEach(tab => tab.onclick = () => {
+          resultMode = tab.dataset.resultTab;
+          document.querySelectorAll('[data-result-tab]').forEach(t => t.classList.toggle('active', t.dataset.resultTab === resultMode));
+          renderResultPane();
+        });
+      }
+
+      function setCurrentTable(table, comment) {
+        currentTable = table;
+        currentComment = comment;
+        renderTree();
+        updateContext();
+        renderSqlWorkbench();
+      }
+
+      $('datasourceSelect').onchange = (event) => {
+        currentDatasource = event.target.value;
+        currentDatabase = Object.keys(catalogs[currentDatasource].databases)[0];
+        const first = catalogs[currentDatasource].databases[currentDatabase][0];
+        setCurrentTable(first.table, first.comment);
+        renderSelectors();
+      };
+      $('databaseSelect').onchange = (event) => {
+        currentDatabase = event.target.value;
+        const first = catalogs[currentDatasource].databases[currentDatabase][0];
+        setCurrentTable(first.table, first.comment);
+      };
+      $('tree').onclick = (event) => {
+        const node = event.target.closest('.node.table');
+        if (!node) return;
+        setCurrentTable(node.dataset.table, node.dataset.comment);
+      };
+      document.querySelectorAll('.recent-row').forEach(row => row.onclick = () => setCurrentTable(row.dataset.table, row.dataset.comment));
+      document.querySelectorAll('.view-tab').forEach(tab => {
+        tab.onclick = () => {
+          if (tab.dataset.mode !== 'sql') toast('原型聚焦 SQL 查询页签，其他页签沿用上一版数据预览设计');
+        };
+      });
+      $('runTopBtn').onclick = () => executeSql(false);
+      $('refreshBtn').onclick = () => toast('已刷新当前连接与表元数据');
+      $('exportBtn').onclick = () => toast('已导出当前 SQL 结果集');
+      $('copySqlBtn').onclick = () => toast('已复制 SQL');
+      $('treeReload').onclick = () => toast('对象树已刷新');
+
+      renderSelectors();
+      renderTree();
+      updateContext();
+      renderSqlWorkbench();
+    </script>
+  </body>
+</html>

@@ -1,0 +1,2684 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>主题库 - 公安业务主题工作台</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, "PingFang SC", "Microsoft YaHei", sans-serif;
+      color: #1f2937;
+      background: #eef1f4;
+      font-size: 13px;
+    }
+    button, input, select, textarea { font: inherit; }
+    .page {
+      display: grid;
+      grid-template-rows: 52px minmax(0, 1fr);
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+    }
+    .topbar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 0 14px;
+      border-bottom: 1px solid #d8dde6;
+      background: #fbfcfe;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 220px;
+      font-weight: 700;
+      font-size: 15px;
+    }
+    .brandIcon {
+      display: grid;
+      place-items: center;
+      width: 24px;
+      height: 24px;
+      border-radius: 6px;
+      background: #1f5fbf;
+      color: #fff;
+      font-weight: 800;
+    }
+    .brandSub {
+      padding-left: 8px;
+      border-left: 1px solid #d8dde6;
+      color: #667085;
+      font-size: 12px;
+      font-weight: 500;
+    }
+    .search, .select, .fieldInput, textarea {
+      border: 1px solid #d8dde6;
+      border-radius: 6px;
+      background: #fff;
+      color: #344054;
+    }
+    .search {
+      width: min(420px, 30vw);
+      height: 32px;
+      padding: 0 10px;
+    }
+    .select {
+      height: 32px;
+      min-width: 120px;
+      padding: 0 28px 0 10px;
+    }
+    .btn, .linkBtn, .tab, .menuItem {
+      border: 0;
+      background: none;
+      color: #344054;
+      cursor: pointer;
+    }
+    .btn {
+      height: 32px;
+      padding: 0 12px;
+      border: 1px solid #d8dde6;
+      border-radius: 6px;
+      background: #fff;
+    }
+    .btnPrimary {
+      border-color: #1f5fbf;
+      background: #1f5fbf;
+      color: #fff;
+    }
+    .linkBtn {
+      color: #1f5fbf;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .createWrap { position: relative; margin-left: auto; }
+    .createMenu {
+      position: absolute;
+      top: 38px;
+      right: 0;
+      z-index: 20;
+      width: 154px;
+      padding: 6px;
+      border: 1px solid #d8dde6;
+      border-radius: 7px;
+      background: #fff;
+      box-shadow: 0 12px 30px rgba(15, 23, 42, .14);
+    }
+    .menuItem {
+      display: block;
+      width: 100%;
+      height: 32px;
+      padding: 0 9px;
+      border-radius: 5px;
+      text-align: left;
+    }
+    .menuItem:hover { background: #f0f5ff; color: #1f5fbf; }
+    .workspace {
+      display: grid;
+      grid-template-columns: var(--domain-width, 292px) 8px minmax(0, 1fr);
+      min-height: 0;
+      overflow: hidden;
+    }
+    .workspace.domainCollapsed .domainPane { overflow: hidden; border-right: 0; }
+    .workspace.domainCollapsed .domainPane > * { display: none; }
+    .domainPane, .contentPane {
+      display: grid;
+      min-height: 0;
+      border-right: 1px solid #d8dde6;
+      background: #fff;
+    }
+    .domainPane { grid-template-rows: 44px minmax(0, 1fr) 44px; background: #f8fafc; }
+    .contentPane { grid-template-rows: 58px minmax(0, 1fr); border-right: 0; background: #fbfcfe; }
+    .splitter {
+      width: 8px;
+      cursor: col-resize;
+      background: #eef2f7;
+      border-right: 1px solid #d8dde6;
+    }
+    .splitter:hover, .splitter.dragging { background: #dbeafe; }
+    .paneHeader, .contentHeader {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      min-width: 0;
+      padding: 0 12px;
+      border-bottom: 1px solid #d8dde6;
+      color: #475467;
+      font-weight: 700;
+    }
+    .contentTitle strong { display: block; font-size: 18px; color: #101828; }
+    .contentTitle span { color: #667085; font-size: 12px; font-weight: 500; }
+    .domainList, .contentBody { overflow: auto; }
+    .domainList { padding: 8px 6px; }
+    .domainCard {
+      position: relative;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 5px 8px;
+      width: 100%;
+      margin-bottom: 6px;
+      padding: 10px 10px 10px 12px;
+      border: 1px solid transparent;
+      border-radius: 7px;
+      background: transparent;
+      text-align: left;
+    }
+    .domainCard.active {
+      border-color: #bdd2f6;
+      background: #eef5ff;
+    }
+    .domainCard.active::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 9px;
+      bottom: 9px;
+      width: 3px;
+      border-radius: 3px;
+      background: #1f5fbf;
+    }
+    .domainName { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #1f2937; font-weight: 700; }
+    .domainMeta, .cardMeta, .muted { color: #667085; font-size: 12px; }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      height: 22px;
+      padding: 0 7px;
+      border-radius: 999px;
+      background: #eef2f7;
+      color: #475467;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+    .pillBlue { background: #e8f1ff; color: #1f5fbf; }
+    .pillGreen { background: #e8f6f0; color: #087443; }
+    .pillAmber { background: #fff3d7; color: #9a6700; }
+    .paneFooter {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 0 12px;
+      border-top: 1px solid #d8dde6;
+    }
+    .objectToolbar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+      margin-bottom: 12px;
+      max-width: 760px;
+    }
+    .objectToolbar input { flex: 1; min-width: 280px; height: 32px; padding: 0 9px; }
+    .objectGrid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+    .objectCard {
+      display: block;
+      width: 100%;
+      min-height: 154px;
+      padding: 12px;
+      border: 1px solid #d8dde6;
+      border-radius: 8px;
+      background: #fff;
+      text-align: left;
+    }
+    .objectCard.active {
+      border-color: #8db4ee;
+      background: #f2f7ff;
+      box-shadow: inset 0 0 0 1px #8db4ee;
+    }
+    .objectTitle { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+    .objectTitle strong { font-size: 15px; color: #101828; }
+    .titleActions { display: inline-flex; align-items: center; gap: 6px; }
+    .miniEdit {
+      height: 22px;
+      padding: 0 7px;
+      border: 1px solid #d8dde6;
+      border-radius: 999px;
+      background: #fff;
+      color: #475467;
+      font-size: 12px;
+    }
+    .miniEdit:hover { border-color: #8db4ee; color: #1f5fbf; background: #f6f9ff; }
+    .objectDesc { color: #344054; line-height: 1.5; }
+    .expandedObjectRow {
+      grid-column: 1 / -1;
+      display: grid;
+      gap: 10px;
+    }
+    .collapsedHint {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      min-height: 54px;
+      padding: 10px 12px;
+      border: 1px dashed #cbd5e1;
+      border-radius: 8px;
+      background: #f8fafc;
+      color: #475467;
+    }
+    .collapsedHint strong {
+      display: block;
+      margin-bottom: 2px;
+      color: #101828;
+      font-size: 14px;
+    }
+    .assetFocus {
+      grid-column: 1 / -1;
+      border: 1px solid #c8d7ee;
+      border-radius: 8px;
+      background: #fff;
+      overflow: hidden;
+    }
+    .assetFocusHeader {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px 12px;
+      border-bottom: 1px solid #e4eaf2;
+      background: #f8fbff;
+    }
+    .assetFocusTitle {
+      min-width: 0;
+    }
+    .assetFocusTitle h3 {
+      margin: 0 0 3px;
+      color: #101828;
+      font-size: 15px;
+    }
+    .assetFocusTitle p {
+      margin: 0;
+      color: #667085;
+      font-size: 12px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .assetFocusMeta {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+    .assetTableIntro {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 8px 12px;
+      border-bottom: 1px solid #e8edf3;
+      color: #475467;
+      font-size: 12px;
+    }
+    .assetWorkspace {
+      display: grid;
+      gap: 10px;
+      padding: 0 12px 12px;
+      background: #fbfdff;
+    }
+    .scenarioList {
+      display: flex;
+      gap: 0;
+      overflow-x: auto;
+      border-bottom: 1px solid #d8dde6;
+    }
+    .scenarioCard {
+      display: inline-flex;
+      align-items: center;
+      min-width: max-content;
+      height: 36px;
+      padding: 0 14px;
+      border: 0;
+      border-right: 1px solid #e4eaf2;
+      border-bottom: 2px solid transparent;
+      border-radius: 0;
+      background: #f8fafc;
+      text-align: left;
+    }
+    .scenarioCard:hover, .scenarioCard.active {
+      border-bottom-color: #1f5fbf;
+      background: #fff;
+      box-shadow: none;
+    }
+    .scenarioCard strong { color: #101828; font-size: 13px; }
+    .scenarioCard span { display: none; }
+    .scenarioMain {
+      display: grid;
+      gap: 10px;
+      min-width: 0;
+    }
+    .scenarioHeader { display: none; }
+    .scenarioHeader h4 { margin: 0 0 5px; color: #101828; font-size: 15px; }
+    .scenarioHeader p { margin: 0; color: #475467; font-size: 12px; line-height: 1.55; }
+    .assetCards {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 10px;
+    }
+    .scenarioSummaryGrid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 2px;
+    }
+    .summaryTile {
+      padding: 8px 10px;
+      border: 1px solid #e4eaf2;
+      border-radius: 8px;
+      background: #fff;
+    }
+    .summaryTile strong {
+      display: block;
+      margin-bottom: 3px;
+      color: #101828;
+      font-size: 17px;
+    }
+    .summaryTile span { color: #667085; font-size: 12px; }
+    .scenarioItemsHeader {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-top: 0;
+      color: #344054;
+      font-weight: 700;
+    }
+    .scenarioQueryLine {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .scenarioQueryLine .muted { font-weight: 700; }
+    .scenarioBlockGrid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .scenarioBlock {
+      display: grid;
+      gap: 10px;
+      min-width: 0;
+      min-height: 180px;
+      resize: both;
+      padding: 12px;
+      border: 1px solid #d8dde6;
+      border-radius: 8px;
+      background: #fff;
+      overflow: auto;
+    }
+    .scenarioBlock.full { grid-column: 1 / -1; }
+    .scenarioBlockHead {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .scenarioBlockHead h4 {
+      margin: 0 0 5px;
+      color: #101828;
+      font-size: 15px;
+    }
+    .scenarioBlockHead .meta {
+      color: #667085;
+      font-size: 12px;
+      line-height: 1.45;
+      font-weight: 700;
+    }
+    .scenarioBlockHead .code {
+      display: inline-flex;
+      align-items: center;
+      min-height: 26px;
+      padding: 0 10px;
+      border-radius: 7px;
+      background: #eef2f7;
+      color: #475467;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+    .scenarioBlockHead .editInsight {
+      border: 0;
+      background: none;
+      color: #1f5fbf;
+      font-weight: 800;
+      white-space: nowrap;
+      cursor: pointer;
+    }
+    .blockActionGroup {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+    .blockActionGroup button {
+      border: 0;
+      background: none;
+      color: #1f5fbf;
+      font-weight: 800;
+      white-space: nowrap;
+      cursor: pointer;
+    }
+    .blockActionGroup button[data-delete-insight] { color: #b42318; }
+    .scenarioBlock .remark {
+      margin: 0;
+      color: #667085;
+      font-size: 12px;
+      line-height: 1.6;
+      font-weight: 700;
+    }
+    .miniRankList {
+      display: grid;
+      gap: 8px;
+      padding: 0;
+      margin: 0;
+      list-style: none;
+    }
+    .miniRankList li {
+      display: grid;
+      grid-template-columns: 28px minmax(0, 1fr) 76px;
+      gap: 10px;
+      align-items: center;
+      min-height: 38px;
+      padding: 0 10px;
+      border-radius: 8px;
+      background: #f8fafc;
+      color: #1f2937;
+      font-weight: 800;
+    }
+    .miniPiePanel {
+      display: grid;
+      grid-template-columns: 136px minmax(0, 1fr);
+      gap: 16px;
+      align-items: center;
+      min-height: 162px;
+      padding: 12px;
+      border-radius: 8px;
+      background: #f8fafc;
+    }
+    .miniBarChart {
+      display: grid;
+      gap: 8px;
+      padding: 12px;
+      border-radius: 8px;
+      background: #f8fafc;
+    }
+    .miniBarRow {
+      display: grid;
+      grid-template-columns: 112px minmax(0, 1fr) 64px;
+      gap: 10px;
+      align-items: center;
+      color: #475467;
+      font-weight: 800;
+    }
+    .miniBarTrack {
+      height: 12px;
+      border-radius: 999px;
+      background: #e8edf3;
+      overflow: hidden;
+    }
+    .miniBarFill {
+      display: block;
+      height: 100%;
+      border-radius: 999px;
+      background: #1f5fbf;
+    }
+    .layoutControls {
+      display: inline-flex;
+      gap: 6px;
+      align-items: center;
+      margin-left: 6px;
+    }
+    .miniPieChart {
+      width: 116px;
+      height: 116px;
+      border-radius: 50%;
+      background: conic-gradient(#1f5fbf 0 42%, #60a5fa 42% 68%, #f59e0b 68% 84%, #22c55e 84% 100%);
+      box-shadow: inset 0 0 0 22px #fff;
+    }
+    .miniLegend {
+      display: grid;
+      gap: 10px;
+      padding: 0;
+      margin: 0;
+      list-style: none;
+    }
+    .miniLegend li {
+      display: grid;
+      grid-template-columns: 10px minmax(0, 1fr) 48px;
+      gap: 8px;
+      align-items: center;
+      color: #475467;
+      font-weight: 800;
+    }
+    .miniLegend i {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+    .sqlActions {
+      display: flex;
+      gap: 6px;
+    }
+    .sqlEditor {
+      min-height: 220px;
+      border-color: #cfd8e6;
+      background: #fbfdff;
+      color: #1d2939;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      font-size: 12px;
+      line-height: 1.55;
+    }
+    .queryStatus {
+      min-height: 18px;
+      color: #667085;
+      font-size: 12px;
+    }
+    .queryStatus.success { color: #067647; }
+    .queryStatus.warn { color: #b54708; }
+    .assetCard {
+      display: grid;
+      gap: 8px;
+      padding: 11px;
+      border: 1px solid #d8dde6;
+      border-radius: 8px;
+      background: #fff;
+      text-align: left;
+    }
+    .assetCard:hover, .assetCard.active {
+      border-color: #8db4ee;
+      background: #f6f9ff;
+      box-shadow: inset 0 0 0 1px #8db4ee;
+    }
+    .assetCardHead {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .assetCardHead strong { color: #101828; font-size: 14px; }
+    .assetPurpose {
+      min-height: 38px;
+      color: #344054;
+      font-size: 12px;
+      line-height: 1.55;
+    }
+    .assetEntryList {
+      display: grid;
+      gap: 5px;
+      padding: 0;
+      margin: 0;
+      list-style: none;
+    }
+    .assetEntryList li {
+      display: grid;
+      grid-template-columns: 62px minmax(0, 1fr);
+      gap: 6px;
+      color: #475467;
+      font-size: 12px;
+      line-height: 1.45;
+    }
+    .assetEntryList b {
+      color: #667085;
+      font-weight: 700;
+    }
+    .assetMetaGrid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+    }
+    .assetMeta {
+      padding: 6px;
+      border-radius: 6px;
+      background: #f5f7fa;
+      color: #475467;
+      font-size: 12px;
+    }
+    .assetMeta strong {
+      display: block;
+      color: #101828;
+      font-size: 12px;
+    }
+    .assetActions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .assetAction {
+      height: 26px;
+      padding: 0 8px;
+      border: 1px solid #d8dde6;
+      border-radius: 6px;
+      background: #fff;
+      color: #344054;
+      font-size: 12px;
+    }
+    .assetDetail {
+      display: grid;
+      gap: 10px;
+      margin-top: 10px;
+      padding: 10px;
+      border: 1px solid #c8d7ee;
+      border-radius: 8px;
+      background: #fff;
+    }
+    .assetDetailHeader {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .assetDetailHeader h4 { margin: 0; color: #101828; font-size: 15px; }
+    .assetDetailTabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .assetDetailTab {
+      height: 28px;
+      padding: 0 10px;
+      border: 1px solid #d8dde6;
+      border-radius: 6px;
+      background: #fff;
+      color: #475467;
+      font-weight: 700;
+    }
+    .assetDetailTab.active {
+      border-color: #8db4ee;
+      background: #e8f1ff;
+      color: #1f5fbf;
+    }
+    .detailGrid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .miniPanel {
+      padding: 10px;
+      border: 1px solid #e4eaf2;
+      border-radius: 8px;
+      background: #fff;
+    }
+    .miniPanel h4 {
+      margin: 0 0 6px;
+      color: #667085;
+      font-size: 12px;
+    }
+    .miniPanel p { margin: 0; color: #344054; font-size: 12px; line-height: 1.55; }
+    .compactInfoGrid {
+      grid-column: 1 / -1;
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .compactInfo {
+      min-height: 70px;
+      padding: 9px 10px;
+      border: 1px solid #e4eaf2;
+      border-radius: 8px;
+      background: #fff;
+    }
+    .compactInfo h3 {
+      margin: 0 0 5px;
+      color: #667085;
+      font-size: 12px;
+    }
+    .compactInfo p {
+      margin: 0;
+      color: #344054;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+      margin-top: 10px;
+    }
+    .stat {
+      padding: 6px;
+      border-radius: 6px;
+      background: #f5f7fa;
+      text-align: center;
+    }
+    .stat strong { display: block; color: #101828; }
+    .tabs {
+      display: flex;
+      align-items: stretch;
+      gap: 2px;
+      padding: 0 10px;
+      border-bottom: 1px solid #d8dde6;
+      background: #fff;
+      overflow-x: auto;
+    }
+    .tab {
+      min-width: max-content;
+      padding: 0 11px;
+      border-bottom: 2px solid transparent;
+      color: #667085;
+      font-weight: 700;
+    }
+    .tab.active {
+      border-bottom-color: #1f5fbf;
+      color: #1f5fbf;
+    }
+    .contentBody { padding: 14px 16px 18px; }
+    .summaryGrid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .panel {
+      padding: 12px;
+      border: 1px solid #d8dde6;
+      border-radius: 8px;
+      background: #fff;
+    }
+    .panel h3 {
+      margin: 0 0 9px;
+      color: #101828;
+      font-size: 14px;
+    }
+    .panel p, .panel li { line-height: 1.65; }
+    .panel p { margin: 0; }
+    ul { margin: 0; padding-left: 18px; }
+    table {
+      width: 100%;
+      min-width: 980px;
+      border-collapse: collapse;
+      table-layout: fixed;
+      background: #fff;
+    }
+    th, td {
+      height: 38px;
+      padding: 0 10px;
+      border-bottom: 1px solid #e8edf3;
+      text-align: left;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    th { background: #f8fafc; color: #667085; font-size: 12px; font-weight: 700; }
+    .tableWrap { border: 1px solid #d8dde6; border-radius: 8px; overflow: auto; background: #fff; }
+    .metricCards {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .notice {
+      margin-bottom: 12px;
+      padding: 10px 12px;
+      border: 1px solid #bdd2f6;
+      border-radius: 8px;
+      background: #eef5ff;
+      color: #1f5fbf;
+    }
+    .formGrid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+    label { display: grid; gap: 5px; color: #475467; font-weight: 700; }
+    .fieldInput { width: 100%; height: 32px; padding: 0 9px; }
+    textarea { width: 100%; min-height: 72px; padding: 8px 9px; resize: vertical; }
+    .span2 { grid-column: 1 / -1; }
+    .formActions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+    .statConfigList {
+      display: grid;
+      gap: 10px;
+    }
+    .statConfigItem {
+      display: grid;
+      gap: 8px;
+      padding: 10px;
+      border: 1px solid #d8dde6;
+      border-radius: 8px;
+      background: #f8fafc;
+    }
+    .statConfigHead {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 112px max-content;
+      gap: 8px;
+      align-items: end;
+    }
+    .statConfigItem textarea { min-height: 118px; }
+    .stats.dynamicStats {
+      grid-template-columns: repeat(auto-fit, minmax(86px, 1fr));
+    }
+    .modalBackdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 50;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      background: rgba(15, 23, 42, .34);
+    }
+    .modal {
+      width: min(640px, 100%);
+      border-radius: 10px;
+      background: #fff;
+      box-shadow: 0 24px 70px rgba(15, 23, 42, .28);
+      overflow: hidden;
+    }
+    .modalWide { width: min(860px, 100%); }
+    .modalHeader {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 16px;
+      border-bottom: 1px solid #d8dde6;
+    }
+    .modalHeader h2 { margin: 0; font-size: 16px; }
+    .modalBody { padding: 16px; }
+    .hidden { display: none !important; }
+    .emptyState {
+      display: grid;
+      align-content: center;
+      min-height: 220px;
+      padding: 24px;
+      border: 1px dashed #cbd5e1;
+      border-radius: 8px;
+      background: #f8fafc;
+      text-align: center;
+    }
+    .emptyState h3 { margin: 0 0 8px; font-size: 16px; color: #101828; }
+    @media (max-width: 1100px) {
+      .workspace { grid-template-columns: var(--domain-width, 230px) 8px minmax(480px, 1fr); }
+      .brandSub { display: none; }
+      .summaryGrid, .metricCards, .compactInfoGrid, .detailGrid, .assetWorkspace, .scenarioSummaryGrid, .scenarioBlockGrid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header class="topbar">
+      <div class="brand"><span class="brandIcon">T</span><span>主题库</span><span class="brandSub">公安业务主题工作台</span></div>
+      <input class="search" id="globalSearch" placeholder="搜索主题、对象、资产、字段、来源系统" />
+      <select class="select" id="scopeFilter"><option>全部主题</option><option>我负责的</option><option>最近更新</option></select>
+      <select class="select" id="roleSelect" title="当前用户权限">
+        <option value="admin">管理员</option>
+        <option value="editor">主题维护员</option>
+        <option value="viewer">只读用户</option>
+      </select>
+    </header>
+    <main class="workspace">
+      <aside class="domainPane">
+        <div class="paneHeader"><span>主题域</span><button class="linkBtn" type="button" data-create-type="domain" data-edit-only>新建主题</button></div>
+        <div class="domainList" id="domainList"></div>
+        <div class="paneFooter"><span class="muted">主题域 -> 业务对象</span><button class="linkBtn" type="button" data-create-type="domain" data-edit-only>维护主题</button></div>
+      </aside>
+      <div class="splitter" id="paneSplitter" title="左右拖拽调整主题域宽度"></div>
+      <section class="contentPane">
+        <div class="contentHeader">
+          <div class="contentTitle"><strong id="contentTitle">警情域</strong><span id="contentSubtitle">业务对象与主题资产</span></div>
+        </div>
+        <div class="contentBody" id="contentBody"></div>
+      </section>
+    </main>
+    <div class="modalBackdrop hidden" id="createModal" role="dialog" aria-modal="true" aria-labelledby="createModalTitle">
+      <div class="modal">
+        <div class="modalHeader">
+          <h2 id="createModalTitle">新建主题</h2>
+          <button class="btn" type="button" id="closeCreateModal">关闭</button>
+        </div>
+        <div class="modalBody">
+          <form id="createModalForm">
+            <div class="formGrid" id="createModalFields"></div>
+            <div class="formActions">
+              <button class="btn" type="button" id="cancelCreateModal">取消</button>
+              <button class="btn btnPrimary" type="submit">保存</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+    <div class="modalBackdrop hidden" id="sqlModal" role="dialog" aria-modal="true" aria-labelledby="sqlModalTitle">
+      <div class="modal modalWide">
+        <div class="modalHeader">
+          <h2 id="sqlModalTitle">编辑 SQL</h2>
+          <button class="btn" type="button" data-close-sql-modal>关闭</button>
+        </div>
+        <div class="modalBody">
+          <form id="sqlModalForm">
+            <div class="formGrid">
+              <label class="span2">DolphinScheduler 数据源
+                <select class="fieldInput" name="datasource" id="sqlDatasourceSelect">
+                  <option value="mysql-police-warehouse">MySQL / police_warehouse_prod</option>
+                  <option value="postgres-law-enforce">PostgreSQL / law_enforce_dw</option>
+                  <option value="oracle-110-core">Oracle / 110_alarm_core</option>
+                  <option value="hive-ods-police">Hive / ods_police_center</option>
+                </select>
+              </label>
+              <label class="span2">SQL 语句
+                <textarea class="sqlEditor" name="sql" id="sqlModalEditor" spellcheck="false"></textarea>
+              </label>
+            </div>
+            <div class="queryStatus" id="sqlModalStatus">请选择 DolphinScheduler 已配置的数据源后编辑 SQL。</div>
+            <div class="tableWrap hidden" id="sqlPreviewWrap">
+              <table>
+                <thead><tr><th>条目名称</th><th>汇总信息</th><th>责任单位</th><th>状态</th><th>使用字段</th><th>业务处置建议</th></tr></thead>
+                <tbody id="sqlPreviewBody"></tbody>
+              </table>
+            </div>
+            <div class="formActions">
+              <button class="btn" type="button" data-preview-sql-modal>预览</button>
+              <button class="btn btnPrimary" type="submit">保存并执行</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+    <div class="modalBackdrop hidden" id="insightModal" role="dialog" aria-modal="true" aria-labelledby="insightModalTitle">
+      <div class="modal modalWide">
+        <div class="modalHeader">
+          <h2 id="insightModalTitle">编辑分析板块</h2>
+          <button class="btn" type="button" data-close-insight-modal>关闭</button>
+        </div>
+        <div class="modalBody">
+          <form id="insightModalForm">
+            <div class="formGrid">
+              <label>标题名称
+                <input class="fieldInput" name="title" id="insightTitleInput" required />
+              </label>
+              <label>DolphinScheduler 数据源
+                <select class="fieldInput" name="datasource" id="insightDatasourceSelect">
+                  <option value="mysql-police-warehouse">MySQL / police_warehouse_prod</option>
+                  <option value="postgres-law-enforce">PostgreSQL / law_enforce_dw</option>
+                  <option value="oracle-110-core">Oracle / 110_alarm_core</option>
+                  <option value="hive-ods-police">Hive / ods_police_center</option>
+                </select>
+              </label>
+              <label class="span2">描述内容
+                <textarea name="description" id="insightDescriptionInput"></textarea>
+              </label>
+              <label class="span2">
+                <span class="scenarioItemsHeader">
+                  <span>统计 SQL</span>
+                  <button class="linkBtn" type="button" data-preview-insight-sql>预览</button>
+                </span>
+                <textarea class="sqlEditor" name="sql" id="insightSqlEditor" spellcheck="false"></textarea>
+              </label>
+            </div>
+            <div class="queryStatus" id="insightModalStatus">写完 SQL 后可直接预览返回数据，再设置展示方式。</div>
+            <div class="tableWrap hidden" id="insightPreviewWrap">
+              <table>
+                <thead id="insightPreviewHead"></thead>
+                <tbody id="insightPreviewBody"></tbody>
+              </table>
+            </div>
+            <div class="formGrid">
+              <label>展示类型
+                <select class="fieldInput" name="displayType" id="insightDisplayTypeSelect">
+                  <option value="bar">柱状图</option>
+                  <option value="pie">饼状图</option>
+                  <option value="list">列表</option>
+                </select>
+              </label>
+              <label>初始大小
+                <select class="fieldInput" name="width" id="insightWidthSelect">
+                  <option value="half">半屏</option>
+                  <option value="full">整行</option>
+                </select>
+              </label>
+            </div>
+            <div class="queryStatus">保存后，页面卡片右下角可拖拽调整大小；上移/下移用于调整位置顺序。</div>
+            <div class="formActions">
+              <button class="btn" type="button" data-close-insight-modal>取消</button>
+              <button class="btn btnPrimary" type="submit">保存</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+    <div class="modalBackdrop hidden" id="objectStatsModal" role="dialog" aria-modal="true" aria-labelledby="objectStatsModalTitle">
+      <div class="modal modalWide">
+        <div class="modalHeader">
+          <h2 id="objectStatsModalTitle">编辑业务项</h2>
+          <button class="btn" type="button" data-close-object-stats-modal>关闭</button>
+        </div>
+        <div class="modalBody">
+          <form id="objectStatsModalForm">
+            <div class="formGrid">
+              <label>标题名称
+                <input class="fieldInput" name="name" id="objectStatsNameInput" required />
+              </label>
+              <label>建设状态
+                <select class="fieldInput" name="status" id="objectStatsStatusSelect">
+                  <option>规划中</option>
+                  <option>建设中</option>
+                  <option>运行中</option>
+                  <option>待治理</option>
+                </select>
+              </label>
+              <label class="span2">描述内容
+                <textarea name="definition" id="objectStatsDefinitionInput"></textarea>
+              </label>
+              <label class="span2">覆盖范围
+                <textarea name="scope" id="objectStatsScopeInput"></textarea>
+              </label>
+              <div class="span2">
+                <div class="scenarioItemsHeader">
+                  <span>统计项配置</span>
+                  <button class="linkBtn" type="button" data-add-object-stat>新增统计项</button>
+                </div>
+                <div class="statConfigList" id="objectStatConfigList"></div>
+              </div>
+            </div>
+            <div class="queryStatus" id="objectStatsModalStatus">每个统计项可自定义名称和 SQL，保存后会按配置展示在业务项卡片上。</div>
+            <div class="formActions">
+              <button class="btn" type="button" data-close-object-stats-modal>取消</button>
+              <button class="btn btnPrimary" type="submit">保存</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const sharedAlarmInfoAsset = {
+      name: '警情信息表',
+      code: 'ods_alarm_info',
+      type: '业务主表',
+      source: '110接处警系统',
+      frequency: '分钟级',
+      security: '内部敏感',
+      owner: '情指中心',
+      purpose: '沉淀警情主记录，支撑接报量统计、警情分类分析、重复警情识别和处置闭环关联。',
+      quality: '完整率 98.6% / 重复率 0.8% / 电话字段已脱敏',
+      lineage: ['110接处警系统', 'ODS警情信息表', '警情域主题资产'],
+      sampleRows: [
+        ['JQ202605210001', '2026-05-21 08:12', '电话报警', '盗窃', '西城派出所'],
+        ['JQ202605210002', '2026-05-21 08:19', '一键报警', '纠纷', '东城派出所'],
+        ['JQ202605210003', '2026-05-21 08:33', '群众来访', '求助', '南城派出所']
+      ],
+      relatedObjects: ['接报警情', '处置警情'],
+      usageByObject: {
+        '接报警情': '使用警情编号、接报时间、接报渠道、警情类型、报警人脱敏信息。',
+        '处置警情': '使用派警单位、处置民警、到场时间、反馈结果、办结状态。'
+      }
+    };
+
+    const themeDomains = [
+      {
+        id: 'all',
+        name: '全部主题',
+        owner: '数据治理组',
+        status: '运行中',
+        virtual: true,
+        objects: []
+      },
+      {
+        id: 'alarm',
+        name: '警情域',
+        owner: '情指中心',
+        status: '建设中',
+        objects: [
+          {
+            id: 'alarm-receive',
+            name: '接报警情',
+            definition: '记录 110 接报警情从接入到形成警情编号的业务对象。',
+            scope: '接报时间、接报渠道、警情类型、管辖单位、报警人脱敏信息。',
+            questions: ['每天接到多少警情', '哪些辖区警情高发', '重复警情集中在哪里'],
+            systems: ['110接处警系统', '警综平台'],
+            owner: '情指中心',
+            status: '建设中',
+            assets: [
+              sharedAlarmInfoAsset,
+              { name: '接报警情明细视图', code: 'dwd_alarm_receive_detail', type: '明细视图', source: '警情信息表', frequency: '分钟级', security: '内部敏感', owner: '情指中心', purpose: '面向接警业务查询和数据预览，抽取接报时间、报警渠道、辖区、报警人脱敏信息等字段。', quality: '完整率 97.9% / 延迟 3 分钟内 / 仅保留接报环节字段', lineage: ['警情信息表', 'DWD接报警情明细视图', '数据预览入口'], relatedObjects: ['接报警情'], usageByObject: { '接报警情': '面向接警环节抽取接报字段，便于接报警情分析。' }, sampleRows: [['JQ202605210001', '08:12', '电话报警', '盗窃', '西城派出所'], ['JQ202605210002', '08:19', '一键报警', '纠纷', '东城派出所'], ['JQ202605210003', '08:33', '群众来访', '求助', '南城派出所']] },
+              { name: '警情类型维', code: 'dim_alarm_type', type: '维度', source: '警综平台', frequency: '日级', security: '内部', owner: '数据治理组', purpose: '统一警情分类口径，解决不同系统类型名称不一致的问题。', quality: '标准覆盖率 96.2% / 每日校验 / 异常类型进入待治理清单', lineage: ['警综平台字典', '警情类型标准', '主题库维度资产'], relatedObjects: ['接报警情', '处置警情', '热点警情'], usageByObject: { '接报警情': '用于接报警情按类型统计、筛选和高发分析。' }, sampleRows: [['01', '盗窃', '治安类', '启用', '2026-05-20'], ['02', '纠纷', '矛盾纠纷类', '启用', '2026-05-20'], ['03', '求助', '服务求助类', '启用', '2026-05-20']] }
+            ],
+            fields: [
+              { zh: '警情编号', en: 'alarm_id', meaning: '唯一标识一条接报警情', sensitive: '否', standard: '警情编码标准' },
+              { zh: '接报时间', en: 'receive_time', meaning: '接警员接入警情的时间', sensitive: '否', standard: '时间字段标准' },
+              { zh: '报警人电话', en: 'caller_phone_masked', meaning: '脱敏后的报警联系电话', sensitive: '是', standard: '个人信息脱敏标准' }
+            ],
+            metrics: [
+              { name: '警情接报量', rule: '按警情编号计数', source: '警情信息表', dimensions: '时间、辖区、警情类型' },
+              { name: '重复警情占比', rule: '重复警情数 / 接报警情数', source: '警情信息表', dimensions: '时间、辖区、警情类型' }
+            ],
+            scenarios: [
+              {
+                title: '接警总量与趋势',
+                goal: '看每天、每小时接到多少警情，是否存在异常波动。',
+                assets: ['警情信息表', '接报警情明细视图', '警情类型维'],
+                metrics: ['警情接报量', '环比变化', '小时峰值'],
+                fields: ['警情编号', '接报时间', '警情类型', '所属单位'],
+                summary: [
+                  { label: '今日接报', value: '1,286 起' },
+                  { label: '较昨日', value: '+8.4%' },
+                  { label: '高峰时段', value: '20:00-22:00' },
+                  { label: '待核查异常', value: '17 起' }
+                ],
+                items: [
+                  { title: '2026-05-21 08 时接警量异常上升', primary: '08:00-09:00 接报 96 起，较近 7 日均值上升 18%', unit: '情指中心', status: '需关注', fields: '接报时间、警情编号、警情类型', result: '建议核查早高峰纠纷类警情是否集中' },
+                  { title: '盗窃类警情日内趋势', primary: '今日盗窃类接报 142 起，主要集中在 18:00 后', unit: '治安支队', status: '运行中', fields: '警情类型、接报时间、管辖单位', result: '用于晚间巡防力量调整' },
+                  { title: '电话报警渠道占比', primary: '电话报警 1,032 起，占总接报 80.2%', unit: '110接处警中心', status: '运行中', fields: '接报渠道、接报时间', result: '用于接警席位压力评估' }
+                ],
+                assetUsage: {
+                  '警情信息表': { role: '作为总量统计的事实来源，按警情编号去重，按接报时间形成日、小时趋势。', fields: ['警情编号', '接报时间', '警情类型'], metrics: ['警情接报量', '小时峰值'], warning: '报警人信息不参与总量展示，默认使用脱敏字段。' },
+                  '接报警情明细视图': { role: '给业务用户做明细穿透，点击某天某小时后查看对应警情列表。', fields: ['警情编号', '接报时间', '接报渠道'], metrics: ['明细条数', '渠道占比'], warning: '只暴露接警环节字段，不展示处置反馈字段。' },
+                  '警情类型维': { role: '把不同系统的警情类型归并成统一分类，保证趋势图口径一致。', fields: ['警情类型', '上级类型', '启用状态'], metrics: ['类型覆盖率'], warning: '未匹配类型进入待治理清单。' }
+                }
+              },
+              {
+                title: '辖区高发警情',
+                goal: '识别哪些辖区、派出所或网格警情高发，辅助勤务部署。',
+                assets: ['警情信息表', '接报警情明细视图', '警情类型维'],
+                metrics: ['辖区警情量', '高发类型占比', '同比变化'],
+                fields: ['管辖单位', '接报时间', '警情类型'],
+                summary: [
+                  { label: '高发辖区', value: '6 个' },
+                  { label: '最高辖区', value: '西城派出所' },
+                  { label: '高发类型', value: '纠纷' },
+                  { label: '环比变化', value: '+12.1%' }
+                ],
+                items: [
+                  { title: '西城派出所辖区警情高发', primary: '今日接报 218 起，较昨日增加 31 起', unit: '西城派出所', status: '高发', fields: '管辖单位、接报时间、警情类型', result: '建议增加商圈周边巡逻频次' },
+                  { title: '东城派出所纠纷类警情集中', primary: '纠纷类 64 起，占本辖区警情 34%', unit: '东城派出所', status: '需关注', fields: '管辖单位、警情类型', result: '建议联动基层调解力量' },
+                  { title: '南城派出所夜间警情上升', primary: '20:00 后接报 73 起，连续 3 日上升', unit: '南城派出所', status: '趋势上升', fields: '接报时间、管辖单位', result: '建议纳入夜间勤务研判' }
+                ],
+                assetUsage: {
+                  '警情信息表': { role: '按管辖单位聚合警情，形成辖区排行和高发区域趋势。', fields: ['管辖单位', '接报时间', '警情类型'], metrics: ['辖区警情量', '同比变化'], warning: '跨辖区流转警情按最终管辖单位统计。' },
+                  '接报警情明细视图': { role: '支持从辖区排行下钻到具体警情明细，核查高发原因。', fields: ['警情编号', '管辖单位', '接报渠道'], metrics: ['明细条数'], warning: '明细列表默认隐藏报警人联系方式。' },
+                  '警情类型维': { role: '识别高发辖区中主要警情类别，辅助勤务和治理方向判断。', fields: ['警情类型', '上级类型'], metrics: ['高发类型占比'], warning: '类型字典每日同步，历史类型保留映射。' }
+                }
+              },
+              {
+                title: '重复报警识别',
+                goal: '发现同一地点、同一电话或同类事项的重复报警。',
+                assets: ['警情信息表', '接报警情明细视图'],
+                metrics: ['重复警情占比', '重复报警次数', '重复地点数'],
+                fields: ['报警人电话', '警情地址', '接报时间'],
+                summary: [
+                  { label: '重复警情', value: '46 起' },
+                  { label: '重复占比', value: '3.6%' },
+                  { label: '重复地点', value: '12 处' },
+                  { label: '需人工复核', value: '9 起' }
+                ],
+                items: [
+                  { title: '同一小区噪音扰民重复报警', primary: '同地址 24 小时内接报 5 起', unit: '西城派出所', status: '需复核', fields: '警情地址、接报时间、报警人电话脱敏值', result: '建议合并研判并通知社区民警跟进' },
+                  { title: '同一电话多次求助报警', primary: '同一脱敏电话今日接报 4 起', unit: '东城派出所', status: '待核查', fields: '报警人电话、接报时间、警情类型', result: '建议核查是否为重复求助或特殊群体' },
+                  { title: '商圈纠纷类重复警情', primary: '同商圈 3 小时内纠纷警情 7 起', unit: '南城派出所', status: '趋势集中', fields: '警情地址、警情类型', result: '建议联动巡逻力量现场排查' }
+                ],
+                assetUsage: {
+                  '警情信息表': { role: '提供警情主键、接报时间和脱敏报警电话，用于识别同一主体重复报警。', fields: ['警情编号', '接报时间', '报警人电话'], metrics: ['重复警情占比', '重复报警次数'], warning: '电话字段必须使用脱敏值参与比对。' },
+                  '接报警情明细视图': { role: '提供地址、渠道和类型明细，用于判断是否同地点、同类型重复。', fields: ['警情地址', '接报渠道', '警情类型'], metrics: ['重复地点数'], warning: '地址相似度只做研判提示，不直接作为执法结论。' }
+                }
+              },
+              {
+                title: '接警质量检查',
+                goal: '检查接警要素是否完整、分类是否规范、敏感信息是否脱敏。',
+                assets: ['接报警情明细视图', '警情类型维'],
+                metrics: ['要素完整率', '类型规范率', '脱敏合规率'],
+                fields: ['警情编号', '警情类型', '报警人电话'],
+                summary: [
+                  { label: '要素完整率', value: '97.9%' },
+                  { label: '类型规范率', value: '96.2%' },
+                  { label: '脱敏合规率', value: '100%' },
+                  { label: '待治理记录', value: '28 条' }
+                ],
+                items: [
+                  { title: '警情类型缺失记录', primary: '今日发现 11 条警情类型为空', unit: '110接处警中心', status: '待治理', fields: '警情编号、警情类型', result: '需接警员补录或按文本辅助归类' },
+                  { title: '历史旧类型继续写入', primary: '发现 8 条停用类型仍在新警情中出现', unit: '数据治理组', status: '待治理', fields: '警情类型、启用状态', result: '需同步来源系统字典' },
+                  { title: '地址要素不完整', primary: '9 条警情缺少标准地址或管辖单位', unit: '辖区派出所', status: '需补齐', fields: '警情编号、管辖单位', result: '影响辖区高发分析准确性' }
+                ],
+                assetUsage: {
+                  '接报警情明细视图': { role: '检查接警记录是否缺少关键要素，例如时间、类型、辖区和报警人脱敏信息。', fields: ['警情编号', '接报时间', '报警人电话'], metrics: ['要素完整率', '脱敏合规率'], warning: '发现未脱敏字段时标记为待治理，不进入普通预览。' },
+                  '警情类型维': { role: '校验警情类型是否在标准字典内，发现历史旧类型或自定义类型。', fields: ['警情类型', '启用状态'], metrics: ['类型规范率'], warning: '停用类型只允许历史数据保留，不允许新数据继续写入。' }
+                }
+              }
+            ]
+          },
+          {
+            id: 'alarm-dispose',
+            name: '处置警情',
+            definition: '记录派警、到场、反馈和办结过程。',
+            scope: '派警单位、处置民警、到场时间、反馈结果、办结状态。',
+            questions: ['哪些警情处置超时', '哪些单位到场反馈较慢', '处置结果集中在哪些类型'],
+            systems: ['110接处警系统', '警综平台'],
+            owner: '情指中心',
+            status: '建设中',
+            assets: [
+              sharedAlarmInfoAsset,
+              { name: '处置警情明细视图', code: 'dwd_alarm_dispose_detail', type: '明细视图', source: '警情信息表', frequency: '分钟级', security: '内部敏感', owner: '情指中心', relatedObjects: ['处置警情'], usageByObject: { '处置警情': '面向处置环节抽取派警、到场、反馈、办结字段。' } }
+            ],
+            fields: [
+              { zh: '警情编号', en: 'alarm_id', meaning: '关联警情信息表中的警情唯一编号', sensitive: '否', standard: '警情编码标准' },
+              { zh: '派警时间', en: 'dispatch_time', meaning: '指挥调度派警时间', sensitive: '否', standard: '时间字段标准' },
+              { zh: '反馈结果', en: 'feedback_result', meaning: '处置单位反馈的警情处理结果', sensitive: '否', standard: '警情处置结果标准' }
+            ],
+            metrics: [
+              { name: '平均到场时长', rule: '到场时间 - 派警时间', source: '警情信息表', dimensions: '时间、辖区、处置单位' },
+              { name: '按期反馈率', rule: '按期反馈警情数 / 已派警警情数', source: '警情信息表', dimensions: '时间、辖区、处置单位' }
+            ]
+          },
+          makeObject('alarm-repeat', '重复警情', '识别同一地点、同一人员或同类事项的重复报警。', '重复报警次数、热点区域、关联警情。', '情指研判平台', '重复警情指标'),
+          makeObject('alarm-major', '重大警情', '记录重大警情升级处置和联动指挥过程。', '重大级别、联动单位、处置进展。', '重大警情指挥系统', '重大警情处置表'),
+          makeObject('alarm-assist', '协助警情', '记录跨辖区、跨警种请求协助和联动处置过程。', '协助单位、请求原因、协同结果、反馈时限。', '情指联动平台', '协助警情明细表'),
+          makeObject('alarm-false', '无效警情', '识别误报、重复录入、无管辖权等无需处置的警情。', '无效原因、审核状态、责任单位、处置说明。', '110接处警系统', '无效警情审核表'),
+          makeObject('alarm-hotspot', '热点警情', '按时间、区域、类型识别高发警情和异常聚集。', '热点区域、警情类型、发生频次、趋势变化。', '情指研判平台', '热点警情专题表'),
+          makeObject('alarm-feedback', '警情反馈', '记录处置单位对派警结果、现场情况和办结意见的反馈。', '反馈时间、反馈内容、处置结果、审核状态。', '警综平台', '警情反馈事实表'),
+          makeObject('alarm-transfer', '流转警情', '记录警情在单位、警种和处置环节之间的转派流转。', '转派时间、转出单位、接收单位、流转原因。', '110接处警系统', '流转警情明细表'),
+          makeObject('alarm-supervise', '督办警情', '记录领导关注、超时未办和重点督办警情的跟踪闭环。', '督办级别、督办事项、办理进度、销号状态。', '督办管理系统', '督办警情事实表')
+        ]
+      },
+      {
+        id: 'case',
+        name: '案件域',
+        owner: '法制支队',
+        status: '运行中',
+        objects: [
+          makeObject('case-accept', '受立案案件', '记录案件受理、立案和不予立案过程。', '受案时间、立案状态、案件类别、主办单位。', '执法办案系统', '案件受立案事实表'),
+          makeObject('case-open', '在办案件', '记录仍处于侦办或办理中的案件。', '办理阶段、承办人、期限、强制措施。', '执法办案系统', '在办案件明细表'),
+          makeObject('case-close', '办结案件', '记录完成办结、移送或归档的案件。', '办结方式、办结时间、处理结果。', '执法办案系统', '案件办结事实表'),
+          makeObject('case-overdue', '超期案件', '识别超过办理期限或临近超期的案件。', '法定期限、剩余天数、超期原因。', '执法监督平台', '超期案件指标'),
+          makeObject('case-criminal', '刑事案件', '记录刑事案件侦查、强制措施和移送起诉过程。', '案件类别、立案时间、嫌疑人、移送状态。', '执法办案系统', '刑事案件主题表'),
+          makeObject('case-admin', '行政案件', '记录行政案件调查、处罚、调解和结案过程。', '违法类型、处罚结果、办案单位、执行状态。', '执法办案系统', '行政案件明细表'),
+          makeObject('case-clue', '案件线索', '记录群众举报、警情转化、协查通报形成的案件线索。', '线索来源、核查状态、转案结果、责任单位。', '线索管理系统', '案件线索事实表'),
+          makeObject('case-supervise', '督办案件', '记录重点案件、超期案件和领导批示案件的督办闭环。', '督办级别、督办事项、办理进度、销号时间。', '执法监督平台', '督办案件事实表'),
+          makeObject('case-appeal', '复议诉讼案件', '记录行政复议、行政诉讼和国家赔偿相关案件。', '申请时间、争议事项、审理阶段、处理结果。', '法制监督系统', '复议诉讼案件表'),
+          makeObject('case-joint', '串并案件', '记录通过人员、物品、地点、手法关联形成的串并案关系。', '关联案件、串并依据、研判结论、确认状态。', '合成作战平台', '串并案件关系表')
+        ]
+      },
+      {
+        id: 'person',
+        name: '人员域',
+        owner: '治安支队',
+        status: '规划中',
+        objects: [
+          makeObject('person-involved', '涉案人员', '记录案件和警情中出现的涉案人员脱敏画像。', '人员角色、涉案次数、关联案件。', '警综平台', '涉案人员明细表'),
+          makeObject('person-key', '重点人员', '记录重点关注人员的分类、管控状态和关联事件。', '人员类别、管控单位、风险等级。', '重点人员系统', '重点人员主题表'),
+          makeObject('person-relation', '关系人员', '记录人员之间的同案、同住、同行等关系。', '关系类型、关系强度、关联来源。', '关系分析平台', '人员关系图谱服务'),
+          makeObject('person-police', '办案民警', '记录民警承办案件、处置警情和文书办理情况。', '所属单位、承办数量、办理质量。', '警务人事系统', '办案民警维'),
+          makeObject('person-victim', '被侵害人', '记录案件和警情中的被侵害人、受害单位及保护情况。', '人员类别、受害类型、损失情况、保护措施。', '执法办案系统', '被侵害人明细表'),
+          makeObject('person-suspect', '违法犯罪嫌疑人', '记录嫌疑人身份、到案、强制措施和处理结果。', '人员身份、到案方式、强制措施、处理状态。', '执法办案系统', '嫌疑人主题表'),
+          makeObject('person-missing', '失踪走失人员', '记录走失、失联、查找和找回人员过程。', '失踪时间、发现地点、查找状态、找回结果。', '人口管理系统', '失踪走失人员表'),
+          makeObject('person-temporary', '流动暂住人员', '记录辖区流动人口、暂住登记和居住变动情况。', '居住地址、登记时间、来源地、管控状态。', '实有人口系统', '流动暂住人员表'),
+          makeObject('person-visit', '信访投诉人员', '记录涉警信访、投诉举报和回访处置过程。', '诉求类型、办理单位、处置进度、回访结果。', '信访投诉系统', '信访投诉人员表')
+        ]
+      },
+      {
+        id: 'item',
+        name: '物品域',
+        owner: '警保处',
+        status: '建设中',
+        objects: [
+          makeObject('item-involved', '涉案物品', '记录案件中扣押、冻结、登记的涉案物品。', '物品类型、数量、保管位置、处置状态。', '涉案财物管理系统', '涉案物品事实表'),
+          makeObject('item-stock', '在库物品', '记录仍在库房或保管点的物品。', '入库时间、库位、保管人、盘点状态。', '涉案财物管理系统', '在库物品明细表'),
+          makeObject('item-transfer', '移交物品', '记录移交检察院、法院或其他单位的物品。', '移交时间、接收单位、移交文书。', '涉案财物管理系统', '移交物品明细表'),
+          makeObject('item-dispose', '处置物品', '记录返还、销毁、拍卖等物品处置结果。', '处置方式、处置时间、审批文书。', '涉案财物管理系统', '物品处置事实表'),
+          makeObject('item-seal', '扣押查封物品', '记录依法扣押、查封、冻结的物品和审批过程。', '扣押时间、法律依据、保管地点、审批状态。', '涉案财物管理系统', '扣押查封物品表'),
+          makeObject('item-evidence', '证据物品', '记录作为证据使用的实物、电子介质和提取过程。', '证据类型、提取人、提取时间、关联案件。', '物证管理系统', '证据物品明细表'),
+          makeObject('item-vehicle', '涉案车辆', '记录涉案车辆登记、扣押、鉴定和处置情况。', '车牌号脱敏、车辆类型、扣押状态、处置结果。', '车辆管理系统', '涉案车辆主题表'),
+          makeObject('item-money', '涉案资金', '记录现金、账户资金、冻结资金和返还处置过程。', '资金类型、金额、冻结账号、返还状态。', '涉案财物管理系统', '涉案资金事实表'),
+          makeObject('item-digital', '电子物证', '记录手机、硬盘、监控视频等电子物证的提取和保全。', '介质类型、提取方式、哈希值、保全状态。', '电子物证系统', '电子物证明细表')
+        ]
+      },
+      {
+        id: 'file',
+        name: '卷宗域',
+        owner: '法制支队',
+        status: '运行中',
+        objects: [
+          makeObject('file-doc', '法律文书', '记录受案、立案、强制措施、移送等法律文书。', '文书类型、生成时间、审批状态。', '电子卷宗系统', '文书处置事实表'),
+          makeObject('file-electronic', '电子卷宗', '记录案件电子卷宗目录、文件和归档状态。', '卷宗目录、材料数量、电子签章。', '电子卷宗系统', '电子卷宗主题表'),
+          makeObject('file-archive', '归档卷宗', '记录已归档卷宗和归档质量。', '归档时间、归档单位、完整率。', '档案管理系统', '归档卷宗明细表'),
+          makeObject('file-missing', '缺失文书', '识别案件办理中缺失或待补齐的文书。', '缺失类型、责任单位、补齐期限。', '执法监督平台', '缺失文书指标'),
+          makeObject('file-evidence', '证据材料', '记录笔录、鉴定、勘验、视听资料等证据材料入卷情况。', '材料类型、形成时间、关联对象、完整状态。', '电子卷宗系统', '证据材料明细表'),
+          makeObject('file-approval', '审批文书', '记录受案、立案、强制措施、财物处置等审批流转。', '审批事项、审批人、审批时间、审批意见。', '执法办案系统', '审批文书事实表'),
+          makeObject('file-transfer', '移送卷宗', '记录移送检察院、法院或其他单位的卷宗交接过程。', '移送时间、接收单位、材料清单、签收状态。', '电子卷宗系统', '移送卷宗明细表'),
+          makeObject('file-quality', '卷宗质检', '记录卷宗完整性、规范性和问题整改情况。', '质检规则、问题类型、整改单位、整改状态。', '执法监督平台', '卷宗质检指标'),
+          makeObject('file-borrow', '卷宗借阅', '记录纸质和电子卷宗的查询、借阅、归还和审计。', '借阅人、借阅事由、借阅时间、归还状态。', '档案管理系统', '卷宗借阅日志表')
+        ]
+      }
+    ];
+
+    function makeObject(id, name, definition, scope, system, assetName) {
+      return {
+        id,
+        name,
+        definition,
+        scope,
+        questions: ['当前总量是多少', '哪些单位变化明显', '是否存在异常或待治理事项'],
+        systems: [system],
+        owner: '业务责任组',
+        status: '运行中',
+        assets: [
+          { name: assetName, code: id.replaceAll('-', '_'), type: assetName.includes('指标') ? '指标' : '明细表', source: system, frequency: '日级', security: '内部', owner: '业务责任组' },
+          { name: name + '分析服务', code: id.replaceAll('-', '_') + '_service', type: '数据服务', source: system, frequency: '日级', security: '内部', owner: '数据治理组' }
+        ],
+        fields: [
+          { zh: '业务编号', en: id.replaceAll('-', '_') + '_id', meaning: '业务对象唯一编号', sensitive: '否', standard: '业务编码标准' },
+          { zh: '所属单位', en: 'org_name', meaning: '负责该对象的公安机关或业务单位', sensitive: '否', standard: '组织机构标准' },
+          { zh: '更新时间', en: 'update_time', meaning: '数据最近更新时间', sensitive: '否', standard: '时间字段标准' }
+        ],
+        metrics: [
+          { name: name + '总量', rule: '按业务编号去重计数', source: assetName, dimensions: '时间、单位、类型' },
+          { name: name + '环比变化', rule: '本期数量 / 上期数量 - 1', source: assetName, dimensions: '时间、单位' }
+        ]
+      };
+    }
+
+    const state = { domainId: 'alarm', objectId: '', tab: 'overview', notice: '', editing: null, role: 'admin', hiddenInsights: new Set(), deletedInsights: new Set() };
+    const sqlState = { object: null, scenario: null, main: null };
+    const insightEditState = { object: null, scenario: null, main: null, key: null, type: null };
+    const objectEditState = { domain: null, object: null };
+
+    function canEdit() {
+      return state.role === 'admin' || state.role === 'editor';
+    }
+
+    function realDomains() {
+      return themeDomains.filter(domain => !domain.virtual);
+    }
+
+    function objectsForDomain(domain) {
+      if (!domain || domain.id === 'all') {
+        return realDomains().flatMap(item => item.objects.map(object => ({ ...object, domainName: item.name, domainId: item.id })));
+      }
+      return domain.objects.map(object => ({ ...object, domainName: domain.name, domainId: domain.id }));
+    }
+
+    function getActiveDomain() {
+      return themeDomains.find(domain => domain.id === state.domainId) || themeDomains[1];
+    }
+
+    function getActiveObject() {
+      const domain = getActiveDomain();
+      const objects = objectsForDomain(domain);
+      return objects.find(object => object.id === state.objectId) || null;
+    }
+
+    function assetCount(domain) {
+      const objects = domain.id === 'all' ? realDomains().flatMap(item => item.objects) : domain.objects;
+      return objects.reduce((sum, object) => sum + object.assets.length, 0);
+    }
+
+    function renderDomains() {
+      const list = document.getElementById('domainList');
+      list.innerHTML = themeDomains.map(domain => {
+        const objectCount = domain.id === 'all' ? realDomains().reduce((sum, item) => sum + item.objects.length, 0) : domain.objects.length;
+        return `
+          <div class="domainCard ${domain.id === state.domainId ? 'active' : ''}" role="button" tabindex="0" data-domain-id="${domain.id}">
+            <span class="domainName">${domain.name}</span>
+            <span class="titleActions">
+              ${canEdit() ? `<button class="miniEdit" type="button" data-edit-domain="${domain.id}">编辑</button>` : ''}
+              <span class="pill ${domain.status === '建设中' ? 'pillAmber' : 'pillGreen'}">${domain.status}</span>
+            </span>
+            <span class="domainMeta">${objectCount} 个业务对象 / ${assetCount(domain)} 项资产</span>
+            <span class="domainMeta">${domain.owner}</span>
+          </div>
+        `;
+      }).join('');
+      list.querySelectorAll('[data-edit-domain]').forEach(button => {
+        button.addEventListener('click', event => {
+          event.stopPropagation();
+          openEditForm('domain', button.dataset.editDomain);
+        });
+      });
+      list.querySelectorAll('[data-domain-id]').forEach(button => {
+        button.addEventListener('click', () => {
+          state.domainId = button.dataset.domainId;
+          state.objectId = '';
+          state.tab = 'overview';
+          state.notice = '';
+          renderAll();
+        });
+        button.addEventListener('keydown', event => {
+          if (event.key === 'Enter' || event.key === ' ') button.click();
+        });
+      });
+    }
+
+    function renderContent() {
+      const domain = getActiveDomain();
+      const body = document.getElementById('contentBody');
+      document.getElementById('contentTitle').textContent = domain.name;
+      document.getElementById('contentSubtitle').textContent = '业务对象与主题资产';
+      const search = document.getElementById('globalSearch').value.trim();
+      const keyword = search;
+      const objects = objectsForDomain(domain).filter(object => !keyword || object.name.includes(keyword) || object.definition.includes(keyword));
+      const object = objects.find(item => item.id === state.objectId) || null;
+      const hasObjects = objectsForDomain(domain).length > 0;
+      if (!hasObjects) {
+        body.innerHTML = `
+          ${state.notice ? `<div class="notice">${state.notice}</div>` : ''}
+          <div class="objectToolbar"><input class="fieldInput" disabled placeholder="该主题暂无可搜索业务项" />${canEdit() ? '<button class="btn btnPrimary" type="button" data-create-type="object">新增业务项</button>' : ''}</div>
+          <div class="emptyState">
+            <h3>该主题还没有业务对象</h3>
+            <p class="muted">${canEdit() ? '可以继续点击“新增业务项”，为这个主题补充业务内容和分析场景。' : '当前账号只有查看权限，请联系管理员维护主题内容。'}</p>
+          </div>
+        `;
+        body.querySelector('[data-create-type]')?.addEventListener('click', event => openCreateForm(event.target.dataset.createType));
+        return;
+      }
+      const notice = state.notice ? `<div class="notice">${state.notice}</div>` : '';
+      body.innerHTML = `
+        ${notice}
+        <div class="objectToolbar">
+          <input class="fieldInput" id="objectSearch" placeholder="搜索当前主题域业务项" value="${keyword}" />
+          ${canEdit() ? '<button class="btn btnPrimary" type="button" data-create-type="object">新增业务项</button>' : ''}
+          ${canEdit() ? '<button class="btn" type="button" data-create-type="asset">新增分析场景</button>' : ''}
+        </div>
+        <div class="objectGrid" id="objectGrid">
+          ${objects.map(item => `
+            <div class="objectCard ${item.id === state.objectId ? 'active' : ''}" role="button" tabindex="0" data-object-id="${item.id}">
+              <span class="objectTitle"><strong>${item.name}</strong><span class="titleActions">${canEdit() ? `<button class="miniEdit" type="button" data-edit-object="${item.domainId}::${item.id}">编辑</button>` : ''}<span class="pill">${item.status}</span></span></span>
+              <span class="objectDesc">${item.definition}</span>
+              <span class="cardMeta">覆盖范围：${item.scope}</span>
+              <span class="stats dynamicStats">
+                ${objectStatItems(item).map(stat => `<span class="stat"><strong>${stat.value}</strong><span class="muted">${stat.label}</span></span>`).join('')}
+              </span>
+            </div>
+          `).join('') || '<div class="panel">没有匹配的业务对象</div>'}
+        </div>
+      `;
+      body.querySelectorAll('[data-create-type]').forEach(button => {
+        button.addEventListener('click', () => openCreateForm(button.dataset.createType));
+      });
+      body.querySelectorAll('[data-edit-object]').forEach(button => {
+        button.addEventListener('click', event => {
+          event.stopPropagation();
+          openObjectStatsModal(button.dataset.editObject);
+        });
+      });
+      body.querySelectorAll('[data-object-id]').forEach(button => {
+        button.addEventListener('click', () => {
+          state.objectId = state.objectId === button.dataset.objectId ? '' : button.dataset.objectId;
+          state.notice = '';
+          renderAll();
+        });
+        button.addEventListener('keydown', event => {
+          if (event.key === 'Enter' || event.key === ' ') button.click();
+        });
+      });
+      const objectSearch = document.getElementById('objectSearch');
+      if (objectSearch) {
+        objectSearch.addEventListener('input', event => {
+          document.getElementById('globalSearch').value = event.target.value;
+          renderContent();
+        });
+      }
+      if (object) placeExpandedDetailAfterObjectRow(object);
+    }
+
+    function placeExpandedDetailAfterObjectRow(object) {
+      const grid = document.getElementById('objectGrid');
+      const selectedCard = grid.querySelector(`[data-object-id="${object.id}"]`);
+      if (!selectedCard) return;
+      const cards = Array.from(grid.querySelectorAll('.objectCard'));
+      const selectedTop = selectedCard.offsetTop;
+      let rowEndCard = selectedCard;
+      for (const card of cards) {
+        if (card.offsetTop === selectedTop) {
+          rowEndCard = card;
+        } else if (card.offsetTop > selectedTop) {
+          break;
+        }
+      }
+      const detail = document.createElement('div');
+      detail.className = 'expandedObjectRow';
+      detail.innerHTML = renderObjectAssetFocus(object);
+      rowEndCard.after(detail);
+      bindAssetWorkspace(detail, object);
+    }
+
+    function renderObjectAssetFocus(object) {
+      return `
+        <section class="assetFocus">
+          ${renderAssets(object)}
+        </section>
+      `;
+    }
+
+    function renderOverview(object) {
+      const sharedAssets = object.assets.filter(asset => asset.relatedObjects && asset.relatedObjects.length > 1);
+      return `
+        <div class="summaryGrid">
+          <div class="panel"><h3>业务定义</h3><p>${object.definition}</p></div>
+          <div class="panel"><h3>覆盖范围</h3><p>${object.scope}</p></div>
+          <div class="panel"><h3>典型业务问题</h3><ul>${object.questions.map(item => `<li>${item}</li>`).join('')}</ul></div>
+          <div class="panel"><h3>来源系统</h3><p>${object.systems.join('、')}</p><p class="muted">负责人：${object.owner}</p></div>
+        </div>
+        <div class="summaryGrid">
+          <div class="panel"><h3>相关资产摘要</h3><p>${object.assets.map(item => item.name).join('、')}</p></div>
+          <div class="panel"><h3>业务指标摘要</h3><p>${object.metrics.map(item => item.name).join('、')}</p></div>
+          <div class="panel"><h3>字段标准摘要</h3><p>${object.fields.map(item => item.zh).join('、')}</p></div>
+          <div class="panel"><h3>数据关系</h3><p>业务对象连接来源系统、主题资产、字段标准和指标口径，帮助用户先理解业务，再进入资产明细。</p></div>
+        </div>
+        ${sharedAssets.length ? `<div class="panel"><h3>共享资产说明</h3><p>${sharedAssets.map(asset => `“${asset.name}”只登记一份，但同时关联${asset.relatedObjects.join('、')}。当前对象使用范围：${asset.usageByObject[object.name] || '按业务口径使用相关字段。'}`).join('；')}</p></div>` : ''}
+      `;
+    }
+
+    function renderAssets(object) {
+      return `
+        <div class="assetWorkspace">
+          <div class="scenarioList">
+            ${assetScenarios(object).map((scenario, index) => `
+              <div class="scenarioCard ${index === 0 ? 'active' : ''}" role="button" tabindex="0" data-scenario-index="${index}">
+                <strong>${scenario.title}</strong>
+                ${canEdit() ? `<button class="miniEdit" type="button" data-edit-scenario="${object.domainId || state.domainId}::${object.id}::${index}">编辑</button>` : ''}
+                <span>${scenario.goal}</span>
+              </div>
+            `).join('')}
+          </div>
+          <div class="scenarioMain" id="scenarioMain">${renderScenarioWorkspace(object, assetScenarios(object)[0], 0)}</div>
+        </div>
+      `;
+    }
+
+    function bindAssetWorkspace(root, object) {
+      const main = root.querySelector('#scenarioMain');
+      root.querySelectorAll('[data-scenario-index]').forEach(button => {
+        button.addEventListener('click', () => {
+          const scenarioIndex = Number(button.dataset.scenarioIndex);
+          root.querySelectorAll('[data-scenario-index]').forEach(item => item.classList.toggle('active', item === button));
+          main.innerHTML = renderScenarioWorkspace(object, assetScenarios(object)[scenarioIndex], 0);
+          bindScenarioWorkspace(main, object, assetScenarios(object)[scenarioIndex]);
+        });
+        button.addEventListener('keydown', event => {
+          if (event.key === 'Enter' || event.key === ' ') button.click();
+        });
+      });
+      root.querySelectorAll('[data-edit-scenario]').forEach(button => {
+        button.addEventListener('click', event => {
+          event.stopPropagation();
+          openEditForm('asset', button.dataset.editScenario);
+        });
+      });
+      bindScenarioWorkspace(main, object, assetScenarios(object)[0]);
+    }
+
+    function assetScenarios(object) {
+      if (object.scenarios && object.scenarios.length) return object.scenarios;
+      return object.questions.map((question, index) => ({
+        title: question,
+        goal: `围绕“${question}”查看需要哪些资产、字段和指标支撑。`,
+        assets: object.assets.map(asset => asset.name),
+        metrics: object.metrics.map(metric => metric.name),
+        fields: object.fields.map(field => field.zh),
+        summary: buildScenarioSummary(object, index),
+        items: buildScenarioItems(object, question, index)
+      }));
+    }
+
+    function objectBusinessSnapshot(object) {
+      if (object.statConfig) {
+        return {
+          volume: object.statConfig.volumeValue || '0 条',
+          volumeLabel: object.statConfig.volumeLabel || (object.id === 'alarm-receive' ? '今日接报' : '今日业务量'),
+          attention: object.statConfig.attentionValue || '0 条'
+        };
+      }
+      const firstScenario = assetScenarios(object)[0];
+      const summary = firstScenario?.summary || [];
+      const total = summary[0]?.value || `${126 + object.name.length * 9} 条`;
+      const attention = summary[3]?.value || `${8 + object.name.length} 条`;
+      return {
+        volume: total,
+        volumeLabel: object.id === 'alarm-receive' ? '今日接报' : '今日业务量',
+        attention
+      };
+    }
+
+    function objectStatItems(object) {
+      if (object.statItems && object.statItems.length) return object.statItems;
+      const snapshot = objectBusinessSnapshot(object);
+      return [
+        { label: '资产', value: `${object.assets?.length || assetScenarios(object).length}`, sql: defaultObjectStatsSql(object, 'asset') },
+        { label: snapshot.volumeLabel, value: snapshot.volume, sql: defaultObjectStatsSql(object, 'volume') },
+        { label: '待关注', value: snapshot.attention, sql: defaultObjectStatsSql(object, 'attention') }
+      ];
+    }
+
+    function defaultObjectStatsSql(object, type) {
+      const tableName = object.assets?.[0]?.code || object.id.replaceAll('-', '_');
+      if (type === 'asset') return `select count(*) as asset_count\nfrom theme_asset\nwhere object_code = '${object.id}';`;
+      if (type === 'attention') return `select count(*) as attention_count\nfrom ${tableName}\nwhere stat_date = current_date\n  and status in ('需关注', '待治理', '待反馈');`;
+      return `select count(*) as total_count\nfrom ${tableName}\nwhere stat_date = current_date;`;
+    }
+
+    function runObjectStatPreview(object, type, sql) {
+      const lower = (sql || '').toLowerCase();
+      if (type === 'asset') return `${object.assets?.length || 0}`;
+      if (type === 'attention') {
+        if (lower.includes('repeat')) return '9 条';
+        if (lower.includes('quality')) return '28 条';
+        return object.id === 'alarm-receive' ? '17 起' : `${8 + object.name.length} 条`;
+      }
+      if (object.id === 'alarm-receive') return '1,286 起';
+      return `${126 + object.name.length * 9} 条`;
+    }
+
+    function buildScenarioSummary(object, index) {
+      const base = 126 + index * 37 + object.name.length * 9;
+      return [
+        { label: '当前总量', value: `${base} 条` },
+        { label: '较昨日', value: `${index % 2 === 0 ? '+' : '-'}${6 + index * 2}.3%` },
+        { label: '涉及单位', value: `${4 + index} 个` },
+        { label: '待处置', value: `${8 + index * 3} 条` }
+      ];
+    }
+
+    function buildScenarioItems(object, question, index) {
+      const fields = object.fields.map(field => field.zh).join('、') || '业务编号、所属单位、更新时间';
+      const unitA = object.owner || '业务责任组';
+      const unitB = object.systems?.[0] || '来源系统';
+      return [
+        {
+          title: `${object.name}${question.replace(/[？?。]/g, '')}汇总`,
+          primary: `当前已汇总 ${126 + index * 37} 条，较近 7 日均值变化明显`,
+          unit: unitA,
+          status: index % 2 === 0 ? '需关注' : '运行中',
+          fields,
+          result: `用于判断${object.name}是否存在异常波动，并辅助业务单位安排处置。`
+        },
+        {
+          title: `${object.name}重点单位排行`,
+          primary: `排名前 3 单位贡献约 ${42 + index * 5}% 的业务量`,
+          unit: unitB,
+          status: '运行中',
+          fields,
+          result: '用于定位重点单位、重点环节和后续治理对象。'
+        },
+        {
+          title: `${object.name}待治理清单`,
+          primary: `发现 ${8 + index * 3} 条待补充、待核查或待闭环记录`,
+          unit: '数据治理组',
+          status: '待治理',
+          fields,
+          result: '用于形成治理任务，推动责任单位补齐信息并闭环。'
+        }
+      ];
+    }
+
+    function renderScenarioWorkspace(object, scenario, activeAssetIndex) {
+      return `
+        <div class="scenarioSummaryGrid">
+          ${(scenario.summary || []).map(item => `<div class="summaryTile"><strong>${item.value}</strong><span>${item.label}</span></div>`).join('')}
+        </div>
+        ${renderScenarioInsightBlocks(object, scenario)}
+        <div class="scenarioItemsHeader">
+          <span>具体条目信息</span>
+          <span class="scenarioQueryLine">
+            ${canEdit() ? '<button class="linkBtn" type="button" data-open-sql>编辑SQL</button>' : ''}
+            <span class="muted" data-query-status>${queryStatusText(scenario)}</span>
+          </span>
+        </div>
+        <div class="tableWrap">
+          <table>
+            <thead><tr><th>条目名称</th><th>汇总信息</th><th>责任单位</th><th>状态</th><th>使用字段</th><th>业务处置建议</th></tr></thead>
+            <tbody data-result-body>${renderScenarioRows(scenario.items || [])}</tbody>
+          </table>
+        </div>
+      `;
+    }
+
+    function renderScenarioInsightBlocks(object, scenario) {
+      const isAlarmReceiveTrend = object.id === 'alarm-receive' && (scenario.title || '').includes('接警总量');
+      const rankRows = isAlarmReceiveTrend ? [
+        { name: '西城派出所', value: '218 起' },
+        { name: '东城派出所', value: '196 起' },
+        { name: '南城派出所', value: '173 起' },
+        { name: '交警一中队', value: '139 起' },
+        { name: '中心商圈警务站', value: '122 起' }
+      ] : buildInsightRankRows(object, scenario);
+      const pieRows = isAlarmReceiveTrend ? [
+        { name: '需关注', value: '42%', color: '#1f5fbf' },
+        { name: '运行中', value: '26%', color: '#60a5fa' },
+        { name: '待处理', value: '16%', color: '#f59e0b' },
+        { name: '已闭环', value: '16%', color: '#22c55e' }
+      ] : buildInsightPieRows(scenario);
+      const baseCode = `${object.id}_${slugText(scenario.title || 'scenario')}`;
+      const rankKey = `${baseCode}_rank`;
+      const pieKey = `${baseCode}_pie`;
+      ensureInsightConfig(scenario, rankKey, 'rank', `${scenario.title}责任单位排行`, '当前板块由主题库场景 SQL 配置生成，帮助业务用户先定位重点责任单位。', object);
+      ensureInsightConfig(scenario, pieKey, 'pie', `${scenario.title}类型占比`, '当前板块由主题库场景 SQL 配置生成，展示当前场景不同状态或类型的占比。', object);
+      const rankConfig = scenario.insightBlocks[rankKey];
+      const pieConfig = scenario.insightBlocks[pieKey];
+      const rankVisible = !state.hiddenInsights.has(rankKey) && !state.deletedInsights.has(rankKey);
+      const pieVisible = !state.hiddenInsights.has(pieKey) && !state.deletedInsights.has(pieKey);
+      if (!rankVisible && !pieVisible) return '';
+      const blockConfigs = [
+        { key: rankKey, visible: rankVisible, config: rankConfig, rows: rankRows, defaultType: 'list' },
+        { key: pieKey, visible: pieVisible, config: pieConfig, rows: pieRows, defaultType: 'pie' }
+      ].filter(item => item.visible).sort((a, b) => (a.config.order ?? 0) - (b.config.order ?? 0));
+      return `
+        <div class="scenarioBlockGrid">
+          ${blockConfigs.map(item => `<section class="scenarioBlock ${item.config.width === 'full' ? 'full' : ''}" data-insight-block="${item.key}">
+            <div class="scenarioBlockHead">
+              <div>
+                <h4>${escapeHtml(item.config.title)}</h4>
+              </div>
+              ${canEdit() ? `<span class="blockActionGroup"><button type="button" data-edit-insight="${item.key}" data-insight-type="${item.config.type || item.defaultType}">编辑</button><button type="button" data-hide-insight="${item.key}">隐藏</button><button type="button" data-delete-insight="${item.key}">删除</button><span class="layoutControls"><button type="button" data-move-insight="${item.key}" data-direction="-1">上移</button><button type="button" data-move-insight="${item.key}" data-direction="1">下移</button></span></span>` : ''}
+            </div>
+            <p class="remark">${escapeHtml(item.config.description)}</p>
+            ${renderInsightVisualization(item.config.displayType || item.defaultType, item.rows)}
+          </section>`).join('')}
+        </div>
+      `;
+    }
+
+    function renderInsightVisualization(type, rows) {
+      if (type === 'pie') {
+        return `<div class="miniPiePanel"><div class="miniPieChart"></div><ul class="miniLegend">${rows.map(item => `<li><i style="background:${item.color || '#1f5fbf'}"></i><span>${item.name}</span><b>${item.value}</b></li>`).join('')}</ul></div>`;
+      }
+      if (type === 'bar') {
+        const max = Math.max(...rows.map(item => Number(String(item.value).replace(/[^\d.]/g, '')) || 0), 1);
+        return `<div class="miniBarChart">${rows.map(item => {
+          const value = Number(String(item.value).replace(/[^\d.]/g, '')) || 0;
+          return `<div class="miniBarRow"><span>${item.name}</span><span class="miniBarTrack"><i class="miniBarFill" style="width:${Math.max(8, value / max * 100)}%"></i></span><b>${item.value}</b></div>`;
+        }).join('')}</div>`;
+      }
+      return `<ol class="miniRankList">${rows.map((item, index) => `<li><span>${index + 1}</span><span>${item.name}</span><b>${item.value}</b></li>`).join('')}</ol>`;
+    }
+
+    function buildInsightRankRows(object, scenario) {
+      const items = scenario.items || [];
+      if (items.length) {
+        return items.slice(0, 5).map((item, index) => ({
+          name: item.unit || `责任单位${index + 1}`,
+          value: `${18 + index * 9 + object.name.length} 条`
+        }));
+      }
+      return [
+        { name: object.owner || '业务责任组', value: '42 条' },
+        { name: object.systems?.[0] || '来源系统', value: '36 条' },
+        { name: '数据治理组', value: '29 条' },
+        { name: '辖区派出所', value: '22 条' },
+        { name: '业务支队', value: '18 条' }
+      ];
+    }
+
+    function buildInsightPieRows(scenario) {
+      const attention = (scenario.summary || [])[3]?.value || '16 条';
+      return [
+        { name: '需关注', value: '36%', color: '#1f5fbf' },
+        { name: '运行中', value: '31%', color: '#60a5fa' },
+        { name: '待处理', value: attention.includes('%') ? attention : '18%', color: '#f59e0b' },
+        { name: '已闭环', value: '15%', color: '#22c55e' }
+      ];
+    }
+
+    function ensureInsightConfig(scenario, key, type, title, description, object) {
+      if (!scenario.insightBlocks) scenario.insightBlocks = {};
+      if (scenario.insightBlocks[key]) return scenario.insightBlocks[key];
+      scenario.insightBlocks[key] = {
+        key,
+        type,
+        title,
+        description,
+        datasource: defaultDatasourceForObject(object),
+        sql: defaultInsightSql(object, scenario, type),
+        displayType: type === 'pie' ? 'pie' : 'list',
+        width: 'half',
+        order: type === 'pie' ? 2 : 1
+      };
+      return scenario.insightBlocks[key];
+    }
+
+    function defaultInsightSql(object, scenario, type) {
+      const tableName = object.assets?.[0]?.code || object.id.replaceAll('-', '_');
+      if (type === 'rank') {
+        return `select\n  org_name,\n  count(*) as total_count\nfrom ${tableName}\nwhere stat_date = current_date\ngroup by org_name\norder by total_count desc\nlimit 5;`;
+      }
+      return `select\n  status_name,\n  round(count(*) * 100.0 / sum(count(*)) over(), 1) as ratio\nfrom ${tableName}\nwhere stat_date = current_date\ngroup by status_name\norder by ratio desc;`;
+    }
+
+    function datasourceLabelForObject(object) {
+      if ((object.systems || []).some(item => item.includes('110'))) return 'Oracle / 110_alarm_core';
+      if ((object.systems || []).some(item => item.includes('执法') || item.includes('卷宗'))) return 'PostgreSQL / law_enforce_dw';
+      return 'MySQL / police_warehouse_prod';
+    }
+
+    function slugText(value) {
+      return String(value || 'scenario').replace(/[^\w\u4e00-\u9fa5]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 24) || 'scenario';
+    }
+
+    function bindScenarioWorkspace(main, object, scenario) {
+      const status = main.querySelector('[data-query-status]');
+      const body = main.querySelector('[data-result-body]');
+      if (scenario.queryRows) body.innerHTML = renderScenarioRows(scenario.queryRows);
+      status.textContent = queryStatusText(scenario);
+      main.querySelectorAll('[data-open-sql]').forEach(button => button.addEventListener('click', () => {
+        openSqlModal(object, scenario, main);
+      }));
+      main.querySelectorAll('[data-edit-insight]').forEach(button => button.addEventListener('click', () => {
+        openInsightModal(object, scenario, main, button.dataset.editInsight, button.dataset.insightType);
+      }));
+      main.querySelectorAll('[data-hide-insight]').forEach(button => button.addEventListener('click', () => {
+        state.hiddenInsights.add(button.dataset.hideInsight);
+        main.innerHTML = renderScenarioWorkspace(object, scenario, 0);
+        bindScenarioWorkspace(main, object, scenario);
+      }));
+      main.querySelectorAll('[data-delete-insight]').forEach(button => button.addEventListener('click', () => {
+        if (!window.confirm('确认删除这个分析板块吗？')) return;
+        state.deletedInsights.add(button.dataset.deleteInsight);
+        main.innerHTML = renderScenarioWorkspace(object, scenario, 0);
+        bindScenarioWorkspace(main, object, scenario);
+      }));
+      main.querySelectorAll('[data-move-insight]').forEach(button => button.addEventListener('click', () => {
+        if (!scenario.insightBlocks) return;
+        const key = button.dataset.moveInsight;
+        const direction = Number(button.dataset.direction);
+        const current = scenario.insightBlocks[key];
+        if (!current) return;
+        current.order = Math.max(1, (current.order || 1) + direction);
+        Object.entries(scenario.insightBlocks).forEach(([otherKey, config]) => {
+          if (otherKey !== key && config.order === current.order) config.order = Math.max(1, config.order - direction);
+        });
+        main.innerHTML = renderScenarioWorkspace(object, scenario, 0);
+        bindScenarioWorkspace(main, object, scenario);
+      }));
+    }
+
+    function openInsightModal(object, scenario, main, key, type) {
+      const fallbackTitle = `${scenario.title}${type === 'rank' ? '责任单位排行' : '类型占比'}`;
+      const fallbackDescription = type === 'rank' ? '当前板块由主题库场景 SQL 配置生成，帮助业务用户先定位重点责任单位。' : '当前板块由主题库场景 SQL 配置生成，展示当前场景不同状态或类型的占比。';
+      const config = ensureInsightConfig(scenario, key, type, fallbackTitle, fallbackDescription, object);
+      insightEditState.object = object;
+      insightEditState.scenario = scenario;
+      insightEditState.main = main;
+      insightEditState.key = key;
+      insightEditState.type = type;
+      document.getElementById('insightModalTitle').textContent = `编辑分析板块：${config.title}`;
+      document.getElementById('insightTitleInput').value = config.title;
+      document.getElementById('insightDescriptionInput').value = config.description;
+      document.getElementById('insightDatasourceSelect').value = config.datasource;
+      document.getElementById('insightDisplayTypeSelect').value = config.displayType || (type === 'pie' ? 'pie' : 'list');
+      document.getElementById('insightWidthSelect').value = config.width || 'half';
+      document.getElementById('insightSqlEditor').value = config.sql;
+      document.getElementById('insightModalStatus').textContent = '可设置标题名称、描述内容和统计 SQL。';
+      document.getElementById('insightPreviewWrap').classList.add('hidden');
+      document.getElementById('insightPreviewHead').innerHTML = '';
+      document.getElementById('insightPreviewBody').innerHTML = '';
+      document.getElementById('insightModal').classList.remove('hidden');
+      document.getElementById('insightTitleInput').focus();
+    }
+
+    function closeInsightModal() {
+      document.getElementById('insightModal').classList.add('hidden');
+      insightEditState.object = null;
+      insightEditState.scenario = null;
+      insightEditState.main = null;
+      insightEditState.key = null;
+      insightEditState.type = null;
+    }
+
+    function previewInsightSql() {
+      const type = document.getElementById('insightDisplayTypeSelect').value || insightEditState.type;
+      const sql = document.getElementById('insightSqlEditor').value.trim();
+      if (!sql) {
+        document.getElementById('insightModalStatus').textContent = '请先输入统计 SQL。';
+        return;
+      }
+      const rows = buildInsightPreviewRows(type, sql);
+      const keys = Object.keys(rows[0] || {});
+      document.getElementById('insightPreviewHead').innerHTML = `<tr>${keys.map(key => `<th>${key}</th>`).join('')}</tr>`;
+      document.getElementById('insightPreviewBody').innerHTML = rows.map(row => `<tr>${keys.map(key => `<td>${escapeHtml(row[key])}</td>`).join('')}</tr>`).join('');
+      document.getElementById('insightPreviewWrap').classList.remove('hidden');
+      document.getElementById('insightModalStatus').textContent = `预览完成，返回 ${rows.length} 行。保存后将作为当前分析板块配置。`;
+    }
+
+    function buildInsightPreviewRows(type, sql) {
+      const lower = sql.toLowerCase();
+      if (type === 'pie' || lower.includes('ratio') || lower.includes('status')) {
+        return [
+          { 类型: '需关注', 占比: '42%', 记录数: 46 },
+          { 类型: '运行中', 占比: '26%', 记录数: 28 },
+          { 类型: '待处理', 占比: '16%', 记录数: 18 },
+          { 类型: '已闭环', 占比: '16%', 记录数: 17 }
+        ];
+      }
+      if (type === 'bar') {
+        return [
+          { 分类: '西城派出所', 数值: 218 },
+          { 分类: '东城派出所', 数值: 196 },
+          { 分类: '南城派出所', 数值: 173 },
+          { 分类: '交警一中队', 数值: 139 },
+          { 分类: '中心商圈警务站', 数值: 122 }
+        ];
+      }
+      return [
+        { 排名: 1, 责任单位: '西城派出所', 统计值: '218 起' },
+        { 排名: 2, 责任单位: '东城派出所', 统计值: '196 起' },
+        { 排名: 3, 责任单位: '南城派出所', 统计值: '173 起' },
+        { 排名: 4, 责任单位: '交警一中队', 统计值: '139 起' },
+        { 排名: 5, 责任单位: '中心商圈警务站', 统计值: '122 起' }
+      ];
+    }
+
+    function openObjectStatsModal(target) {
+      const [domainId, objectId] = target.split('::');
+      const domain = themeDomains.find(item => item.id === domainId);
+      const object = domain?.objects.find(item => item.id === objectId);
+      if (!domain || !object) return;
+      objectEditState.domain = domain;
+      objectEditState.object = object;
+      const config = object.statConfig || {};
+      document.getElementById('objectStatsModalTitle').textContent = `编辑业务项：${object.name}`;
+      document.getElementById('objectStatsNameInput').value = object.name || '';
+      document.getElementById('objectStatsStatusSelect').value = object.status || '建设中';
+      document.getElementById('objectStatsDefinitionInput').value = object.definition || '';
+      document.getElementById('objectStatsScopeInput').value = object.scope || '';
+      renderObjectStatConfigList(objectStatItems(object));
+      document.getElementById('objectStatsModalStatus').textContent = '可自定义任意数量统计项，每项都有自己的名称和 SQL。';
+      document.getElementById('objectStatsModal').classList.remove('hidden');
+      document.getElementById('objectStatsNameInput').focus();
+    }
+
+    function closeObjectStatsModal() {
+      document.getElementById('objectStatsModal').classList.add('hidden');
+      objectEditState.domain = null;
+      objectEditState.object = null;
+    }
+
+    function renderObjectStatConfigList(items) {
+      const list = document.getElementById('objectStatConfigList');
+      list.innerHTML = items.map((item, index) => `
+        <div class="statConfigItem" data-stat-index="${index}">
+          <div class="statConfigHead">
+            <label>统计名称<input class="fieldInput" name="statLabel_${index}" value="${escapeHtml(item.label)}" /></label>
+            <label>预览值<input class="fieldInput" name="statValue_${index}" value="${escapeHtml(item.value)}" /></label>
+            <button class="btn" type="button" data-remove-object-stat="${index}">删除</button>
+          </div>
+          <label>统计 SQL<textarea class="sqlEditor" name="statSql_${index}" spellcheck="false">${escapeHtml(item.sql || '')}</textarea></label>
+        </div>
+      `).join('');
+      list.querySelectorAll('[data-remove-object-stat]').forEach(button => {
+        button.addEventListener('click', () => {
+          const current = readObjectStatItemsFromModal();
+          current.splice(Number(button.dataset.removeObjectStat), 1);
+          renderObjectStatConfigList(current);
+        });
+      });
+    }
+
+    function readObjectStatItemsFromModal() {
+      const items = [];
+      document.querySelectorAll('#objectStatConfigList .statConfigItem').forEach((node, index) => {
+        const label = node.querySelector(`[name="statLabel_${index}"]`)?.value.trim() || `统计项${index + 1}`;
+        const sql = node.querySelector(`[name="statSql_${index}"]`)?.value.trim() || '';
+        const explicitValue = node.querySelector(`[name="statValue_${index}"]`)?.value.trim();
+        items.push({
+          label,
+          value: explicitValue || runObjectStatPreview(objectEditState.object, 'custom', sql),
+          sql
+        });
+      });
+      return items;
+    }
+
+    function defaultScenarioSql(object, scenario) {
+      const tableName = object.assets?.[0]?.code || object.id.replaceAll('-', '_');
+      return `select\n  alarm_id,\n  receive_time,\n  alarm_type,\n  org_name,\n  dispose_status\nfrom ${tableName}\nwhere receive_time >= '2026-05-21'\nlimit 20;`;
+    }
+
+    function queryStatusText(scenario) {
+      if (!scenario.sqlConfig) return '默认展示场景条目，点击编辑SQL可选择 DolphinScheduler 数据源';
+      return `根据 ${scenario.sqlConfig.datasourceLabel} 的 SQL 展示查询结果`;
+    }
+
+    function openSqlModal(object, scenario, main) {
+      sqlState.object = object;
+      sqlState.scenario = scenario;
+      sqlState.main = main;
+      const modal = document.getElementById('sqlModal');
+      const datasource = document.getElementById('sqlDatasourceSelect');
+      const editor = document.getElementById('sqlModalEditor');
+      const status = document.getElementById('sqlModalStatus');
+      const previewWrap = document.getElementById('sqlPreviewWrap');
+      const previewBody = document.getElementById('sqlPreviewBody');
+      datasource.value = scenario.sqlConfig?.datasource || defaultDatasourceForObject(object);
+      editor.value = scenario.sqlConfig?.sql || defaultScenarioSql(object, scenario);
+      status.textContent = '请选择 DolphinScheduler 已配置的数据源后编辑 SQL。';
+      status.className = 'queryStatus';
+      previewWrap.classList.add('hidden');
+      previewBody.innerHTML = '';
+      modal.classList.remove('hidden');
+      editor.focus();
+    }
+
+    function closeSqlModal() {
+      document.getElementById('sqlModal').classList.add('hidden');
+      sqlState.object = null;
+      sqlState.scenario = null;
+      sqlState.main = null;
+    }
+
+    function defaultDatasourceForObject(object) {
+      const domainId = object.domainId || state.domainId;
+      if (domainId === 'case') return 'postgres-law-enforce';
+      if (domainId === 'person') return 'hive-ods-police';
+      if (domainId === 'goods') return 'mysql-police-warehouse';
+      return 'oracle-110-core';
+    }
+
+    function selectedDatasourceLabel(select) {
+      return select.options[select.selectedIndex]?.textContent || select.value;
+    }
+
+    function saveAndRunSql(event) {
+      event.preventDefault();
+      const rows = previewSqlInModal();
+      if (!rows) return;
+      applySqlRows(rows);
+      closeSqlModal();
+    }
+
+    function previewSqlInModal() {
+      const object = sqlState.object;
+      const scenario = sqlState.scenario;
+      const datasource = document.getElementById('sqlDatasourceSelect');
+      const editor = document.getElementById('sqlModalEditor');
+      const status = document.getElementById('sqlModalStatus');
+      const previewWrap = document.getElementById('sqlPreviewWrap');
+      const previewBody = document.getElementById('sqlPreviewBody');
+      const sql = (editor.value || '').trim();
+      if (!sql) {
+        status.textContent = '请先输入 SQL 语句。';
+        status.className = 'queryStatus warn';
+        editor.focus();
+        return null;
+      }
+      scenario.sqlConfig = {
+        datasource: datasource.value,
+        datasourceLabel: selectedDatasourceLabel(datasource),
+        sql
+      };
+      const rows = buildSqlRows(sql, object, scenario);
+      previewBody.innerHTML = renderScenarioRows(rows);
+      previewWrap.classList.remove('hidden');
+      status.textContent = `预览完成，返回 ${rows.length} 行。`;
+      status.className = 'queryStatus success';
+      return rows;
+    }
+
+    function applySqlRows(rows) {
+      const scenario = sqlState.scenario;
+      const main = sqlState.main;
+      scenario.queryRows = rows;
+      if (main) {
+        main.querySelector('[data-result-body]').innerHTML = renderScenarioRows(scenario.queryRows);
+        main.querySelector('[data-query-status]').textContent = queryStatusText(scenario);
+      }
+    }
+
+    function renderScenarioRows(rows) {
+      return rows.map(item => `
+        <tr>
+          <td>${escapeHtml(item.title)}</td>
+          <td>${escapeHtml(item.primary)}</td>
+          <td>${escapeHtml(item.unit)}</td>
+          <td>${escapeHtml(item.status)}</td>
+          <td>${escapeHtml(item.fields)}</td>
+          <td>${escapeHtml(item.result)}</td>
+        </tr>
+      `).join('');
+    }
+
+    function buildSqlRows(sql, object, scenario) {
+      const lower = sql.toLowerCase();
+      const fields = object.fields.map(field => field.zh).join('、') || '业务编号、所属单位、更新时间';
+      if (lower.includes('alarm') || lower.includes('receive') || sql.includes('警情') || sql.includes('接报')) {
+        return [
+          {
+            title: 'JQ202605210001 / 今日 08:12',
+            primary: '群众报警：商圈入口发生纠纷，已完成接警登记',
+            unit: '城东派出所',
+            status: '已派警',
+            fields: '警情编号、接报时间、警情类别、所属单位、处置状态',
+            result: '建议核对重复报警线索，并关注同地点近 24 小时警情。'
+          },
+          {
+            title: 'JQ202605210017 / 今日 09:46',
+            primary: '道路交通类警情，辖区重复来电 3 次',
+            unit: '交警一中队',
+            status: '需关注',
+            fields: '警情编号、报警号码、事发地址、重复次数、处置状态',
+            result: '建议推送给接警质检人员复核重复报警处置闭环。'
+          },
+          {
+            title: 'JQ202605210038 / 今日 10:21',
+            primary: '治安求助类警情，已关联历史同址警情 2 条',
+            unit: '南湖派出所',
+            status: '处置中',
+            fields: '警情编号、警情类别、事发地址、关联警情、所属单位',
+            result: '建议纳入辖区高发点位跟踪，形成巡防提醒。'
+          }
+        ];
+      }
+      return [
+        {
+          title: `${object.name}查询结果 1`,
+          primary: `SQL 命中当前场景“${scenario.title}”的业务记录`,
+          unit: object.owner || '业务责任组',
+          status: '运行中',
+          fields,
+          result: '可用于查看当前业务条目、汇总结果和后续处置建议。'
+        },
+        {
+          title: `${object.name}查询结果 2`,
+          primary: '返回一条待关注业务记录',
+          unit: object.systems?.[0] || '来源系统',
+          status: '需关注',
+          fields,
+          result: '建议责任单位进一步核查并补充处置结果。'
+        }
+      ];
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? '').replace(/[&<>"']/g, char => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+      }[char]));
+    }
+
+    function assetsForScenario(object, scenario) {
+      const names = scenario.assets || [];
+      const matched = object.assets.filter(asset => names.includes(asset.name));
+      return matched.length ? matched : object.assets;
+    }
+
+    function scenarioAssetUsage(scenario, asset) {
+      return scenario.assetUsage?.[asset.name] || {
+        role: asset.purpose || '用于支撑当前业务场景的数据查询、统计分析和主题资产复用。',
+        fields: scenario.fields || [],
+        metrics: scenario.metrics || [],
+        warning: asset.quality || '按当前对象权限和安全级别使用。'
+      };
+    }
+
+    function renderScenarioAssetEntry(scenario, asset) {
+      const usage = scenarioAssetUsage(scenario, asset);
+      return `
+        <span class="assetCardHead"><strong>条目：${asset.name}</strong><span class="pill pillBlue">${asset.type}</span></span>
+        <span class="assetPurpose">${usage.role}</span>
+        <ul class="assetEntryList">
+          <li><b>资产编码</b><span>${asset.code}</span></li>
+          <li><b>使用字段</b><span>${usage.fields.join('、') || '按场景口径选择字段'}</span></li>
+          <li><b>产出指标</b><span>${usage.metrics.join('、') || '按场景口径统计指标'}</span></li>
+          <li><b>质量安全</b><span>${usage.warning}</span></li>
+        </ul>
+        <span class="assetMetaGrid">
+          <span class="assetMeta"><strong>${asset.source}</strong>来源</span>
+          <span class="assetMeta"><strong>${asset.frequency}</strong>更新</span>
+          <span class="assetMeta"><strong>${asset.security}</strong>级别</span>
+        </span>
+      `;
+    }
+
+    function bindAssetDetailTabs(detail, object, asset, scenario) {
+      detail.querySelectorAll('[data-asset-tab]').forEach(button => {
+        button.addEventListener('click', () => {
+          detail.innerHTML = renderAssetDetail(object, asset, button.dataset.assetTab, scenario);
+          bindAssetDetailTabs(detail, object, asset, scenario);
+        });
+      });
+    }
+
+    function renderAssetDetail(object, asset, tab, scenario) {
+      const usage = scenarioAssetUsage(scenario, asset);
+      return `
+        <div class="assetDetailHeader">
+          <div>
+            <h4>${asset.name}</h4>
+            <p class="muted">${asset.code} / ${asset.owner} / 场景：${scenario.title}</p>
+            <p class="muted">本场景作用：${usage.role}</p>
+          </div>
+          <div class="assetDetailTabs">
+            ${['fields', 'metrics', 'preview', 'lineage'].map(item => `<button class="assetDetailTab ${tab === item ? 'active' : ''}" type="button" data-asset-tab="${item}">${assetTabName(item)}</button>`).join('')}
+          </div>
+        </div>
+        ${renderAssetDetailBody(object, asset, tab, scenario)}
+      `;
+    }
+
+    function assetTabName(tab) {
+      return { fields: '字段', metrics: '指标', preview: '数据预览', lineage: '血缘/使用关系' }[tab];
+    }
+
+    function renderAssetDetailBody(object, asset, tab, scenario) {
+      if (tab === 'metrics') {
+        const scenarioMetrics = scenarioAssetUsage(scenario, asset).metrics || scenario.metrics || object.metrics.map(metric => metric.name);
+        return `<div class="detailGrid">${scenarioMetrics.map(name => {
+          const metric = object.metrics.find(item => item.name === name) || { name, rule: '按当前场景口径统计', source: asset.name, dimensions: '时间、辖区、类型' };
+          return `<div class="miniPanel"><h4>${metric.name}</h4><p>口径：${metric.rule}</p><p>来源：${metric.source}；维度：${metric.dimensions}</p></div>`;
+        }).join('')}</div>`;
+      }
+      if (tab === 'preview') {
+        const rows = asset.sampleRows || [['JQ202605210001', '2026-05-21 08:12', object.name, asset.type, asset.owner], ['JQ202605210002', '2026-05-21 08:19', object.name, asset.type, asset.owner], ['JQ202605210003', '2026-05-21 08:33', object.name, asset.type, asset.owner]];
+        return `<div class="tableWrap"><table><thead><tr><th>警情编号</th><th>时间/编码</th><th>渠道/类型</th><th>类别/状态</th><th>单位</th></tr></thead><tbody>${rows.map(row => `<tr>${row.map(cell => `<td>${cell}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+      }
+      if (tab === 'lineage') {
+        return `<div class="detailGrid"><div class="miniPanel"><h4>来源链路</h4><p>${(asset.lineage || [asset.source, asset.name, object.name]).join(' -> ')}</p></div><div class="miniPanel"><h4>业务场景使用</h4><p>当前场景：${scenario.title}</p><p>关联对象：${asset.relatedObjects ? asset.relatedObjects.join('、') : object.name}</p><p>当前对象：${asset.usageByObject ? asset.usageByObject[object.name] || '按业务口径使用相关字段' : '仅当前对象使用'}</p></div></div>`;
+      }
+      const scenarioFields = scenarioAssetUsage(scenario, asset).fields || scenario.fields || object.fields.map(field => field.zh);
+      const fieldRows = object.fields.map(field => `
+        <tr>
+          <td>${field.zh}</td>
+          <td>${field.en}</td>
+          <td>${field.meaning}</td>
+          <td>${field.sensitive}</td>
+          <td>${scenarioFields.includes(field.zh) ? '本场景核心字段' : '可用于扩展分析'}</td>
+        </tr>
+      `).join('');
+      return `<div class="tableWrap"><table><thead><tr><th>字段中文名</th><th>字段英文名</th><th>含义</th><th>敏感标识</th><th>当前对象使用</th></tr></thead><tbody>${fieldRows}</tbody></table></div>`;
+    }
+
+    function renderFields(object) {
+      return `
+        <div class="tableWrap">
+          <table>
+            <thead><tr><th>字段中文名</th><th>字段英文名</th><th>含义</th><th>敏感标识</th><th>标准来源</th></tr></thead>
+            <tbody>${object.fields.map(field => `<tr><td>${field.zh}</td><td>${field.en}</td><td>${field.meaning}</td><td>${field.sensitive}</td><td>${field.standard}</td></tr>`).join('')}</tbody>
+          </table>
+        </div>
+      `;
+    }
+
+    function renderMetrics(object) {
+      return `<div class="metricCards">${object.metrics.map(metric => `
+        <div class="panel">
+          <h3>${metric.name}</h3>
+          <p><strong>业务口径：</strong>${metric.rule}</p>
+          <p><strong>来源资产：</strong>${metric.source}</p>
+          <p><strong>可分析角度：</strong>${metric.dimensions}</p>
+        </div>
+      `).join('')}</div>`;
+    }
+
+    function renderPreview(object) {
+      return `
+        <div class="panel">
+          <h3>数据预览入口</h3>
+          <p>${object.name} 可以从这里进入数据预览。首版只表达入口，不携带真实数据源参数。</p>
+          <div style="margin-top:12px"><button class="btn btnPrimary" type="button" data-preview="true">预览数据</button></div>
+        </div>
+      `;
+    }
+
+    function openCreateForm(type) {
+      state.editing = null;
+      openCreateModal(type);
+    }
+
+    function openEditForm(type, target) {
+      state.editing = { type, target };
+      openCreateModal(type);
+      fillEditForm(type, target);
+    }
+
+    function renderCreateFields(type) {
+      const titleMap = state.editing ? { domain: '编辑主题', object: '编辑业务项', asset: '编辑分析场景' } : { domain: '新建主题', object: '新增业务项', asset: '新增分析场景' };
+      document.getElementById('createModalTitle').textContent = titleMap[type];
+      const statusOptions = '<option>规划中</option><option selected>建设中</option><option>运行中</option><option>待治理</option>';
+      const domainOptions = realDomains().map(domain => `<option value="${domain.id}" ${domain.id === state.domainId ? 'selected' : ''}>${domain.name}</option>`).join('');
+      const activeDomain = realDomains().find(domain => domain.id === state.domainId) || realDomains()[0];
+      const activeObjectOptions = activeDomain.objects.map(object => `<option value="${activeDomain.id}::${object.id}" ${object.id === state.objectId ? 'selected' : ''}>${object.name}</option>`).join('');
+      const assetTypeOptions = '<option>明细表</option><option selected>事实表</option><option>维度</option><option>指标</option><option>数据服务</option>';
+      const securityOptions = '<option>公开</option><option>内部</option><option selected>内部敏感</option><option>敏感</option>';
+      const frequencyOptions = '<option>分钟级</option><option>小时级</option><option selected>日级</option><option>周级</option>';
+
+      if (type === 'domain') {
+        return `
+          <input type="hidden" name="createType" value="domain" />
+          <label>主题名称<input class="fieldInput" name="主题名称" placeholder="例如：巡防域" required /></label>
+          <label>主题编码<input class="fieldInput" name="主题编码" placeholder="例如：patrol" /></label>
+          <label>负责人<input class="fieldInput" name="负责人" placeholder="请输入负责人或责任组" /></label>
+          <label>覆盖部门<input class="fieldInput" name="覆盖部门" placeholder="请输入覆盖部门" /></label>
+          <label>建设状态<select class="fieldInput" name="建设状态">${statusOptions}</select></label>
+          <label class="span2">业务说明<textarea name="业务说明" placeholder="请输入该主题覆盖的公安业务范围"></textarea></label>
+        `;
+      }
+      if (type === 'object') {
+        return `
+          <input type="hidden" name="createType" value="object" />
+          <label>所属主题域<select class="fieldInput" name="所属主题域">${domainOptions}</select></label>
+          <label>业务名称<input class="fieldInput" name="对象名称" placeholder="例如：巡防任务" required /></label>
+          <label>负责人<input class="fieldInput" name="负责人" placeholder="请输入负责人或责任组" /></label>
+          <label>建设状态<select class="fieldInput" name="建设状态">${statusOptions}</select></label>
+          <label class="span2">业务定义<textarea name="业务定义" placeholder="说明这个业务是什么" required></textarea></label>
+        `;
+      }
+      return `
+        <input type="hidden" name="createType" value="asset" />
+        <label>所属主题域<select class="fieldInput" name="场景所属主题域" id="scenarioDomainSelect">${domainOptions}</select></label>
+        <label>所属业务项<select class="fieldInput" name="所属业务对象" id="scenarioObjectSelect">${activeObjectOptions}</select></label>
+        <label>场景名称<input class="fieldInput" name="资产名称" placeholder="例如：巡防任务趋势分析" required /></label>
+        <label>场景类型<select class="fieldInput" name="资产类型">${assetTypeOptions}</select></label>
+        <label>表路径或服务路径<input class="fieldInput" name="表路径或服务路径" placeholder="请输入表路径或服务路径" /></label>
+        <label>敏感级别<select class="fieldInput" name="敏感级别">${securityOptions}</select></label>
+        <label>更新频率<select class="fieldInput" name="更新频率">${frequencyOptions}</select></label>
+        <label>负责人<input class="fieldInput" name="负责人" placeholder="请输入负责人或责任组" /></label>
+        <label class="span2">业务说明<textarea name="业务说明" placeholder="说明这个分析场景用于支撑什么业务"></textarea></label>
+      `;
+    }
+
+    function openCreateModal(type) {
+      const modal = document.getElementById('createModal');
+      const form = document.getElementById('createModalForm');
+      form.reset();
+      document.getElementById('createModalFields').innerHTML = renderCreateFields(type);
+      bindCreateModalCascades();
+      modal.classList.remove('hidden');
+      const firstField = form.querySelector('input:not([type="hidden"]), select, textarea');
+      if (firstField) firstField.focus();
+    }
+
+    function fillEditForm(type, target) {
+      const form = document.getElementById('createModalForm');
+      if (type === 'domain') {
+        const domain = themeDomains.find(item => item.id === target);
+        if (!domain) return;
+        form.elements['主题名称'].value = domain.name || '';
+        form.elements['主题编码'].value = domain.id || '';
+        form.elements['负责人'].value = domain.owner || '';
+        form.elements['建设状态'].value = domain.status || '建设中';
+        return;
+      }
+      if (type === 'object') {
+        const [domainId, objectId] = target.split('::');
+        const domain = themeDomains.find(item => item.id === domainId);
+        const object = domain?.objects.find(item => item.id === objectId);
+        if (!domain || !object) return;
+        form.elements['所属主题域'].value = domain.id;
+        form.elements['对象名称'].value = object.name || '';
+        form.elements['负责人'].value = object.owner || '';
+        form.elements['建设状态'].value = object.status || '建设中';
+        form.elements['业务定义'].value = object.definition || '';
+        return;
+      }
+      const [domainId, objectId, scenarioIndex] = target.split('::');
+      const domain = themeDomains.find(item => item.id === domainId);
+      const object = domain?.objects.find(item => item.id === objectId);
+      const scenario = object?.scenarios?.[Number(scenarioIndex)] || assetScenarios(object || {})[Number(scenarioIndex)];
+      if (!domain || !object || !scenario) return;
+      form.elements['场景所属主题域'].value = domain.id;
+      form.elements['所属业务对象'].innerHTML = domain.objects.map(item => `<option value="${domain.id}::${item.id}">${item.name}</option>`).join('');
+      form.elements['所属业务对象'].value = `${domain.id}::${object.id}`;
+      form.elements['资产名称'].value = scenario.title || '';
+      form.elements['负责人'].value = object.owner || '';
+      form.elements['业务说明'].value = scenario.goal || '';
+    }
+
+    function bindCreateModalCascades() {
+      const domainSelect = document.getElementById('scenarioDomainSelect');
+      const objectSelect = document.getElementById('scenarioObjectSelect');
+      if (!domainSelect || !objectSelect) return;
+      const refreshObjects = () => {
+        const domain = realDomains().find(item => item.id === domainSelect.value) || realDomains()[0];
+        objectSelect.innerHTML = domain.objects.map(object => `<option value="${domain.id}::${object.id}">${object.name}</option>`).join('');
+      };
+      domainSelect.addEventListener('change', refreshObjects);
+    }
+
+    function closeCreateModal() {
+      document.getElementById('createModal').classList.add('hidden');
+    }
+
+    function slugify(value, fallback) {
+      const slug = (value || '').toLowerCase().replace(/[^a-z0-9_-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+      return slug || fallback;
+    }
+
+    function createFromModalForm(form) {
+      const data = new FormData(form);
+      const type = data.get('createType');
+      if (state.editing) {
+        updateFromModalForm(data);
+      } else if (type === 'domain') {
+        createDomainFromForm(data);
+      } else if (type === 'object') {
+        createObjectFromForm(data);
+      } else {
+        createAssetFromForm(data);
+      }
+      state.editing = null;
+      closeCreateModal();
+      renderAll();
+    }
+
+    function updateFromModalForm(data) {
+      const { type, target } = state.editing;
+      if (type === 'domain') {
+        const domain = themeDomains.find(item => item.id === target);
+        if (!domain) return;
+        domain.name = (data.get('主题名称') || '').trim() || domain.name;
+        domain.owner = (data.get('负责人') || '').trim() || domain.owner;
+        domain.status = (data.get('建设状态') || '').trim() || domain.status;
+        state.notice = `已更新主题“${domain.name}”。`;
+        return;
+      }
+      if (type === 'object') {
+        const [domainId, objectId] = target.split('::');
+        const domain = themeDomains.find(item => item.id === domainId);
+        const object = domain?.objects.find(item => item.id === objectId);
+        if (!object) return;
+        object.name = (data.get('对象名称') || '').trim() || object.name;
+        object.definition = (data.get('业务定义') || '').trim() || object.definition;
+        object.owner = (data.get('负责人') || '').trim() || object.owner;
+        object.status = (data.get('建设状态') || '').trim() || object.status;
+        state.domainId = domain.id;
+        state.objectId = object.id;
+        state.notice = `已更新业务项“${object.name}”。`;
+        return;
+      }
+      const [domainId, objectId, scenarioIndex] = target.split('::');
+      const domain = themeDomains.find(item => item.id === domainId);
+      const object = domain?.objects.find(item => item.id === objectId);
+      if (!object) return;
+      if (!object.scenarios) object.scenarios = assetScenarios(object);
+      const scenario = object.scenarios[Number(scenarioIndex)];
+      if (!scenario) return;
+      scenario.title = (data.get('资产名称') || '').trim() || scenario.title;
+      scenario.goal = (data.get('业务说明') || '').trim() || scenario.goal;
+      state.domainId = domain.id;
+      state.objectId = object.id;
+      state.notice = `已更新分析场景“${scenario.title}”。`;
+    }
+
+    function createDomainFromForm(data) {
+      const name = (data.get('主题名称') || '').trim() || `新建主题${realDomains().length + 1}`;
+      const rawCode = (data.get('主题编码') || '').trim();
+      const id = slugify(rawCode || name, `theme-${Date.now()}`);
+      const owner = (data.get('负责人') || '').trim() || '待指定';
+      const status = (data.get('建设状态') || '').trim() || '建设中';
+      themeDomains.push({
+        id,
+        name,
+        owner,
+        status,
+        objects: []
+      });
+      state.domainId = id;
+      state.objectId = '';
+      state.tab = 'overview';
+      state.notice = `已保存“${name}”，并追加到全部主题列表最后。`;
+    }
+
+    function createObjectFromForm(data) {
+      const domainId = data.get('所属主题域') || realDomains()[0].id;
+      const domain = themeDomains.find(item => item.id === domainId) || realDomains()[0];
+      const name = (data.get('对象名称') || '').trim() || `新增业务项${domain.objects.length + 1}`;
+      const id = slugify(name, `object-${Date.now()}`);
+      const definition = (data.get('业务定义') || '').trim() || `记录${name}相关业务过程和关键数据。`;
+      const scope = '围绕该业务的数量、趋势、重点单位和待关注事项。';
+      const questions = ['当前总量是多少', '哪些单位变化明显', '是否存在异常或待治理事项'];
+      const system = `${domain.name}业务系统`;
+      const owner = (data.get('负责人') || '').trim() || '待指定';
+      domain.objects.push({
+        id,
+        name,
+        definition,
+        scope,
+        questions,
+        systems: [system],
+        owner,
+        status: (data.get('建设状态') || '').trim() || '建设中',
+        assets: [],
+        fields: [],
+        metrics: []
+      });
+      state.domainId = domain.id;
+      state.objectId = id;
+      state.tab = 'overview';
+      state.notice = `已保存“${name}”，并追加到${domain.name}的业务项列表最后。`;
+    }
+
+    function createAssetFromForm(data) {
+      const selected = (data.get('所属业务对象') || '').split('::');
+      const domain = themeDomains.find(item => item.id === selected[0]) || getActiveDomain();
+      const object = domain.objects.find(item => item.id === selected[1]) || getActiveObject();
+      if (!object) {
+        state.notice = '当前没有可挂载分析场景的业务项，请先新增业务项。';
+        return;
+      }
+      const name = (data.get('资产名称') || '').trim() || `新增分析场景${object.assets.length + 1}`;
+      object.assets.push({
+        name,
+        code: slugify(name, `asset-${Date.now()}`),
+        type: (data.get('资产类型') || '').trim() || '明细表',
+        source: object.systems?.[0] || `${domain.name}业务系统`,
+        frequency: (data.get('更新频率') || '').trim() || '日级',
+        security: (data.get('敏感级别') || '').trim() || '内部',
+        owner: (data.get('负责人') || '').trim() || '待指定',
+        relatedObjects: [object.name],
+        usageByObject: { [object.name]: (data.get('业务说明') || '').trim() || '仅当前业务对象使用。' }
+      });
+      state.domainId = domain.id;
+      state.objectId = object.id;
+      state.tab = 'assets';
+      state.notice = `已保存“${name}”，并追加到${object.name}的分析场景最后。`;
+    }
+
+    function renderAll() {
+      renderDomains();
+      renderContent();
+      document.querySelectorAll('[data-edit-only]').forEach(item => {
+        item.classList.toggle('hidden', !canEdit());
+      });
+    }
+
+    document.getElementById('closeCreateModal').addEventListener('click', closeCreateModal);
+    document.getElementById('cancelCreateModal').addEventListener('click', closeCreateModal);
+    document.getElementById('createModalForm').addEventListener('submit', event => {
+      event.preventDefault();
+      createFromModalForm(event.currentTarget);
+    });
+    document.getElementById('createModal').addEventListener('click', event => {
+      if (event.target.id === 'createModal') closeCreateModal();
+    });
+    document.getElementById('sqlModalForm').addEventListener('submit', saveAndRunSql);
+    document.querySelector('[data-close-sql-modal]').addEventListener('click', closeSqlModal);
+    document.querySelector('[data-preview-sql-modal]').addEventListener('click', previewSqlInModal);
+    document.getElementById('sqlModal').addEventListener('click', event => {
+      if (event.target.id === 'sqlModal') closeSqlModal();
+    });
+    document.getElementById('insightModalForm').addEventListener('submit', event => {
+      event.preventDefault();
+      const scenario = insightEditState.scenario;
+      const main = insightEditState.main;
+      const key = insightEditState.key;
+      const object = insightEditState.object;
+      if (!scenario || !main || !key) return;
+      if (!scenario.insightBlocks) scenario.insightBlocks = {};
+      const form = new FormData(event.currentTarget);
+      const config = scenario.insightBlocks[key] || {};
+      scenario.insightBlocks[key] = {
+        ...config,
+        key,
+        type: insightEditState.type,
+        title: (form.get('title') || '').trim() || config.title || '分析板块',
+        description: (form.get('description') || '').trim() || config.description || '当前板块由主题库场景 SQL 配置生成。',
+        datasource: form.get('datasource') || config.datasource || 'mysql-police-warehouse',
+        sql: (form.get('sql') || '').trim(),
+        displayType: form.get('displayType') || config.displayType || 'list',
+        width: form.get('width') || config.width || 'half',
+        order: config.order ?? (insightEditState.type === 'pie' ? 2 : 1)
+      };
+      closeInsightModal();
+      main.innerHTML = renderScenarioWorkspace(object, scenario, 0);
+      bindScenarioWorkspace(main, object, scenario);
+    });
+    document.querySelectorAll('[data-close-insight-modal]').forEach(button => {
+      button.addEventListener('click', closeInsightModal);
+    });
+    document.querySelector('[data-preview-insight-sql]').addEventListener('click', previewInsightSql);
+    document.getElementById('insightModal').addEventListener('click', event => {
+      if (event.target.id === 'insightModal') closeInsightModal();
+    });
+    document.getElementById('objectStatsModalForm').addEventListener('submit', event => {
+      event.preventDefault();
+      const object = objectEditState.object;
+      if (!object) return;
+      const form = new FormData(event.currentTarget);
+      object.name = (form.get('name') || '').trim() || object.name;
+      object.status = (form.get('status') || '').trim() || object.status;
+      object.definition = (form.get('definition') || '').trim() || object.definition;
+      object.scope = (form.get('scope') || '').trim() || object.scope;
+      object.statItems = readObjectStatItemsFromModal();
+      object.statConfig = null;
+      closeObjectStatsModal();
+      renderAll();
+    });
+    document.querySelector('[data-add-object-stat]').addEventListener('click', () => {
+      const current = readObjectStatItemsFromModal();
+      current.push({
+        label: `统计项${current.length + 1}`,
+        value: '0',
+        sql: 'select count(*) as value\nfrom your_table\nwhere stat_date = current_date;'
+      });
+      renderObjectStatConfigList(current);
+    });
+    document.querySelectorAll('[data-close-object-stats-modal]').forEach(button => {
+      button.addEventListener('click', closeObjectStatsModal);
+    });
+    document.getElementById('objectStatsModal').addEventListener('click', event => {
+      if (event.target.id === 'objectStatsModal') closeObjectStatsModal();
+    });
+    document.querySelectorAll('[data-create-type]').forEach(button => {
+      button.addEventListener('click', () => openCreateForm(button.dataset.createType));
+    });
+    document.getElementById('globalSearch').addEventListener('input', event => {
+      renderContent();
+    });
+    document.getElementById('roleSelect').addEventListener('change', event => {
+      state.role = event.target.value;
+      state.notice = event.target.value === 'viewer' ? '当前为只读用户，只能查看主题、业务项和查询结果。' : '';
+      renderAll();
+    });
+    const splitter = document.getElementById('paneSplitter');
+    splitter.addEventListener('mousedown', () => {
+      splitter.classList.add('dragging');
+      document.body.style.userSelect = 'none';
+    });
+    document.addEventListener('mousemove', event => {
+      if (!splitter.classList.contains('dragging')) return;
+      const width = event.clientX < 80 ? 0 : Math.min(460, Math.max(220, event.clientX));
+      document.documentElement.style.setProperty('--domain-width', `${width}px`);
+      document.querySelector('.workspace').classList.toggle('domainCollapsed', width === 0);
+    });
+    document.addEventListener('mouseup', () => {
+      splitter.classList.remove('dragging');
+      document.body.style.userSelect = '';
+    });
+    renderAll();
+  </script>
+</body>
+</html>

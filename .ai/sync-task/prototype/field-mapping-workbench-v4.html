@@ -1,0 +1,1505 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>同步任务 - 第 2 步字段映射原型 V4</title>
+  <style>
+    :root {
+      --bg: #f6f8fc;
+      --panel: #ffffff;
+      --border: #e3e8f2;
+      --line: #d7deea;
+      --text: #1f2430;
+      --subtle: #667089;
+      --muted: #9097a9;
+      --primary: #2f6bff;
+      --primary-soft: rgba(47, 107, 255, 0.12);
+      --success: #18a058;
+      --success-soft: rgba(24, 160, 88, 0.14);
+      --warning: #d08a00;
+      --warning-soft: rgba(208, 138, 0, 0.14);
+      --danger: #d03050;
+      --danger-soft: rgba(208, 48, 80, 0.12);
+      --auto-line: #8ea9f6;
+      --manual-line: #2f6bff;
+      --shadow: 0 14px 34px rgba(30, 44, 82, 0.08);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    .page {
+      min-height: 100vh;
+      padding: 18px;
+    }
+
+    .shell {
+      max-width: 1720px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .stage-card,
+    .summary-card,
+    .mapping-card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      box-shadow: var(--shadow);
+    }
+
+    .stage-card {
+      padding: 16px 18px;
+    }
+
+    .stage-title {
+      font-size: 15px;
+      font-weight: 600;
+      margin-bottom: 14px;
+    }
+
+    .stage-flow {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr 1fr;
+      gap: 16px;
+      align-items: center;
+    }
+
+    .stage-item {
+      position: relative;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: #a2a9b9;
+      font-weight: 600;
+      font-size: 14px;
+    }
+
+    .stage-item::after {
+      content: "";
+      position: absolute;
+      top: 50%;
+      left: calc(100% + 8px);
+      width: calc(100% - 16px);
+      height: 1px;
+      background: #d9e0ea;
+      transform: translateY(-50%);
+    }
+
+    .stage-item:last-child::after {
+      display: none;
+    }
+
+    .stage-dot {
+      width: 30px;
+      height: 30px;
+      border-radius: 999px;
+      border: 1px solid #cfd8ea;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: #fff;
+      font-size: 16px;
+    }
+
+    .stage-item.done,
+    .stage-item.current {
+      color: var(--text);
+    }
+
+    .stage-item.done .stage-dot,
+    .stage-item.current .stage-dot {
+      border-color: var(--primary);
+      background: #edf4ff;
+      color: var(--primary);
+    }
+
+    .summary-card {
+      padding: 14px 16px;
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: center;
+    }
+
+    .summary-left {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .summary-title {
+      font-size: 16px;
+      font-weight: 600;
+    }
+
+    .summary-desc {
+      font-size: 12px;
+      color: var(--subtle);
+    }
+
+    .summary-metrics {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(120px, 1fr));
+      gap: 10px;
+      min-width: 620px;
+    }
+
+    .metric {
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: linear-gradient(180deg, #fcfdff 0%, #f7f9fc 100%);
+    }
+
+    .metric-label {
+      font-size: 12px;
+      color: var(--subtle);
+      margin-bottom: 6px;
+    }
+
+    .metric-value {
+      font-size: 24px;
+      font-weight: 700;
+      line-height: 1;
+      margin-bottom: 6px;
+    }
+
+    .metric-note {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .line-legend {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-top: 8px;
+      color: var(--subtle);
+      font-size: 12px;
+      flex-wrap: wrap;
+    }
+
+    .legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      white-space: nowrap;
+    }
+
+    .legend-line {
+      width: 32px;
+      height: 0;
+      border-top: 2px solid #7ba2ff;
+      display: inline-block;
+    }
+
+    .legend-line.auto {
+      border-top-style: dashed;
+    }
+
+    .legend-line.manual {
+      border-top-style: solid;
+      border-top-color: #2f6bff;
+    }
+
+    .mapping-card {
+      padding: 0;
+      overflow: hidden;
+    }
+
+    .mapping-title {
+      padding: 14px 16px;
+      font-size: 16px;
+      font-weight: 600;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .version-flag {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      height: 26px;
+      padding: 0 10px;
+      border-radius: 999px;
+      background: #e8f1ff;
+      color: #1e5eff;
+      font-size: 12px;
+      font-weight: 700;
+      border: 1px solid #cddfff;
+    }
+
+    .mapping-workbench {
+      position: relative;
+      display: grid;
+      grid-template-columns: minmax(0, 0.94fr) 44px minmax(0, 1.22fr);
+      min-height: 820px;
+      background: #fff;
+    }
+
+    .mapping-overlay {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 4;
+    }
+
+    .mapping-overlay svg {
+      width: 100%;
+      height: 100%;
+      overflow: visible;
+      pointer-events: none;
+    }
+
+    .pane {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      z-index: 2;
+      background: #fff;
+    }
+
+    .pane + .pane {
+      border-left: 1px dashed #dbe2ee;
+    }
+
+    .pane-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 16px 18px 10px;
+    }
+
+    .pane-title {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      min-width: 0;
+    }
+
+    .pane-title strong {
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .pane-title span {
+      font-size: 12px;
+      color: var(--subtle);
+      line-height: 1.4;
+    }
+
+    .pane-badges {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .badge {
+      height: 28px;
+      padding: 0 10px;
+      border-radius: 8px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      border: 1px solid transparent;
+      white-space: nowrap;
+    }
+
+    .badge.info {
+      background: #edf4ff;
+      color: var(--primary);
+      border-color: #d8e6ff;
+    }
+
+    .badge.success {
+      background: #eefbf4;
+      color: var(--success);
+      border-color: #ccefd9;
+    }
+
+    .badge.warn {
+      background: #fff8ea;
+      color: var(--warning);
+      border-color: #ffe3b3;
+    }
+
+    .pane-tools {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      padding: 0 18px 10px;
+    }
+
+    .button,
+    .seg {
+      height: 30px;
+      padding: 0 12px;
+      border: 1px solid #d7dfec;
+      border-radius: 8px;
+      background: #fff;
+      color: var(--text);
+      font-size: 12px;
+      cursor: pointer;
+      transition: 0.16s ease;
+    }
+
+    .button:hover,
+    .seg:hover {
+      border-color: #b7c2d8;
+      background: #f8faff;
+    }
+
+    .seg.active {
+      border-color: var(--primary);
+      background: var(--primary-soft);
+      color: var(--primary);
+    }
+
+    .table-wrap {
+      padding: 0 10px 12px;
+      min-height: 0;
+      height: 100%;
+      overflow: auto;
+    }
+
+    .table {
+      width: 100%;
+      min-width: 0;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: visible;
+      background: #fff;
+    }
+
+    .thead,
+    .row {
+      display: grid;
+      align-items: center;
+      column-gap: 8px;
+      padding: 0 14px;
+    }
+
+    .thead {
+      position: sticky;
+      top: 0;
+      z-index: 4;
+      min-height: 40px;
+      background: #fafcff;
+      border-bottom: 1px solid var(--border);
+      color: var(--subtle);
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .row {
+      position: relative;
+      min-height: 64px;
+      border-bottom: 1px solid #eef2f8;
+      font-size: 13px;
+      background: #fff;
+      z-index: 3;
+    }
+
+    .row:last-child {
+      border-bottom: none;
+    }
+
+    .row.hidden {
+      display: none;
+    }
+
+    .row.dimmed {
+      opacity: 0.42;
+    }
+
+    .source-head,
+    .source-row {
+      grid-template-columns: 64px minmax(180px, 0.92fr) 128px minmax(190px, 1fr);
+    }
+
+    .target-head,
+    .target-row {
+      grid-template-columns: 24px minmax(180px, 1fr) minmax(148px, 0.78fr) minmax(190px, 0.95fr) 52px 52px;
+    }
+
+    .target-head > div:nth-last-child(-n + 2),
+    .target-row > div:nth-last-child(-n + 2) {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .checkbox {
+      width: 16px;
+      height: 16px;
+      border: 1px solid #bcc6d8;
+      border-radius: 4px;
+      background: #fff;
+      position: relative;
+      cursor: pointer;
+    }
+
+    .checkbox.checked {
+      border-color: var(--primary);
+      background: var(--primary);
+    }
+
+    .checkbox.checked::after {
+      content: "";
+      position: absolute;
+      left: 5px;
+      top: 2px;
+      width: 4px;
+      height: 8px;
+      border: solid #fff;
+      border-width: 0 2px 2px 0;
+      transform: rotate(45deg);
+    }
+
+    .checkbox.readonly {
+      width: 20px;
+      height: 20px;
+      border-color: #b7c7e6;
+      background: #fff;
+      margin: 0 auto;
+      cursor: default;
+    }
+
+    .checkbox.readonly.checked {
+      border-color: #8cb0ff;
+      background: #edf4ff;
+    }
+
+    .checkbox.readonly.checked::after {
+      left: 6px;
+      top: 3px;
+      border-color: var(--primary);
+    }
+
+    .cell-main {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      min-width: 0;
+    }
+
+    .source-field-cell {
+      position: static;
+      padding-right: 0;
+      overflow: visible;
+      z-index: 8;
+    }
+
+    .source-field-cell::after {
+      content: none;
+    }
+
+    .source-field-row {
+      width: 100%;
+      justify-content: flex-start;
+      gap: 8px;
+      padding-right: 2px;
+    }
+
+    .source-field-row .meta-tags {
+      flex-wrap: nowrap;
+      gap: 4px;
+      margin-left: 2px;
+    }
+
+    .field-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      min-width: 0;
+    }
+
+    .field-name {
+      min-width: 0;
+      font-size: 14px;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .meta-text,
+    .comment-text {
+      min-width: 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .meta-text {
+      color: var(--subtle);
+    }
+
+    .comment-text {
+      color: var(--muted);
+    }
+
+    .meta-tags {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      height: 22px;
+      padding: 0 8px;
+      border-radius: 6px;
+      font-size: 12px;
+      border: 1px solid transparent;
+      white-space: nowrap;
+    }
+
+    .tag.pk {
+      background: #fff6de;
+      color: #ce8200;
+      border-color: #ffe2a1;
+    }
+
+    .tag.nullable {
+      background: #effbe7;
+      color: #31a24c;
+      border-color: #cceebd;
+    }
+
+    .tag.required {
+      background: #fff1f3;
+      color: #d03050;
+      border-color: #ffc5d0;
+    }
+
+    .origin-tag {
+      background: #edf4ff;
+      color: var(--primary);
+      border-color: #d8e6ff;
+    }
+
+    .input-like,
+    .select-like {
+      height: 30px;
+      border: 1px solid #d7dfec;
+      border-radius: 8px;
+      background: #fff;
+      color: var(--text);
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      padding: 0 8px;
+      min-width: 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      width: 100%;
+    }
+
+    input.input-like,
+    select.select-like {
+      outline: none;
+    }
+
+    input.input-like:focus,
+    select.select-like:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 2px rgba(47, 107, 255, 0.12);
+    }
+
+    .input-like.readonly,
+    .select-like.readonly {
+      background: #f8fafc;
+      color: #7c8497;
+    }
+
+    .anchor {
+      width: 14px;
+      height: 14px;
+      min-width: 14px;
+      max-width: 14px;
+      min-height: 14px;
+      max-height: 14px;
+      border-radius: 999px;
+      border: 2px solid #ffffff;
+      background: #2f6bff;
+      position: relative;
+      z-index: 6;
+      cursor: grab;
+      justify-self: center;
+      flex-shrink: 0;
+      box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.98), 0 0 0 5px rgba(47, 107, 255, 0.14);
+      appearance: none;
+      padding: 0;
+      display: block;
+      font-size: 0;
+      line-height: 0;
+    }
+
+    .anchor.active {
+      border-color: var(--primary);
+      background: #dce7ff;
+      box-shadow: 0 0 0 6px rgba(47, 107, 255, 0.12);
+    }
+
+    .anchor.disabled {
+      border-color: #d5dbea;
+      background: #f2f4f8;
+      cursor: not-allowed;
+    }
+
+    .lane {
+      position: relative;
+      background:
+        linear-gradient(180deg, rgba(229, 235, 244, 0.58), rgba(229, 235, 244, 0.58)) center/1px 100% no-repeat,
+        linear-gradient(180deg, #fcfdff 0%, #f7f9fd 100%);
+      z-index: 1;
+    }
+
+    .source-anchor {
+      position: absolute;
+      right: -4px;
+      top: 50%;
+      width: 28px;
+      height: 28px;
+      min-width: 28px;
+      max-width: 28px;
+      min-height: 28px;
+      max-height: 28px;
+      border: 0;
+      background: transparent;
+      box-shadow: none;
+      opacity: 0;
+      transform: translateY(-50%);
+      z-index: 30;
+    }
+
+    .source-anchor::before {
+      content: none;
+    }
+
+    [data-target-anchor] {
+      opacity: 0;
+      width: 28px;
+      height: 28px;
+      min-width: 28px;
+      max-width: 28px;
+      min-height: 28px;
+      max-height: 28px;
+      border: 0;
+      background: transparent;
+      box-shadow: none;
+    }
+
+    .line-auto {
+      stroke: #7ba2ff;
+      stroke-width: 2.4;
+      stroke-dasharray: 8 6;
+      fill: none;
+      stroke-linecap: round;
+      opacity: 0.95;
+    }
+
+    .line-manual {
+      stroke: #2f6bff;
+      stroke-width: 2.8;
+      fill: none;
+      stroke-linecap: round;
+      opacity: 1;
+    }
+
+    .line-draft {
+      stroke: #6f99ff;
+      stroke-width: 2;
+      stroke-dasharray: 5 5;
+      fill: none;
+    }
+
+    .source-dot {
+      fill: #2f6bff;
+      stroke: #ffffff;
+      stroke-width: 2;
+      filter: drop-shadow(0 0 2px rgba(47, 107, 255, 0.32));
+      cursor: grab;
+      pointer-events: auto;
+    }
+
+    .target-dot {
+      fill: #2f6bff;
+      stroke: #ffffff;
+      stroke-width: 2;
+      filter: drop-shadow(0 0 2px rgba(47, 107, 255, 0.32));
+      cursor: grab;
+      pointer-events: auto;
+    }
+
+    .dot-hit {
+      fill: rgba(47, 107, 255, 0.001);
+      stroke: transparent;
+      cursor: grab;
+      pointer-events: auto;
+    }
+
+    .toast {
+      position: fixed;
+      right: 24px;
+      bottom: 24px;
+      min-width: 280px;
+      max-width: 480px;
+      padding: 14px 16px;
+      border-radius: 10px;
+      border: 1px solid transparent;
+      background: #fff;
+      box-shadow: var(--shadow);
+      font-size: 13px;
+      opacity: 0;
+      transform: translateY(14px);
+      pointer-events: none;
+      transition: 0.18s ease;
+      z-index: 30;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .toast.error {
+      border-color: #ffc6d0;
+      background: #fff3f6;
+      color: #b4233f;
+    }
+
+    .toast.info {
+      border-color: #cfe4ff;
+      background: #eff6ff;
+      color: #145fbf;
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="shell">
+      <div class="stage-card">
+        <div class="stage-title">执行步骤</div>
+        <div class="stage-flow">
+          <div class="stage-item done">
+            <div class="stage-dot">✓</div>
+            <div>选择源与目标</div>
+          </div>
+          <div class="stage-item current">
+            <div class="stage-dot">2</div>
+            <div>设计字段</div>
+          </div>
+          <div class="stage-item">
+            <div class="stage-dot">3</div>
+            <div>执行与调度</div>
+          </div>
+          <div class="stage-item">
+            <div class="stage-dot">4</div>
+            <div>预览与发布</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="summary-card">
+        <div class="summary-left">
+          <div class="summary-title">字段映射设计 V4</div>
+          <div class="summary-desc" id="summaryDesc">V4 字段顺序调整：源字段区按源字段、源类型、字段注释展示；目标字段区删除重复字段名列，大小写规则直接作用于目标字段。</div>
+          <div class="line-legend">
+            <span class="legend-item"><span class="legend-line auto"></span>虚线：系统自动映射</span>
+            <span class="legend-item"><span class="legend-line manual"></span>实线：手动拖拽映射</span>
+          </div>
+        </div>
+        <div class="summary-metrics" id="summaryMetrics"></div>
+      </div>
+
+      <div class="mapping-card">
+        <div class="mapping-title">
+          <span>字段映射设计</span>
+          <span class="version-flag">V4 映射图例与源字段标签优化</span>
+        </div>
+        <div class="mapping-workbench" id="workbench">
+          <div class="mapping-overlay">
+            <svg id="mappingSvg"></svg>
+          </div>
+          <section class="pane">
+            <div class="pane-head">
+              <div class="pane-title">
+                <strong>源字段区</strong>
+                <span>展示源字段名、类型、注释、主键和可空属性。勾选哪些字段，就同步哪些字段。</span>
+              </div>
+              <div class="pane-badges">
+                <span class="badge info">ajxx_tab</span>
+                <span class="badge warn" id="sourceCountBadge">共 0 列</span>
+              </div>
+            </div>
+            <div class="pane-tools">
+              <button class="button" data-action="select-all">全选字段</button>
+              <button class="button" data-action="invert">反选字段</button>
+              <button class="button" data-action="clear">清空选择</button>
+              <button class="button" data-action="toggle-exception">只看异常</button>
+            </div>
+            <div class="table-wrap" id="sourceTableWrap">
+              <div class="table">
+                <div class="thead source-head">
+                  <div>同步</div>
+                  <div>源字段</div>
+                  <div>源类型</div>
+                  <div>字段注释</div>
+                </div>
+                <div id="sourceBody"></div>
+              </div>
+            </div>
+          </section>
+
+          <div class="lane">
+          </div>
+
+          <section class="pane">
+            <div class="pane-head">
+              <div class="pane-title">
+                <strong>目标字段设计区</strong>
+                <span id="targetDesc">按已有目标表字段展示。同名字段自动映射使用虚线，未映射字段可手动连线，目标字段保留主键和可空标签。</span>
+              </div>
+              <div class="pane-badges">
+                <span class="badge success" id="targetTableBadge">a6</span>
+                <span class="badge warn" id="targetModeBadge">写入已有表</span>
+                <span class="badge info" id="mappedCountBadge">已映射 0 列</span>
+              </div>
+            </div>
+            <div class="pane-tools">
+              <button class="seg active" data-work-mode="existing">已有目标表</button>
+              <button class="seg" data-work-mode="create">新建目标表</button>
+              <button class="seg active" data-case-mode="same">保持源名</button>
+              <button class="seg" data-case-mode="lower">全小写</button>
+              <button class="seg" data-case-mode="upper">全大写</button>
+            </div>
+            <div class="table-wrap" id="targetTableWrap">
+              <div class="table">
+                <div class="thead target-head">
+                  <div></div>
+                  <div>目标字段</div>
+                  <div>目标类型</div>
+                  <div>字段注释</div>
+                  <div>主键</div>
+                  <div>可空</div>
+                </div>
+                <div id="targetBody"></div>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    const sourceFields = [
+      { id: 'id', type: 'BIGINT', comment: '主键，自增', pk: true, nullable: false, active: true },
+      { id: 'ajbh', type: 'VARCHAR(64)', comment: '案件编号字段', pk: false, nullable: false, active: true },
+      { id: 'ajmc', type: 'VARCHAR(255)', comment: '案件名称字段', pk: false, nullable: false, active: true },
+      { id: 'jqbh', type: 'VARCHAR(64)', comment: '警情编号', pk: false, nullable: true, active: true },
+      { id: 'aybh', type: 'VARCHAR(64)', comment: '案由编号', pk: false, nullable: true, active: true },
+      { id: 'aybh_mc', type: 'VARCHAR(255)', comment: '案由名称', pk: false, nullable: true, active: true },
+      { id: 'ajlx', type: "ENUM('刑事','行政')", comment: '案件类型字段', pk: false, nullable: false, active: true },
+      { id: 'ajzt', type: 'VARCHAR(64)', comment: '案件状态字段', pk: false, nullable: true, active: true },
+      { id: 'ajxz', type: 'VARCHAR(128)', comment: '案件性质字段', pk: false, nullable: true, active: false },
+      { id: 'larq', type: 'DATE', comment: '案件立案日期字段', pk: false, nullable: true, active: true },
+      { id: 'source_case_no', type: 'VARCHAR(64)', comment: '源端扩展案件编码', pk: false, nullable: true, active: false },
+      { id: 'source_amount', type: 'DECIMAL(18,4)', comment: '源端金额字段', pk: false, nullable: true, active: false },
+      { id: 'source_ts', type: 'TIMESTAMP', comment: '源端更新时间', pk: false, nullable: true, active: false }
+    ]
+
+    const baseCreateTargets = [
+      { baseId: 'id', type: 'BIGINT', comment: '主键，自增', pk: true, nullable: false },
+      { baseId: 'ajbh', type: 'VARCHAR(64)', comment: '案件编号字段', pk: false, nullable: false },
+      { baseId: 'ajmc', type: 'VARCHAR(255)', comment: '案件名称字段', pk: false, nullable: false },
+      { baseId: 'jqbh', type: 'VARCHAR(64)', comment: '警情编号', pk: false, nullable: true },
+      { baseId: 'aybh', type: 'VARCHAR(64)', comment: '案由编号', pk: false, nullable: true },
+      { baseId: 'aybh_mc', type: 'VARCHAR(255)', comment: '案由名称', pk: false, nullable: true },
+      { baseId: 'ajlx', type: 'TEXT', comment: '案件类型字段', pk: false, nullable: false },
+      { baseId: 'ajzt', type: 'VARCHAR(64)', comment: '案件状态字段', pk: false, nullable: true },
+      { baseId: 'ajxz', type: 'VARCHAR(128)', comment: '案件性质字段', pk: false, nullable: true },
+      { baseId: 'larq', type: 'DATE', comment: '案件立案日期字段', pk: false, nullable: true }
+    ]
+
+    const existingTargetTemplate = [
+      { id: 'id', fieldName: 'id', type: 'BIGINT', comment: '主键，自增', pk: true, nullable: false, source: 'id', mode: 'auto', baseId: 'id' },
+      { id: 'ajbh', fieldName: 'ajbh', type: 'VARCHAR(64)', comment: '案件编号字段', pk: false, nullable: false, source: 'ajbh', mode: 'auto', baseId: 'ajbh' },
+      { id: 'ajmc', fieldName: 'ajmc', type: 'VARCHAR(255)', comment: '案件名称字段', pk: false, nullable: false, source: 'ajmc', mode: 'auto', baseId: 'ajmc' },
+      { id: 'jqbh', fieldName: 'jqbh', type: 'VARCHAR(64)', comment: '警情编号', pk: false, nullable: true, source: 'jqbh', mode: 'auto', baseId: 'jqbh' },
+      { id: 'aybh', fieldName: 'aybh', type: 'VARCHAR(64)', comment: '案由编号', pk: false, nullable: true, source: 'aybh', mode: 'auto', baseId: 'aybh' },
+      { id: 'aybh_mc', fieldName: 'aybh_mc', type: 'VARCHAR(255)', comment: '案由名称', pk: false, nullable: true, source: 'aybh_mc', mode: 'auto', baseId: 'aybh_mc' },
+      { id: 'ajlx', fieldName: 'ajlx', type: 'TEXT', comment: '案件类型字段', pk: false, nullable: false, source: 'ajlx', mode: 'auto', baseId: 'ajlx' },
+      { id: 'ajzt', fieldName: 'ajzt', type: 'VARCHAR(64)', comment: '案件状态字段', pk: false, nullable: true, source: 'ajzt', mode: 'auto', baseId: 'ajzt' },
+      { id: 'case_code', fieldName: 'case_code', type: 'VARCHAR(128)', comment: '目标案件编码', pk: false, nullable: true, source: null, mode: 'none', baseId: 'case_code' },
+      { id: 'source_case_no_copy', fieldName: 'source_case_no_copy', type: 'VARCHAR(96)', comment: '源端案件编码备份', pk: false, nullable: true, source: null, mode: 'none', baseId: 'source_case_no_copy' },
+      { id: 'total_amount', fieldName: 'total_amount', type: 'DECIMAL(20,4)', comment: '目标金额', pk: false, nullable: true, source: null, mode: 'none', baseId: 'total_amount' },
+      { id: 'create_date', fieldName: 'create_date', type: 'DATE', comment: '创建日期', pk: false, nullable: true, source: null, mode: 'none', baseId: 'create_date' },
+      { id: 'last_sync_time', fieldName: 'last_sync_time', type: 'TIMESTAMP', comment: '同步更新时间', pk: false, nullable: true, source: null, mode: 'none', baseId: 'last_sync_time' }
+    ]
+
+    const state = {
+      onlyException: false,
+      dragSource: null,
+      dragTarget: null,
+      draftPoint: null,
+      workMode: 'existing',
+      caseMode: 'same',
+      targetFields: cloneTargets(existingTargetTemplate)
+    }
+
+    const workbench = document.getElementById('workbench')
+    const summaryMetrics = document.getElementById('summaryMetrics')
+    const summaryDesc = document.getElementById('summaryDesc')
+    const targetDesc = document.getElementById('targetDesc')
+    const sourceBody = document.getElementById('sourceBody')
+    const targetBody = document.getElementById('targetBody')
+    const mappingSvg = document.getElementById('mappingSvg')
+    const toast = document.getElementById('toast')
+    const sourceTableWrap = document.getElementById('sourceTableWrap')
+    const targetTableWrap = document.getElementById('targetTableWrap')
+
+    function cloneTargets(list) {
+      return list.map((item) => ({ ...item }))
+    }
+
+    function normalizeType(value) {
+      return value.replace(/\s+/g, '').toUpperCase()
+    }
+
+    function parseStringType(type) {
+      const upper = normalizeType(type)
+      const match = upper.match(/(VAR)?CHAR\((\d+)\)/)
+      if (match) return { family: 'STRING', length: Number(match[2]) }
+      if (upper === 'TEXT' || upper === 'STRING' || upper.includes('ENUM(')) return { family: 'STRING', length: Infinity }
+      return null
+    }
+
+    function parseDecimalType(type) {
+      const upper = normalizeType(type)
+      const match = upper.match(/DECIMAL\((\d+),(\d+)\)/) || upper.match(/NUMERIC\((\d+),(\d+)\)/)
+      if (match) return { family: 'DECIMAL', precision: Number(match[1]), scale: Number(match[2]) }
+      return null
+    }
+
+    function getTypeDescriptor(type) {
+      const upper = normalizeType(type)
+      if (upper === 'BIGINT' || upper === 'INT8') return { family: 'INTEGER', rank: 4 }
+      if (upper === 'INT' || upper === 'INTEGER' || upper === 'INT4') return { family: 'INTEGER', rank: 3 }
+      if (upper === 'SMALLINT' || upper === 'INT2') return { family: 'INTEGER', rank: 2 }
+      if (upper === 'TINYINT') return { family: 'INTEGER', rank: 1 }
+      if (upper === 'DATE') return { family: 'DATE', rank: 1 }
+      if (upper === 'TIMESTAMP' || upper === 'DATETIME') return { family: 'TIMESTAMP', rank: 2 }
+      const stringType = parseStringType(type)
+      if (stringType) return stringType
+      const decimalType = parseDecimalType(type)
+      if (decimalType) return decimalType
+      return { family: upper, rank: 0 }
+    }
+
+    function isCompatible(sourceType, targetType) {
+      const source = getTypeDescriptor(sourceType)
+      const target = getTypeDescriptor(targetType)
+      if (source.family === 'INTEGER' && target.family === 'INTEGER') return target.rank >= source.rank
+      if (source.family === 'STRING' && target.family === 'STRING') return target.length >= source.length
+      if (source.family === 'DECIMAL' && target.family === 'DECIMAL') return target.precision >= source.precision && target.scale >= source.scale
+      if (source.family === 'DATE' && target.family === 'TIMESTAMP') return true
+      if (source.family === 'DATE' && target.family === 'DATE') return true
+      if (source.family === 'TIMESTAMP' && target.family === 'TIMESTAMP') return true
+      if (source.family === 'INTEGER' && target.family === 'DECIMAL') return true
+      if (source.family === target.family) return true
+      return false
+    }
+
+    function getSourceById(id) {
+      return sourceFields.find((item) => item.id === id)
+    }
+
+    function getTargetById(id) {
+      return state.targetFields.find((item) => item.id === id)
+    }
+
+    function getTargetsBySource(sourceId) {
+      return state.targetFields.filter((item) => item.source === sourceId)
+    }
+
+    function transformFieldName(name) {
+      if (state.caseMode === 'lower') return name.toLowerCase()
+      if (state.caseMode === 'upper') return name.toUpperCase()
+      return name
+    }
+
+    function rebuildTargetsForMode() {
+      if (state.workMode === 'existing') {
+        state.targetFields = cloneTargets(existingTargetTemplate)
+        document.getElementById('targetTableBadge').textContent = 'a6'
+        document.getElementById('targetModeBadge').textContent = '写入已有表'
+        summaryDesc.textContent = '已有目标表模式：同名字段自动映射用虚线显示；未映射目标字段保留给手工拖拽，支持左拖右、右拖左和一源多目标。'
+        targetDesc.textContent = '按已有目标表字段展示。同名字段自动映射使用虚线，未映射字段可手动连线，目标字段保留主键和可空标签。'
+        return
+      }
+
+      state.targetFields = baseCreateTargets.map((item) => ({
+        id: item.baseId,
+        baseId: item.baseId,
+        fieldName: transformFieldName(item.baseId),
+        type: item.type,
+        comment: item.comment,
+        pk: item.pk,
+        nullable: item.nullable,
+        source: item.baseId,
+        mode: 'auto'
+      }))
+      document.getElementById('targetTableBadge').textContent = 'new_table'
+      document.getElementById('targetModeBadge').textContent = '新建目标表'
+      summaryDesc.textContent = '新建目标表模式：目标字段规则“保持源名 / 全小写 / 全大写”立即生效，自动映射使用虚线展示。'
+      targetDesc.textContent = '新建目标表模式下，右侧目标字段支持批量大小写规则切换；手工拖拽改绑后，改绑关系显示为实线。'
+    }
+
+    function getSummary() {
+      const auto = state.targetFields.filter((item) => item.source && item.mode === 'auto').length
+      const manual = state.targetFields.filter((item) => item.source && item.mode === 'manual').length
+      const unmapped = state.targetFields.filter((item) => !item.source).length
+      const multi = sourceFields.filter((item) => getTargetsBySource(item.id).length > 1).length
+      return { auto, manual, unmapped, multi }
+    }
+
+    function showToast(message, type = 'info') {
+      toast.textContent = message
+      toast.className = `toast show ${type}`
+      clearTimeout(showToast.timer)
+      showToast.timer = setTimeout(() => {
+        toast.className = `toast ${type}`
+      }, 2400)
+    }
+
+    function buildMetricCards() {
+      const { auto, manual, unmapped, multi } = getSummary()
+      summaryMetrics.innerHTML = [
+        { label: '自动映射', value: auto, note: '虚线' },
+        { label: '手工映射', value: manual, note: '实线' },
+        { label: '未映射目标字段', value: unmapped, note: '待处理' },
+        { label: '一源多目标', value: multi, note: '允许分叉' }
+      ].map((item) => `
+        <div class="metric">
+          <div class="metric-label">${item.label}</div>
+          <div class="metric-value">${item.value}</div>
+          <div class="metric-note">${item.note}</div>
+        </div>
+      `).join('')
+      document.getElementById('mappedCountBadge').textContent = `已映射 ${auto + manual} 列`
+      document.getElementById('sourceCountBadge').textContent = `共 ${sourceFields.length} 列`
+    }
+
+    function renderSource() {
+      const exceptionIds = new Set(sourceFields.filter((item) => getTargetsBySource(item.id).length === 0).map((item) => item.id))
+      sourceBody.innerHTML = sourceFields.map((source) => {
+        const hidden = state.onlyException && !exceptionIds.has(source.id)
+        return `
+          <div class="row source-row ${hidden ? 'hidden' : ''}" data-source-row="${source.id}">
+            <div><div class="checkbox ${source.active ? 'checked' : ''}" data-source-checkbox="${source.id}"></div></div>
+            <div class="cell-main source-field-cell">
+              <div class="field-row source-field-row">
+                <div class="field-name" title="${source.id}">${source.id}</div>
+                <button class="anchor source-anchor" data-source-anchor="${source.id}" title="从源字段拖拽到目标字段建立关系" aria-label="源字段连线点" type="button"></button>
+                <div class="meta-tags">
+                  ${source.pk ? '<span class="tag pk">主键</span>' : ''}
+                  <span class="tag ${source.nullable ? 'nullable' : 'required'}">${source.nullable ? '可空' : '非空'}</span>
+                </div>
+              </div>
+            </div>
+            <div class="meta-text" title="${source.type}">${source.type}</div>
+            <div class="comment-text" title="${source.comment}">${source.comment}</div>
+          </div>
+        `
+      }).join('')
+    }
+
+    function renderTarget() {
+      const unmappedIds = new Set(state.targetFields.filter((item) => !item.source).map((item) => item.id))
+      targetBody.innerHTML = state.targetFields.map((target) => {
+        const hidden = state.onlyException && !unmappedIds.has(target.id)
+        const compat = state.dragSource ? isCompatible(getSourceById(state.dragSource).type, target.type) : true
+        const typeOptions = ['BIGINT', 'INT', 'VARCHAR(64)', 'VARCHAR(128)', 'VARCHAR(255)', 'TEXT', 'DATE', 'TIMESTAMP', 'DECIMAL(20,4)']
+          .map((type) => `<option value="${type}" ${target.type === type ? 'selected' : ''}>${type}</option>`)
+          .join('')
+        return `
+          <div class="row target-row ${hidden ? 'hidden' : ''} ${state.dragSource && !compat ? 'dimmed' : ''}" data-target-row="${target.id}">
+            <div><div class="anchor ${state.dragSource && !compat ? 'disabled' : ''}" data-target-anchor="${target.id}" title="从目标字段拖拽到源字段，或接受源字段拖拽"></div></div>
+            <div class="cell-main">
+              <input class="input-like" data-target-name="${target.id}" value="${target.fieldName}" title="${target.fieldName}" />
+            </div>
+            <div><select class="select-like" data-target-type="${target.id}" title="${target.type}">${typeOptions}</select></div>
+            <div><input class="input-like" data-target-comment="${target.id}" value="${target.comment}" title="${target.comment}" /></div>
+            <div><div class="checkbox readonly ${target.pk ? 'checked' : ''}" title="主键"></div></div>
+            <div><div class="checkbox readonly ${target.nullable ? 'checked' : ''}" title="可空"></div></div>
+          </div>
+        `
+      }).join('')
+    }
+
+    function computeAnchorPoint(el) {
+      const overlayRect = mappingSvg.getBoundingClientRect()
+      const rect = el.getBoundingClientRect()
+      return {
+        x: rect.left - overlayRect.left + rect.width / 2,
+        y: rect.top - overlayRect.top + rect.height / 2
+      }
+    }
+
+    function computeSourceLinePoint(sourceId) {
+      const overlayRect = mappingSvg.getBoundingClientRect()
+      const sourceRow = document.querySelector(`[data-source-row="${sourceId}"]`)
+      const rect = sourceRow ? sourceRow.getBoundingClientRect() : null
+      if (!rect) return null
+      return {
+        x: rect.right - overlayRect.left - 12,
+        y: rect.top - overlayRect.top + rect.height / 2
+      }
+    }
+
+    function computeTargetLinePoint(targetId) {
+      const targetAnchor = document.querySelector(`[data-target-anchor="${targetId}"]`)
+      return targetAnchor ? computeAnchorPoint(targetAnchor) : null
+    }
+
+    function computeSvgPointFromMouse(event) {
+      const overlayRect = mappingSvg.getBoundingClientRect()
+      return {
+        x: event.clientX - overlayRect.left,
+        y: event.clientY - overlayRect.top
+      }
+    }
+
+    function findRowAtPoint(selector, event) {
+      return Array.from(document.querySelectorAll(selector)).find((row) => {
+        if (row.closest('.hidden')) return false
+        const rect = row.getBoundingClientRect()
+        return event.clientX >= rect.left &&
+          event.clientX <= rect.right &&
+          event.clientY >= rect.top &&
+          event.clientY <= rect.bottom
+      }) || null
+    }
+
+    function buildCurvePath(start, end) {
+      const offset = Math.min(Math.max(Math.abs(end.x - start.x) * 0.36, 54), 126)
+      return `M ${start.x} ${start.y} C ${start.x + offset} ${start.y}, ${end.x - offset} ${end.y}, ${end.x} ${end.y}`
+    }
+
+    function renderLines() {
+      const paths = []
+      const dots = []
+      sourceFields.forEach((source) => {
+        const sourceRow = document.querySelector(`[data-source-row="${source.id}"]`)
+        if (!sourceRow || sourceRow.closest('.hidden')) return
+        const point = computeSourceLinePoint(source.id)
+        if (!point) return
+        dots.push(`
+          <circle class="source-dot" data-svg-source="${source.id}" cx="${point.x}" cy="${point.y}" r="5"></circle>
+          <circle class="dot-hit" data-svg-source="${source.id}" cx="${point.x}" cy="${point.y}" r="14"></circle>
+        `)
+      })
+
+      state.targetFields.forEach((target) => {
+        const targetAnchor = document.querySelector(`[data-target-anchor="${target.id}"]`)
+        if (!targetAnchor || targetAnchor.closest('.hidden')) return
+        const point = computeTargetLinePoint(target.id)
+        if (!point) return
+        dots.push(`
+          <circle class="target-dot" data-svg-target="${target.id}" cx="${point.x}" cy="${point.y}" r="5"></circle>
+          <circle class="dot-hit" data-svg-target="${target.id}" cx="${point.x}" cy="${point.y}" r="14"></circle>
+        `)
+      })
+
+      state.targetFields.forEach((target) => {
+        if (!target.source) return
+        const sourceAnchor = document.querySelector(`[data-source-anchor="${target.source}"]`)
+        const targetAnchor = document.querySelector(`[data-target-anchor="${target.id}"]`)
+        if (!sourceAnchor || !targetAnchor) return
+        if (sourceAnchor.closest('.hidden') || targetAnchor.closest('.hidden')) return
+        const start = computeSourceLinePoint(target.source) || computeAnchorPoint(sourceAnchor)
+        const end = computeTargetLinePoint(target.id) || computeAnchorPoint(targetAnchor)
+        paths.push(`
+          <path class="${target.mode === 'manual' ? 'line-manual' : 'line-auto'}" d="${buildCurvePath(start, end)}"></path>
+        `)
+      })
+
+      if (state.dragSource && state.draftPoint) {
+        const sourceAnchor = document.querySelector(`[data-source-anchor="${state.dragSource}"]`)
+        if (sourceAnchor) {
+          const start = computeSourceLinePoint(state.dragSource) || computeAnchorPoint(sourceAnchor)
+          paths.push(`<path class="line-draft" d="${buildCurvePath(start, state.draftPoint)}"></path>`)
+        }
+      }
+
+      if (state.dragTarget && state.draftPoint) {
+        const targetAnchor = document.querySelector(`[data-target-anchor="${state.dragTarget}"]`)
+        if (targetAnchor) {
+          const end = computeAnchorPoint(targetAnchor)
+          paths.push(`<path class="line-draft" d="${buildCurvePath(state.draftPoint, end)}"></path>`)
+        }
+      }
+
+      mappingSvg.innerHTML = paths.concat(dots).join('')
+      bindSvgDotEvents()
+    }
+
+    function mapSourceToTarget(sourceId, targetId) {
+      const source = getSourceById(sourceId)
+      const target = getTargetById(targetId)
+      if (!source || !target) return
+
+      if (!isCompatible(source.type, target.type)) {
+        showToast(`目标字段 ${target.id} 的类型 ${target.type} 无法安全承接源字段 ${source.id} 的类型 ${source.type}`, 'error')
+        return
+      }
+
+      source.active = true
+      target.source = source.id
+      target.mode = 'manual'
+      showToast(`已建立手工映射：${source.id} -> ${target.id}`, 'info')
+      renderAll()
+    }
+
+    function stopDragging() {
+      state.dragSource = null
+      state.dragTarget = null
+      state.draftPoint = null
+      document.querySelectorAll('.anchor.active').forEach((item) => item.classList.remove('active'))
+      renderAll()
+    }
+
+    function bindSvgDotEvents() {
+      mappingSvg.querySelectorAll('[data-svg-source]').forEach((dot) => {
+        dot.onmousedown = (event) => {
+          event.preventDefault()
+          event.stopPropagation()
+          state.dragSource = dot.dataset.svgSource
+          state.dragTarget = null
+          state.draftPoint = computeSvgPointFromMouse(event)
+          renderLines()
+        }
+      })
+
+      mappingSvg.querySelectorAll('[data-svg-target]').forEach((dot) => {
+        dot.onmousedown = (event) => {
+          event.preventDefault()
+          event.stopPropagation()
+          state.dragTarget = dot.dataset.svgTarget
+          state.dragSource = null
+          state.draftPoint = computeSvgPointFromMouse(event)
+          renderLines()
+        }
+      })
+    }
+
+    function handleSelectAll() {
+      sourceFields.forEach((source) => {
+        source.active = getTargetsBySource(source.id).length > 0
+      })
+      renderAll()
+    }
+
+    function handleInvert() {
+      sourceFields.forEach((source) => {
+        if (getTargetsBySource(source.id).length > 0) {
+          source.active = !source.active
+        }
+      })
+      renderAll()
+    }
+
+    function handleClear() {
+      sourceFields.forEach((source) => {
+        source.active = false
+      })
+      renderAll()
+    }
+
+    function toggleOnlyException() {
+      state.onlyException = !state.onlyException
+      document.querySelector('[data-action="toggle-exception"]').classList.toggle('active', state.onlyException)
+      renderAll()
+    }
+
+    function bindToolbarEvents() {
+      document.querySelector('[data-action="select-all"]').onclick = handleSelectAll
+      document.querySelector('[data-action="invert"]').onclick = handleInvert
+      document.querySelector('[data-action="clear"]').onclick = handleClear
+      document.querySelector('[data-action="toggle-exception"]').onclick = toggleOnlyException
+
+      document.querySelectorAll('[data-work-mode]').forEach((button) => {
+        button.onclick = () => {
+          document.querySelectorAll('[data-work-mode]').forEach((item) => item.classList.remove('active'))
+          button.classList.add('active')
+          state.workMode = button.dataset.workMode
+          rebuildTargetsForMode()
+          renderAll()
+        }
+      })
+
+      document.querySelectorAll('[data-case-mode]').forEach((button) => {
+        button.onclick = () => {
+          document.querySelectorAll('[data-case-mode]').forEach((item) => item.classList.remove('active'))
+          button.classList.add('active')
+          state.caseMode = button.dataset.caseMode
+          if (state.workMode === 'create') {
+            rebuildTargetsForMode()
+            renderAll()
+          } else {
+            showToast('目标字段规则只在“新建目标表模式”生效。切换到“新建目标表”可看到全大写 / 全小写效果。', 'info')
+          }
+        }
+      })
+    }
+
+    function bindInteractiveEvents() {
+      document.querySelectorAll('[data-source-checkbox]').forEach((box) => {
+        box.onclick = () => {
+          const source = getSourceById(box.dataset.sourceCheckbox)
+          if (!source) return
+          source.active = !source.active
+          renderAll()
+        }
+      })
+
+      document.querySelectorAll('[data-target-name]').forEach((input) => {
+        input.onchange = () => {
+          const target = getTargetById(input.dataset.targetName)
+          if (!target) return
+          target.fieldName = input.value.trim() || target.fieldName
+          renderAll()
+        }
+      })
+
+      document.querySelectorAll('[data-target-type]').forEach((select) => {
+        select.onchange = () => {
+          const target = getTargetById(select.dataset.targetType)
+          if (!target) return
+          target.type = select.value
+          renderAll()
+        }
+      })
+
+      document.querySelectorAll('[data-target-comment]').forEach((input) => {
+        input.onchange = () => {
+          const target = getTargetById(input.dataset.targetComment)
+          if (!target) return
+          target.comment = input.value
+          renderAll()
+        }
+      })
+
+      document.querySelectorAll('[data-source-anchor]').forEach((anchor) => {
+        anchor.onmousedown = (event) => {
+          event.preventDefault()
+          state.dragSource = anchor.dataset.sourceAnchor
+          state.dragTarget = null
+          state.draftPoint = computeSvgPointFromMouse(event)
+          anchor.classList.add('active')
+          renderTarget()
+          renderLines()
+        }
+      })
+
+      document.querySelectorAll('[data-target-anchor]').forEach((anchor) => {
+        anchor.onmousedown = (event) => {
+          event.preventDefault()
+          state.dragTarget = anchor.dataset.targetAnchor
+          state.dragSource = null
+          state.draftPoint = computeSvgPointFromMouse(event)
+          anchor.classList.add('active')
+          renderLines()
+        }
+      })
+
+      document.querySelectorAll('[data-target-row]').forEach((row) => {
+        row.onmouseup = () => {
+          if (!state.dragSource) return
+          mapSourceToTarget(state.dragSource, row.dataset.targetRow)
+          stopDragging()
+        }
+      })
+
+      document.querySelectorAll('[data-source-row]').forEach((row) => {
+        row.onmouseup = () => {
+          if (!state.dragTarget) return
+          mapSourceToTarget(row.dataset.sourceRow, state.dragTarget)
+          stopDragging()
+        }
+      })
+    }
+
+    function renderAll() {
+      buildMetricCards()
+      renderSource()
+      renderTarget()
+      requestAnimationFrame(renderLines)
+      bindInteractiveEvents()
+    }
+
+    window.addEventListener('mousemove', (event) => {
+      if (!state.dragSource && !state.dragTarget) return
+      state.draftPoint = computeSvgPointFromMouse(event)
+      renderLines()
+    })
+
+    window.addEventListener('mouseup', (event) => {
+      if (!state.dragSource && !state.dragTarget) return
+      const element = document.elementFromPoint(event.clientX, event.clientY)
+      const targetRow = element?.closest?.('[data-target-row]') || findRowAtPoint('[data-target-row]', event)
+      const sourceRow = element?.closest?.('[data-source-row]') || findRowAtPoint('[data-source-row]', event)
+      if (state.dragSource && targetRow) {
+        mapSourceToTarget(state.dragSource, targetRow.dataset.targetRow)
+        stopDragging()
+        return
+      }
+      if (state.dragTarget && sourceRow) {
+        mapSourceToTarget(sourceRow.dataset.sourceRow, state.dragTarget)
+        stopDragging()
+        return
+      }
+      stopDragging()
+    })
+
+    window.addEventListener('resize', () => requestAnimationFrame(renderLines))
+    sourceTableWrap.addEventListener('scroll', () => requestAnimationFrame(renderLines))
+    targetTableWrap.addEventListener('scroll', () => requestAnimationFrame(renderLines))
+
+    bindToolbarEvents()
+    rebuildTargetsForMode()
+    renderAll()
+  </script>
+</body>
+</html>

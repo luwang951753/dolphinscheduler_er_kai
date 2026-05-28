@@ -1,0 +1,2387 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>同步任务资产管理原型</title>
+  <style>
+    :root {
+      --bg: #f5f7fb;
+      --panel: #ffffff;
+      --line: #dfe5ee;
+      --line-strong: #c9d4e2;
+      --text: #1f2937;
+      --muted: #667085;
+      --blue: #1677ff;
+      --green: #16a34a;
+      --red: #dc2626;
+      --amber: #d97706;
+      --purple: #7c3aed;
+      --cyan: #0891b2;
+      --shadow: 0 10px 28px rgba(31, 41, 55, 0.08);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--text);
+      background: var(--bg);
+      font-size: 14px;
+    }
+
+    button,
+    input,
+    select {
+      font: inherit;
+    }
+
+    .app {
+      display: grid;
+      grid-template-columns: 248px minmax(0, 1fr);
+      min-height: 100vh;
+    }
+
+    .sidebar {
+      background: #ffffff;
+      border-right: 1px solid var(--line);
+      padding: 14px 12px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      height: 38px;
+      margin-bottom: 18px;
+      font-weight: 700;
+    }
+
+    .brand-mark {
+      width: 28px;
+      height: 28px;
+      border-radius: 7px;
+      background: linear-gradient(135deg, #1677ff, #06b6d4);
+    }
+
+    .nav-title {
+      color: var(--muted);
+      font-size: 12px;
+      padding: 10px 12px 6px;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      height: 36px;
+      padding: 0 12px;
+      border-radius: 6px;
+      color: #344054;
+      cursor: pointer;
+    }
+
+    .nav-item.active {
+      color: var(--blue);
+      background: #eaf3ff;
+      font-weight: 600;
+    }
+
+    .nav-icon {
+      width: 16px;
+      height: 16px;
+      border: 1.5px solid currentColor;
+      border-radius: 4px;
+    }
+
+    .main {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+
+    .topbar {
+      height: 58px;
+      background: #ffffff;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+    }
+
+    .crumb {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .crumb strong {
+      color: var(--text);
+    }
+
+    .user {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: #344054;
+    }
+
+    .avatar {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: #edf2f7;
+      border: 1px solid var(--line);
+    }
+
+    .content {
+      padding: 18px 22px 24px;
+      min-width: 0;
+    }
+
+    .page-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 20px;
+      margin-bottom: 14px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 22px;
+      letter-spacing: 0;
+      line-height: 1.35;
+    }
+
+    .sub {
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .btn {
+      height: 32px;
+      border: 1px solid var(--line-strong);
+      background: #ffffff;
+      color: #344054;
+      border-radius: 6px;
+      padding: 0 12px;
+      cursor: pointer;
+    }
+
+    .btn.primary {
+      border-color: var(--blue);
+      background: var(--blue);
+      color: #ffffff;
+      font-weight: 600;
+    }
+
+    .btn.danger {
+      border-color: #fecaca;
+      background: #fff1f2;
+      color: var(--red);
+    }
+
+    .btn.ghost {
+      border-color: transparent;
+      background: transparent;
+      color: var(--blue);
+      padding: 0 6px;
+    }
+
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .metric-grid {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .metric {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      padding: 12px 14px;
+      cursor: pointer;
+    }
+
+    .metric.active {
+      border-color: #9dc7ff;
+      box-shadow: inset 0 0 0 1px #9dc7ff;
+    }
+
+    .metric-label {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .metric-value {
+      margin-top: 6px;
+      font-size: 24px;
+      font-weight: 700;
+    }
+
+    .toolbar {
+      display: grid;
+      grid-template-columns: minmax(260px, 1fr) 150px 130px 130px 130px auto;
+      gap: 10px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      padding: 12px;
+      margin-bottom: 12px;
+    }
+
+    .field {
+      height: 32px;
+      border: 1px solid var(--line-strong);
+      border-radius: 6px;
+      padding: 0 10px;
+      background: #fff;
+      color: #344054;
+      min-width: 0;
+    }
+
+    .table-wrap {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      overflow: hidden;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+    }
+
+    th,
+    td {
+      border-bottom: 1px solid #edf1f6;
+      text-align: left;
+      padding: 10px 12px;
+      vertical-align: middle;
+      overflow: hidden;
+    }
+
+    th {
+      color: #475467;
+      background: #f8fafc;
+      font-weight: 600;
+      font-size: 12px;
+    }
+
+    tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .task-name {
+      display: inline-flex;
+      align-items: center;
+      max-width: 100%;
+      gap: 6px;
+      color: var(--blue);
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .ellipsis {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .path {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+    }
+
+    .path-main {
+      color: #344054;
+      font-weight: 600;
+    }
+
+    .path-sub {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      height: 22px;
+      border-radius: 999px;
+      padding: 0 8px;
+      font-size: 12px;
+      font-weight: 600;
+      border: 1px solid transparent;
+    }
+
+    .badge.success {
+      color: #15803d;
+      background: #ecfdf3;
+      border-color: #bbf7d0;
+    }
+
+    .badge.failed {
+      color: var(--red);
+      background: #fff1f2;
+      border-color: #fecaca;
+    }
+
+    .badge.running {
+      color: #0369a1;
+      background: #eef8ff;
+      border-color: #bae6fd;
+    }
+
+    .badge.draft {
+      color: #7c2d12;
+      background: #fff7ed;
+      border-color: #fed7aa;
+    }
+
+    .badge.offline {
+      color: #475467;
+      background: #f2f4f7;
+      border-color: #d0d5dd;
+    }
+
+    .badge.schedule {
+      color: var(--purple);
+      background: #f5f3ff;
+      border-color: #ddd6fe;
+    }
+
+    .badge.manual {
+      color: var(--cyan);
+      background: #ecfeff;
+      border-color: #a5f3fc;
+    }
+
+    .ops {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .drawer {
+      position: fixed;
+      inset: 0;
+      display: none;
+      z-index: 20;
+    }
+
+    .drawer.open {
+      display: block;
+    }
+
+    .drawer-mask {
+      position: absolute;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.28);
+    }
+
+    .drawer-panel {
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: min(980px, calc(100vw - 180px));
+      height: 100%;
+      background: #ffffff;
+      box-shadow: var(--shadow);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .drawer-head {
+      border-bottom: 1px solid var(--line);
+      padding: 18px 22px 14px;
+    }
+
+    .drawer-title-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: flex-start;
+    }
+
+    .drawer-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 20px;
+      font-weight: 700;
+    }
+
+    .drawer-actions {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: 1.2fr 1.2fr 1fr 1fr;
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .summary-card {
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      padding: 10px 12px;
+      background: #fbfcfe;
+      min-width: 0;
+    }
+
+    .summary-label {
+      color: var(--muted);
+      font-size: 12px;
+      margin-bottom: 5px;
+    }
+
+    .summary-value {
+      font-weight: 650;
+      min-width: 0;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 2px;
+      padding: 0 22px;
+      border-bottom: 1px solid var(--line);
+      background: #ffffff;
+    }
+
+    .tab {
+      height: 42px;
+      border: 0;
+      background: transparent;
+      padding: 0 14px;
+      cursor: pointer;
+      color: #475467;
+      border-bottom: 2px solid transparent;
+    }
+
+    .tab.active {
+      color: var(--blue);
+      border-bottom-color: var(--blue);
+      font-weight: 700;
+    }
+
+    .drawer-body {
+      overflow: auto;
+      padding: 16px 22px 24px;
+      background: #f8fafc;
+    }
+
+    .detail-section {
+      background: #ffffff;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      margin-bottom: 12px;
+      overflow: hidden;
+    }
+
+    .section-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+      font-weight: 700;
+    }
+
+    .section-body {
+      padding: 14px;
+    }
+
+    .kv-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .kv {
+      min-width: 0;
+    }
+
+    .kv-label {
+      color: var(--muted);
+      font-size: 12px;
+      margin-bottom: 4px;
+    }
+
+    .kv-value {
+      color: #344054;
+      font-weight: 600;
+    }
+
+    .alert {
+      border: 1px solid #fecaca;
+      background: #fff1f2;
+      color: #991b1b;
+      border-radius: 7px;
+      padding: 12px 14px;
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .timeline {
+      display: grid;
+      gap: 10px;
+    }
+
+    .event {
+      display: grid;
+      grid-template-columns: 120px 1fr;
+      gap: 14px;
+      padding: 10px 0;
+      border-bottom: 1px solid #edf1f6;
+    }
+
+    .event:last-child {
+      border-bottom: 0;
+    }
+
+    .event-time {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .editor-shell {
+      display: none;
+      background: #ffffff;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      overflow: hidden;
+    }
+
+    .editor-shell.open {
+      display: block;
+    }
+
+    .wizard-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--line);
+      background: #fbfcfe;
+    }
+
+    .steps {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .step {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .step-num {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: #eef2f7;
+      color: #475467;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .step.active {
+      color: var(--blue);
+      font-weight: 700;
+    }
+
+    .step.active .step-num {
+      background: #eaf3ff;
+      color: var(--blue);
+    }
+
+    .wizard-body {
+      padding: 14px;
+      display: grid;
+      gap: 12px;
+    }
+
+    .flow-row {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      gap: 12px;
+      align-items: stretch;
+    }
+
+    .node {
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      padding: 12px;
+      background: #fff;
+      min-width: 0;
+    }
+
+    .arrow {
+      display: flex;
+      align-items: center;
+      color: var(--blue);
+      font-weight: 700;
+    }
+
+    .mapping-preview {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .editor-grid {
+      display: grid;
+      grid-template-columns: 236px minmax(0, 1fr);
+      gap: 12px;
+      align-items: start;
+    }
+
+    .module-list {
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: #fff;
+      overflow: hidden;
+    }
+
+    .module-item {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+      padding: 12px;
+      border-bottom: 1px solid #edf1f6;
+      cursor: pointer;
+    }
+
+    .module-item:last-child {
+      border-bottom: 0;
+    }
+
+    .module-item.active {
+      background: #eef6ff;
+      box-shadow: inset 3px 0 0 var(--blue);
+    }
+
+    .module-name {
+      font-weight: 700;
+      color: #344054;
+    }
+
+    .module-desc {
+      grid-column: 1 / -1;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .module-content {
+      min-width: 0;
+    }
+
+    .edit-summary-strip {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .edit-pill {
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: #fff;
+      padding: 10px 12px;
+      min-width: 0;
+    }
+
+    .field-workbench {
+      position: relative;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: #fff;
+      overflow: hidden;
+    }
+
+    .mapping-metrics {
+      display: flex;
+      gap: 8px;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--line);
+      background: #fbfcfe;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .legend {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--muted);
+      font-size: 12px;
+      margin-left: auto;
+    }
+
+    .line-sample {
+      width: 28px;
+      height: 0;
+      border-top: 2px solid #3b82f6;
+    }
+
+    .line-sample.dashed {
+      border-top-style: dashed;
+    }
+
+    .field-panels {
+      position: relative;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 74px minmax(0, 1fr);
+      gap: 0;
+      min-height: 420px;
+    }
+
+    .field-panel {
+      min-width: 0;
+      padding: 12px;
+      position: relative;
+      z-index: 2;
+    }
+
+    .field-panel.source {
+      border-right: 1px solid var(--line);
+    }
+
+    .field-panel.target {
+      border-left: 1px solid var(--line);
+    }
+
+    .field-panel-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .field-panel-title {
+      font-weight: 700;
+    }
+
+    .tool-row {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .tool {
+      height: 26px;
+      border: 1px solid var(--line-strong);
+      background: #fff;
+      border-radius: 5px;
+      padding: 0 8px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+
+    .field-table {
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      overflow: hidden;
+      background: #fff;
+    }
+
+    .field-row {
+      display: grid;
+      align-items: center;
+      gap: 8px;
+      min-height: 42px;
+      padding: 7px 9px;
+      border-bottom: 1px solid #edf1f6;
+      position: relative;
+      font-size: 13px;
+    }
+
+    .field-row:last-child {
+      border-bottom: 0;
+    }
+
+    .field-row.header {
+      min-height: 34px;
+      color: var(--muted);
+      background: #f8fafc;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .field-row.source-row {
+      grid-template-columns: 42px minmax(92px, 1fr) 112px minmax(110px, 1.2fr) 18px;
+    }
+
+    .field-row.target-row {
+      grid-template-columns: 18px minmax(110px, 1.1fr) 116px minmax(110px, 1fr) 54px 54px;
+    }
+
+    .field-name {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      min-width: 0;
+      font-weight: 650;
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      height: 18px;
+      border-radius: 999px;
+      padding: 0 5px;
+      font-size: 11px;
+      color: #475467;
+      background: #eef2f7;
+      flex: 0 0 auto;
+    }
+
+    .anchor-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      border: 2px solid var(--blue);
+      background: #fff;
+      box-shadow: 0 0 0 3px #eaf3ff;
+      justify-self: center;
+    }
+
+    .mapping-lane {
+      position: relative;
+      z-index: 1;
+      background: #fbfcfe;
+    }
+
+    .mapping-svg {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+
+    .target-input,
+    .target-select {
+      width: 100%;
+      height: 28px;
+      border: 1px solid var(--line-strong);
+      border-radius: 5px;
+      padding: 0 8px;
+      background: #fff;
+      color: #344054;
+      min-width: 0;
+    }
+
+    .target-check {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .condition-list {
+      display: grid;
+      gap: 8px;
+    }
+
+    .condition-row {
+      display: grid;
+      grid-template-columns: 160px 130px minmax(180px, 1fr) 80px;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .sql-preview {
+      margin-top: 10px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: #0f172a;
+      color: #dbeafe;
+      padding: 12px;
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 12px;
+      line-height: 1.7;
+      overflow: auto;
+    }
+
+    .textarea {
+      width: 100%;
+      min-height: 110px;
+      border: 1px solid var(--line-strong);
+      border-radius: 7px;
+      padding: 10px;
+      resize: vertical;
+      font: 13px "SFMono-Regular", Consolas, monospace;
+      color: #344054;
+    }
+
+    .placeholder-block {
+      border: 1px dashed var(--line-strong);
+      border-radius: 7px;
+      background: #fbfcfe;
+      padding: 26px;
+      text-align: center;
+      color: var(--muted);
+    }
+
+    .mini-table {
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      overflow: hidden;
+    }
+
+    .mini-row {
+      display: grid;
+      grid-template-columns: 1fr 110px 80px;
+      gap: 8px;
+      align-items: center;
+      padding: 8px 10px;
+      border-bottom: 1px solid #edf1f6;
+      font-size: 13px;
+    }
+
+    .mini-row.header {
+      background: #f8fafc;
+      color: var(--muted);
+      font-weight: 700;
+      font-size: 12px;
+    }
+
+    .mini-row:last-child {
+      border-bottom: 0;
+    }
+
+    .toast {
+      position: fixed;
+      left: 50%;
+      bottom: 24px;
+      transform: translateX(-50%);
+      background: #111827;
+      color: #fff;
+      padding: 10px 14px;
+      border-radius: 7px;
+      box-shadow: var(--shadow);
+      display: none;
+      z-index: 50;
+    }
+
+    .toast.show {
+      display: block;
+    }
+
+    /* 同步任务视觉主题覆盖层：对齐 source-filter / field-mapping V4 原型的冷灰蓝工作台风格 */
+    :root {
+      --bg: #f4f7fb;
+      --panel: #ffffff;
+      --line: #d9e2ef;
+      --line-strong: #cbd6e6;
+      --line2: #e5ebf4;
+      --text: #1f2937;
+      --muted: #667085;
+      --subtle: #667085;
+      --blue: #2f6bff;
+      --green: #12836a;
+      --red: #c63b5d;
+      --amber: #c87d00;
+      --purple: #4f46e5;
+      --cyan: #12836a;
+      --primary: #2f6bff;
+      --primary-soft: rgba(47, 107, 255, .1);
+      --shadow: 0 14px 32px rgba(25, 40, 74, .08);
+      --radius: 10px;
+      --radius-sm: 8px;
+    }
+
+    body {
+      background: var(--bg);
+      font-size: 13px;
+    }
+
+    .app {
+      min-height: 100vh;
+      padding: 18px;
+      gap: 12px;
+      background: var(--bg);
+      grid-template-columns: minmax(0, 1fr);
+      align-items: start;
+      max-width: 1720px;
+      margin: 0 auto;
+    }
+
+    .topbar,
+    .metric,
+    .toolbar,
+    .table-wrap,
+    .editor-shell,
+    .node,
+    .edit-pill,
+    .module-list,
+    .field-workbench,
+    .detail-section,
+    .summary-card,
+    .mini-table {
+      border-color: var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      background: var(--panel);
+    }
+
+    .main {
+      gap: 12px;
+    }
+
+    .topbar {
+      height: 52px;
+      border: 1px solid var(--line);
+      padding: 0 16px;
+    }
+
+    .content {
+      padding: 0;
+    }
+
+    #listView {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .page-head {
+      margin: 0;
+      padding: 14px 16px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+
+    h1 {
+      font-size: 17px;
+      font-weight: 700;
+    }
+
+    .sub {
+      color: var(--subtle);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .btn {
+      height: 32px;
+      border-color: #d8e0ec;
+      border-radius: var(--radius-sm);
+      color: #344054;
+      background: #fff;
+      font-size: 13px;
+    }
+
+    .btn.primary {
+      border-color: var(--primary);
+      background: var(--primary);
+      color: #fff;
+    }
+
+    .btn.ghost {
+      color: var(--primary);
+      background: #f7f9fc;
+      border-color: #d8e0ec;
+      padding: 0 10px;
+    }
+
+    .btn.danger {
+      color: var(--red);
+      background: #fff0f4;
+      border-color: #ffd5e1;
+    }
+
+    .metric-grid {
+      gap: 8px;
+      margin: 0;
+    }
+
+    .metric {
+      padding: 10px 12px;
+      background: linear-gradient(180deg, #fcfdff 0%, #f7f9fc 100%);
+      cursor: pointer;
+    }
+
+    .metric.active {
+      border-color: rgba(47, 107, 255, .35);
+      background: linear-gradient(180deg, #f6f9ff, #eef4ff);
+      box-shadow: inset 0 0 0 1px rgba(47, 107, 255, .12), var(--shadow);
+    }
+
+    .metric-label {
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .metric-value {
+      margin-top: 5px;
+      font-size: 20px;
+      line-height: 1.05;
+    }
+
+    .toolbar {
+      margin: 0;
+      padding: 12px;
+      gap: 8px;
+      box-shadow: var(--shadow);
+    }
+
+    .field,
+    .target-input,
+    .target-select,
+    .textarea,
+    select,
+    input {
+      border-color: #d8e0ec;
+      border-radius: var(--radius-sm);
+      color: var(--text);
+      background: #fff;
+      font-size: 13px;
+    }
+
+    .field:focus,
+    .target-input:focus,
+    .target-select:focus,
+    .textarea:focus,
+    select:focus,
+    input:focus {
+      outline: none;
+      border-color: #7aa2ff;
+      box-shadow: 0 0 0 3px rgba(47, 107, 255, .1);
+    }
+
+    .table-wrap {
+      box-shadow: var(--shadow);
+    }
+
+    th,
+    td {
+      padding: 9px 11px;
+      border-bottom-color: #e7edf6;
+      font-size: 13px;
+    }
+
+    th {
+      background: #f8fafc;
+      color: #667085;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    tbody tr:hover td {
+      background: #f8fbff;
+    }
+
+    .task-name {
+      color: var(--primary);
+      font-weight: 700;
+    }
+
+    .path-main,
+    .kv-value,
+    .summary-value,
+    .module-name {
+      color: var(--text);
+    }
+
+    .path-sub,
+    .kv-label,
+    .summary-label {
+      color: var(--muted);
+    }
+
+    .badge {
+      height: 22px;
+      padding: 0 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .badge.success {
+      color: var(--green);
+      background: #eafaf3;
+      border-color: #ccefe0;
+    }
+
+    .badge.failed {
+      color: var(--red);
+      background: #fff0f4;
+      border-color: #ffd5e1;
+    }
+
+    .badge.running {
+      color: var(--primary);
+      background: #eef4ff;
+      border-color: #d8e4ff;
+    }
+
+    .badge.draft,
+    .badge.manual {
+      color: var(--amber);
+      background: #fff7e6;
+      border-color: #ffe2b0;
+    }
+
+    .badge.offline {
+      color: #475467;
+      background: #f3f6fb;
+      border-color: #e3e9f4;
+    }
+
+    .badge.schedule {
+      color: #4f46e5;
+      background: #eef2ff;
+      border-color: #d8ddff;
+    }
+
+    .drawer-mask {
+      background: rgba(15, 23, 42, .26);
+    }
+
+    .drawer-panel {
+      width: min(1040px, calc(100vw - 210px));
+      background: #f8fafc;
+      box-shadow: -18px 0 34px rgba(25, 40, 74, .16);
+    }
+
+    .drawer-head,
+    .tabs {
+      background: #fff;
+      border-color: var(--line);
+    }
+
+    .drawer-title {
+      font-size: 18px;
+    }
+
+    .summary-grid,
+    .kv-grid,
+    .edit-summary-strip {
+      gap: 8px;
+    }
+
+    .summary-card,
+    .edit-pill {
+      background: #fbfcff;
+      border-color: var(--line2);
+      box-shadow: none;
+      padding: 10px 11px;
+    }
+
+    .tab {
+      height: 40px;
+      color: #475467;
+      font-size: 13px;
+    }
+
+    .tab.active {
+      color: var(--primary);
+      border-bottom-color: var(--primary);
+    }
+
+    .drawer-body {
+      background: #f4f7fb;
+    }
+
+    .detail-section {
+      border-color: var(--line);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .section-head,
+    .mapping-metrics,
+    .wizard-head {
+      background: #f9fbff;
+      border-color: var(--line2);
+    }
+
+    .alert {
+      border-color: #ffd5e1;
+      background: #fff0f4;
+      color: #b4233f;
+      border-radius: var(--radius-sm);
+    }
+
+    .editor-shell {
+      box-shadow: var(--shadow);
+    }
+
+    .wizard-head {
+      padding: 14px 16px;
+    }
+
+    .steps {
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .step {
+      height: 30px;
+      padding: 0 10px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: #fff;
+      color: var(--muted);
+    }
+
+    .step-num {
+      width: 20px;
+      height: 20px;
+      background: #eef2f7;
+    }
+
+    .step.active {
+      color: var(--primary);
+      background: var(--primary-soft);
+      border-color: rgba(47, 107, 255, .25);
+    }
+
+    .step.active .step-num {
+      background: #fff;
+      color: var(--primary);
+    }
+
+    .wizard-body {
+      padding: 14px;
+      gap: 12px;
+      background: #fff;
+    }
+
+    .flow-row,
+    .editor-grid {
+      gap: 12px;
+    }
+
+    .node {
+      box-shadow: none;
+      background: #fbfcff;
+      border-color: var(--line2);
+    }
+
+    .arrow {
+      color: var(--primary);
+    }
+
+    .module-list {
+      box-shadow: none;
+      overflow: hidden;
+    }
+
+    .module-item {
+      padding: 11px;
+      border-bottom-color: #e7edf6;
+    }
+
+    .module-item.active {
+      background: linear-gradient(180deg, #f6f9ff, #eef4ff);
+      box-shadow: inset 3px 0 0 var(--primary);
+    }
+
+    .module-desc {
+      color: var(--subtle);
+      font-size: 12px;
+    }
+
+    .field-workbench {
+      border-color: var(--line2);
+      border-radius: var(--radius);
+      box-shadow: none;
+    }
+
+    .field-panels {
+      background: #fff;
+    }
+
+    .field-panel.source,
+    .field-panel.target {
+      border-color: var(--line2);
+    }
+
+    .field-table {
+      border-color: var(--line2);
+      border-radius: var(--radius-sm);
+    }
+
+    .field-row {
+      min-height: 42px;
+      border-bottom-color: #e7edf6;
+      background: #fbfcff;
+    }
+
+    .field-row.header {
+      min-height: 34px;
+      background: #f8fafc;
+      color: var(--muted);
+    }
+
+    .field-row:not(.header):hover {
+      background: #f6f9ff;
+    }
+
+    .tag {
+      height: 18px;
+      background: #f3f6fb;
+      border: 1px solid #e3e9f4;
+      color: #475467;
+    }
+
+    .anchor-dot {
+      width: 14px;
+      height: 14px;
+      border: 2px solid var(--primary);
+      box-shadow: 0 0 0 3px rgba(47, 107, 255, .08);
+    }
+
+    .anchor-dot::after {
+      content: "";
+      display: block;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--primary);
+      margin: 2px;
+    }
+
+    .mapping-lane {
+      background: #f9fbff;
+    }
+
+    .line-sample {
+      border-top-color: #2f6bff;
+    }
+
+    .sql-preview {
+      border-color: #22304a;
+      border-radius: var(--radius);
+      background: #0f172a;
+      color: #dbe6fa;
+    }
+
+    .textarea {
+      border-radius: var(--radius-sm);
+    }
+
+    .mini-row {
+      border-bottom-color: #e7edf6;
+    }
+
+    .mini-row.header {
+      background: #f8fafc;
+      color: var(--muted);
+    }
+
+    .placeholder-block {
+      border-color: var(--line-strong);
+      border-radius: var(--radius-sm);
+      background: #fbfcff;
+    }
+
+    @media (max-width: 1180px) {
+      .app {
+        grid-template-columns: minmax(0, 1fr);
+      }
+
+      .metric-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .toolbar {
+        grid-template-columns: 1fr 1fr 1fr;
+      }
+
+      .summary-grid,
+      .kv-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <main class="main">
+      <header class="topbar">
+        <div class="crumb">源中心 / <strong>同步任务</strong></div>
+        <div class="user"><span>Asia/Shanghai</span><span class="avatar"></span><span>admin</span></div>
+      </header>
+
+      <section class="content" id="listView">
+        <div class="page-head">
+          <div>
+            <h1>同步任务</h1>
+            <div class="sub">管理已保存的同步任务，查看运行状态、历史配置和失败诊断。</div>
+          </div>
+          <button class="btn primary" id="newTaskBtn">新建同步任务</button>
+        </div>
+
+        <div class="metric-grid" id="metricGrid"></div>
+
+        <div class="toolbar">
+          <input class="field" id="searchInput" placeholder="搜索任务名称、源表、目标表、工作流编码" />
+          <select class="field" id="projectFilter">
+            <option value="">全部项目</option>
+            <option value="test1">test1</option>
+            <option value="ods">ods</option>
+          </select>
+          <select class="field" id="statusFilter">
+            <option value="">全部状态</option>
+            <option value="SUCCESS">成功</option>
+            <option value="FAILED">失败</option>
+            <option value="RUNNING">运行中</option>
+            <option value="DRAFT">草稿</option>
+            <option value="OFFLINE">下线</option>
+          </select>
+          <select class="field" id="scheduleFilter">
+            <option value="">全部调度</option>
+            <option value="ON">已调度</option>
+            <option value="OFF">未调度</option>
+          </select>
+          <select class="field" id="typeFilter">
+            <option value="">全部链路</option>
+            <option value="MYSQL">MySQL</option>
+            <option value="POSTGRESQL">PostgreSQL</option>
+            <option value="DORIS">Doris</option>
+            <option value="ORACLE">Oracle</option>
+          </select>
+          <button class="btn" id="resetBtn">重置</button>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th style="width: 19%">任务名称</th>
+                <th style="width: 8%">项目</th>
+                <th style="width: 16%">源端</th>
+                <th style="width: 16%">目标端</th>
+                <th style="width: 8%">状态</th>
+                <th style="width: 8%">调度</th>
+                <th style="width: 12%">最近运行</th>
+                <th style="width: 8%">读/写</th>
+                <th style="width: 13%">操作</th>
+              </tr>
+            </thead>
+            <tbody id="taskRows"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="content">
+        <div class="editor-shell" id="editorShell">
+          <div class="wizard-head">
+            <div>
+              <h1 id="editorTitle">编辑同步任务</h1>
+              <div class="sub" id="editorSub">已从同步任务资产回填配置，可修改后保存草稿或发布。</div>
+            </div>
+            <div class="steps">
+              <span class="step active"><span class="step-num">1</span>选择源与目标</span>
+              <span class="step"><span class="step-num">2</span>配置同步方案</span>
+              <span class="step"><span class="step-num">3</span>执行与调度</span>
+              <span class="step"><span class="step-num">4</span>预览与发布</span>
+            </div>
+          </div>
+          <div class="wizard-body">
+            <div class="alert" id="runningAlert" style="display:none">
+              <div>
+                <strong>当前任务正在运行。</strong>
+                本次修改会保存为待发布版本，不影响正在执行的实例。
+              </div>
+              <button class="btn">查看当前实例</button>
+            </div>
+
+            <div class="flow-row">
+              <div class="node">
+                <div class="summary-label">源端 Source</div>
+                <div class="summary-value" id="editSource"></div>
+                <div class="path-sub" id="editSourcePath"></div>
+              </div>
+              <div class="arrow">→</div>
+              <div class="node">
+                <div class="summary-label">目标端 Target</div>
+                <div class="summary-value" id="editTarget"></div>
+                <div class="path-sub" id="editTargetPath"></div>
+              </div>
+            </div>
+
+            <div class="edit-summary-strip">
+              <div class="edit-pill"><div class="summary-label">字段映射</div><div class="summary-value" id="editMappingMetric"></div></div>
+              <div class="edit-pill"><div class="summary-label">源端过滤</div><div class="summary-value ellipsis" id="editFilterMetric"></div></div>
+              <div class="edit-pill"><div class="summary-label">数据去向</div><div class="summary-value ellipsis" id="editSinkMetric"></div></div>
+              <div class="edit-pill"><div class="summary-label">调度</div><div class="summary-value" id="editSchedule"></div></div>
+            </div>
+
+            <div class="editor-grid">
+              <div class="module-list" id="editModuleList"></div>
+              <div class="module-content" id="editModuleContent"></div>
+            </div>
+
+            <div class="drawer-actions" style="justify-content:flex-start">
+              <button class="btn" id="backToListBtn">返回列表</button>
+              <button class="btn">保存草稿</button>
+              <button class="btn primary">保存并发布</button>
+              <button class="btn primary">保存并执行</button>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div class="drawer" id="detailDrawer">
+    <div class="drawer-mask" id="drawerMask"></div>
+    <div class="drawer-panel">
+      <div class="drawer-head">
+        <div class="drawer-title-row">
+          <div>
+            <div class="drawer-title"><span id="detailName"></span><span id="detailStatus"></span></div>
+            <div class="sub" id="detailSub"></div>
+          </div>
+          <div class="drawer-actions">
+            <button class="btn primary" id="editFromDetailBtn">编辑配置</button>
+            <button class="btn" id="runFromDetailBtn">运行一次</button>
+            <button class="btn" id="scheduleFromDetailBtn">配置调度</button>
+            <button class="btn">查看工作流</button>
+            <button class="btn" id="closeDrawerBtn">关闭</button>
+          </div>
+        </div>
+        <div class="summary-grid" id="detailSummary"></div>
+      </div>
+      <div class="tabs" id="tabs"></div>
+      <div class="drawer-body" id="detailBody"></div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    const tasks = [
+      {
+        id: 1,
+        name: 'sync_mysql_case_workbench_to_pgsql_a6',
+        project: 'test1',
+        status: 'SUCCESS',
+        schedule: 'ON',
+        sourceType: 'MYSQL',
+        targetType: 'POSTGRESQL',
+        source: 'mysql_case_workbench',
+        sourcePath: 'case_workbench.ajxx_tab',
+        target: 'pgsql_test1',
+        targetPath: 'test1.public.a6',
+        workflowCode: '173455487604512',
+        lastRun: '2026-05-15 12:49',
+        lastInstance: '161',
+        duration: '15s',
+        read: 5,
+        write: 5,
+        updated: '2026-05-15 12:49',
+        owner: 'admin',
+        nextRun: '2026-05-15 13:00',
+        filter: 'update_time >= ${bizdate}',
+        sink: 'custom_sql: truncate table public.a6;',
+        error: '',
+        mappings: [
+          ['id', 'id', '自动'],
+          ['ajbh', 'ajbh', '自动'],
+          ['ajmc', 'case_name', '手动'],
+          ['update_time', 'synced_at', '手动']
+        ],
+        history: [
+          ['161', 'SUCCESS', '手动运行', '2026-05-15 12:40:48', '2026-05-15 12:41:03', '15s', '5 / 5'],
+          ['159', 'SUCCESS', '调度运行', '2026-05-15 12:31:56', '2026-05-15 12:35:11', '3m15s', '5 / 5']
+        ]
+      },
+      {
+        id: 2,
+        name: 'sync_oracle_order_to_doris_ods',
+        project: 'ods',
+        status: 'FAILED',
+        schedule: 'ON',
+        sourceType: 'ORACLE',
+        targetType: 'DORIS',
+        source: 'oracle_sync_test',
+        sourcePath: 'APP.ORDERS',
+        target: 'doris_sync_test',
+        targetPath: 'ods.order_detail',
+        workflowCode: '173455278088992',
+        lastRun: '2026-05-15 11:42',
+        lastInstance: '160',
+        duration: '41s',
+        read: 1200,
+        write: 0,
+        updated: '2026-05-15 11:43',
+        owner: 'admin',
+        nextRun: '2026-05-15 13:00',
+        filter: 'order_time >= ${bizdate}',
+        sink: '未配置',
+        error: '目标字段 amount 类型 DECIMAL(10,2) 无法承接 Oracle NUMBER(18,4)',
+        mappings: [
+          ['ORDER_ID', 'order_id', '自动'],
+          ['AMOUNT', 'amount', '手动'],
+          ['ORDER_TIME', 'order_time', '自动'],
+          ['CUSTOMER_ID', 'customer_id', '自动']
+        ],
+        history: [
+          ['160', 'FAILED', '调度运行', '2026-05-15 11:42:01', '2026-05-15 11:42:42', '41s', '1200 / 0'],
+          ['155', 'SUCCESS', '调度运行', '2026-05-15 10:00:00', '2026-05-15 10:00:27', '27s', '1188 / 1188']
+        ]
+      },
+      {
+        id: 3,
+        name: 'sync_pgsql_goods_to_mysql_report',
+        project: 'test1',
+        status: 'RUNNING',
+        schedule: 'OFF',
+        sourceType: 'POSTGRESQL',
+        targetType: 'MYSQL',
+        source: 'pgsql_test1',
+        sourcePath: 'test1.public.goods',
+        target: 'mysql_case_workbench',
+        targetPath: 'case_workbench.goods_report',
+        workflowCode: '173455294923552',
+        lastRun: '2026-05-15 12:50',
+        lastInstance: '162',
+        duration: '运行 2m 08s',
+        read: 8200,
+        write: 7800,
+        updated: '2026-05-15 12:50',
+        owner: 'admin',
+        nextRun: '-',
+        filter: '未配置',
+        sink: '未配置',
+        error: '',
+        mappings: [
+          ['goods_id', 'goods_id', '自动'],
+          ['goods_name', 'goods_name', '自动'],
+          ['price', 'price', '自动'],
+          ['updated_at', 'updated_at', '自动']
+        ],
+        history: [
+          ['162', 'RUNNING', '手动运行', '2026-05-15 12:50:01', '-', '运行 2m 08s', '8200 / 7800']
+        ]
+      },
+      {
+        id: 4,
+        name: 'sync_draft_customer_profile',
+        project: 'test1',
+        status: 'DRAFT',
+        schedule: 'OFF',
+        sourceType: 'MYSQL',
+        targetType: 'DORIS',
+        source: 'mysql_case_workbench',
+        sourcePath: 'case_workbench.customer_profile',
+        target: 'doris_sync_test',
+        targetPath: 'dim.customer_profile',
+        workflowCode: '-',
+        lastRun: '-',
+        lastInstance: '-',
+        duration: '-',
+        read: '-',
+        write: '-',
+        updated: '2026-05-15 10:20',
+        owner: 'admin',
+        nextRun: '-',
+        filter: '未配置',
+        sink: '未配置',
+        error: '',
+        mappings: [
+          ['id', 'id', '自动'],
+          ['name', 'name', '自动'],
+          ['phone', 'phone', '自动'],
+          ['created_at', 'created_at', '自动']
+        ],
+        history: []
+      }
+    ];
+
+    const state = {
+      status: '',
+      project: '',
+      schedule: '',
+      type: '',
+      keyword: '',
+      selectedTask: tasks[0],
+      activeTab: 'overview',
+      editingTask: tasks[0],
+      editModule: 'mapping'
+    };
+
+    const statusMap = {
+      SUCCESS: ['成功', 'success'],
+      FAILED: ['失败', 'failed'],
+      RUNNING: ['运行中', 'running'],
+      DRAFT: ['草稿', 'draft'],
+      OFFLINE: ['下线', 'offline']
+    };
+
+    const scheduleMap = {
+      ON: ['已调度', 'schedule'],
+      OFF: ['未调度', 'offline']
+    };
+
+    function badge(status, map = statusMap) {
+      const item = map[status] || [status, 'offline'];
+      return `<span class="badge ${item[1]}">${item[0]}</span>`;
+    }
+
+    function showToast(text) {
+      const toast = document.getElementById('toast');
+      toast.textContent = text;
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 1800);
+    }
+
+    function filteredTasks() {
+      const keyword = state.keyword.trim().toLowerCase();
+      return tasks.filter(task => {
+        const text = [task.name, task.sourcePath, task.targetPath, task.workflowCode].join(' ').toLowerCase();
+        if (keyword && !text.includes(keyword)) return false;
+        if (state.project && task.project !== state.project) return false;
+        if (state.status && task.status !== state.status) return false;
+        if (state.schedule && task.schedule !== state.schedule) return false;
+        if (state.type && task.sourceType !== state.type && task.targetType !== state.type) return false;
+        return true;
+      });
+    }
+
+    function renderMetrics() {
+      const metrics = [
+        ['全部', '', tasks.length],
+        ['运行中', 'RUNNING', tasks.filter(t => t.status === 'RUNNING').length],
+        ['失败', 'FAILED', tasks.filter(t => t.status === 'FAILED').length],
+        ['已调度', 'SCHEDULED', tasks.filter(t => t.schedule === 'ON').length],
+        ['草稿', 'DRAFT', tasks.filter(t => t.status === 'DRAFT').length]
+      ];
+      document.getElementById('metricGrid').innerHTML = metrics.map(([label, key, value]) => {
+        const active = (key === state.status) || (!key && !state.status && !state.schedule) || (key === 'SCHEDULED' && state.schedule === 'ON');
+        return `
+          <div class="metric ${active ? 'active' : ''}" data-metric="${key}">
+            <div class="metric-label">${label}</div>
+            <div class="metric-value">${value}</div>
+          </div>
+        `;
+      }).join('');
+      document.querySelectorAll('[data-metric]').forEach(node => {
+        node.addEventListener('click', () => {
+          const key = node.dataset.metric;
+          state.status = '';
+          state.schedule = '';
+          if (key === 'SCHEDULED') state.schedule = 'ON';
+          else state.status = key;
+          document.getElementById('statusFilter').value = state.status;
+          document.getElementById('scheduleFilter').value = state.schedule;
+          render();
+        });
+      });
+    }
+
+    function renderRows() {
+      const rows = filteredTasks();
+      document.getElementById('taskRows').innerHTML = rows.map(task => `
+        <tr>
+          <td>
+            <span class="task-name" data-open="${task.id}">
+              <span class="ellipsis">${task.name}</span>
+            </span>
+            ${task.error ? `<div class="path-sub ellipsis">${task.error}</div>` : `<div class="path-sub">工作流 ${task.workflowCode}</div>`}
+          </td>
+          <td>${task.project}</td>
+          <td>
+            <div class="path">
+              <span class="path-main">${task.sourceType} / ${task.source}</span>
+              <span class="path-sub ellipsis">${task.sourcePath}</span>
+            </div>
+          </td>
+          <td>
+            <div class="path">
+              <span class="path-main">${task.targetType} / ${task.target}</span>
+              <span class="path-sub ellipsis">${task.targetPath}</span>
+            </div>
+          </td>
+          <td>${badge(task.status)}</td>
+          <td>${badge(task.schedule, scheduleMap)}</td>
+          <td>
+            <div class="path">
+              <span class="path-main">${task.lastRun}</span>
+              <span class="path-sub">${task.duration}</span>
+            </div>
+          </td>
+          <td>${task.read} / ${task.write}</td>
+          <td>
+            <div class="ops">
+              <button class="btn ghost" data-open="${task.id}">详情</button>
+              <button class="btn ghost" data-edit="${task.id}">${task.status === 'FAILED' ? '修复' : '编辑'}</button>
+              <button class="btn ghost" data-run="${task.id}">运行</button>
+              <button class="btn ghost" data-schedule="${task.id}">调度</button>
+            </div>
+          </td>
+        </tr>
+      `).join('');
+
+      document.querySelectorAll('[data-open]').forEach(node => {
+        node.addEventListener('click', () => openDetail(Number(node.dataset.open)));
+      });
+      document.querySelectorAll('[data-edit]').forEach(node => {
+        node.addEventListener('click', () => openEditor(Number(node.dataset.edit)));
+      });
+      document.querySelectorAll('[data-run]').forEach(node => {
+        node.addEventListener('click', () => showToast('已提交一次性运行，详情页会展示新实例。'));
+      });
+      document.querySelectorAll('[data-schedule]').forEach(node => {
+        node.addEventListener('click', () => showToast('打开同步任务专用调度弹框。'));
+      });
+    }
+
+    function render() {
+      renderMetrics();
+      renderRows();
+    }
+
+    function openDetail(id) {
+      state.selectedTask = tasks.find(t => t.id === id) || tasks[0];
+      state.activeTab = 'overview';
+      renderDetail();
+      document.getElementById('detailDrawer').classList.add('open');
+    }
+
+    function closeDetail() {
+      document.getElementById('detailDrawer').classList.remove('open');
+    }
+
+    function renderDetail() {
+      const task = state.selectedTask;
+      document.getElementById('detailName').textContent = task.name;
+      document.getElementById('detailStatus').innerHTML = badge(task.status);
+      document.getElementById('detailSub').textContent = `${task.sourceType} ${task.sourcePath} → ${task.targetType} ${task.targetPath}`;
+      document.getElementById('detailSummary').innerHTML = [
+        ['最近实例', task.lastInstance],
+        ['最近运行', task.lastRun],
+        ['读 / 写行数', `${task.read} / ${task.write}`],
+        ['调度状态', `${scheduleMap[task.schedule][0]} · ${task.nextRun}`]
+      ].map(([label, value]) => `
+        <div class="summary-card">
+          <div class="summary-label">${label}</div>
+          <div class="summary-value ellipsis">${value}</div>
+        </div>
+      `).join('');
+      const tabs = [
+        ['overview', '概览'],
+        ['config', '配置'],
+        ['history', '运行历史'],
+        ['logs', '日志诊断'],
+        ['changes', '变更记录']
+      ];
+      document.getElementById('tabs').innerHTML = tabs.map(([key, label]) => `
+        <button class="tab ${state.activeTab === key ? 'active' : ''}" data-tab="${key}">${label}</button>
+      `).join('');
+      document.querySelectorAll('[data-tab]').forEach(node => {
+        node.addEventListener('click', () => {
+          state.activeTab = node.dataset.tab;
+          renderDetail();
+        });
+      });
+      document.getElementById('detailBody').innerHTML = buildTabBody(task);
+    }
+
+    function buildTabBody(task) {
+      if (state.activeTab === 'overview') return `
+        ${task.error ? `<div class="alert"><div><strong>最近一次运行失败：</strong>${task.error}</div><button class="btn danger" data-edit-inline="${task.id}">编辑并修复</button></div>` : ''}
+        <div class="detail-section">
+          <div class="section-head">运行概览</div>
+          <div class="section-body">
+            <div class="kv-grid">
+              <div class="kv"><div class="kv-label">任务状态</div><div class="kv-value">${badge(task.status)}</div></div>
+              <div class="kv"><div class="kv-label">工作流编码</div><div class="kv-value">${task.workflowCode}</div></div>
+              <div class="kv"><div class="kv-label">最近实例</div><div class="kv-value">${task.lastInstance}</div></div>
+              <div class="kv"><div class="kv-label">读 / 写行数</div><div class="kv-value">${task.read} / ${task.write}</div></div>
+              <div class="kv"><div class="kv-label">耗时</div><div class="kv-value">${task.duration}</div></div>
+              <div class="kv"><div class="kv-label">下次调度</div><div class="kv-value">${task.nextRun}</div></div>
+            </div>
+          </div>
+        </div>
+      `;
+      if (state.activeTab === 'config') return `
+        <div class="detail-section">
+          <div class="section-head">同步配置 <button class="btn" data-edit-inline="${task.id}">编辑配置</button></div>
+          <div class="section-body">
+            <div class="kv-grid">
+              <div class="kv"><div class="kv-label">源端</div><div class="kv-value">${task.sourceType} / ${task.sourcePath}</div></div>
+              <div class="kv"><div class="kv-label">目标端</div><div class="kv-value">${task.targetType} / ${task.targetPath}</div></div>
+              <div class="kv"><div class="kv-label">源端过滤</div><div class="kv-value">${task.filter}</div></div>
+              <div class="kv"><div class="kv-label">数据去向</div><div class="kv-value">${task.sink}</div></div>
+              <div class="kv"><div class="kv-label">字段映射</div><div class="kv-value">${task.mappings.length} 个字段，${task.mappings.filter(m => m[2] === '手动').length} 个手动映射</div></div>
+              <div class="kv"><div class="kv-label">SeaTunnel 配置</div><div class="kv-value">source → transform(sync_mapped) → sink</div></div>
+            </div>
+          </div>
+        </div>
+        <div class="detail-section">
+          <div class="section-head">字段映射摘要</div>
+          <div class="section-body">${mappingTable(task)}</div>
+        </div>
+      `;
+      if (state.activeTab === 'history') return `
+        <div class="detail-section">
+          <div class="section-head">运行历史</div>
+          <div class="section-body">${historyTable(task)}</div>
+        </div>
+      `;
+      if (state.activeTab === 'logs') return `
+        <div class="detail-section">
+          <div class="section-head">日志诊断</div>
+          <div class="section-body">
+            ${task.error ? `<div class="alert"><div><strong>失败摘要：</strong>${task.error}</div><button class="btn danger" data-edit-inline="${task.id}">编辑并修复</button></div>` : '<div class="sub">最近一次运行没有失败日志。</div>'}
+            <div class="kv-grid">
+              <div class="kv"><div class="kv-label">最近实例</div><div class="kv-value">${task.lastInstance}</div></div>
+              <div class="kv"><div class="kv-label">失败阶段</div><div class="kv-value">${task.error ? '字段类型兼容校验 / sink 写入' : '-'}</div></div>
+              <div class="kv"><div class="kv-label">Dolphin 实例</div><div class="kv-value">打开原生实例详情</div></div>
+            </div>
+          </div>
+        </div>
+      `;
+      return `
+        <div class="detail-section">
+          <div class="section-head">变更记录</div>
+          <div class="section-body">
+            <div class="timeline">
+              <div class="event"><div class="event-time">${task.updated}</div><div>admin 发布同步任务配置</div></div>
+              <div class="event"><div class="event-time">${task.lastRun}</div><div>${task.status === 'FAILED' ? '调度运行失败，等待修复' : '任务运行完成'}</div></div>
+              <div class="event"><div class="event-time">2026-05-14 18:20</div><div>admin 创建同步任务</div></div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function mappingTable(task) {
+      return `
+        <div class="mini-table">
+          <div class="mini-row header"><span>源字段</span><span>目标字段</span><span>方式</span></div>
+          ${task.mappings.map(row => `<div class="mini-row"><span>${row[0]}</span><span>${row[1]}</span><span>${row[2]}</span></div>`).join('')}
+        </div>
+      `;
+    }
+
+    function historyTable(task) {
+      if (!task.history.length) return '<div class="sub">暂无运行历史。</div>';
+      return `
+        <div class="mini-table">
+          <div class="mini-row header" style="grid-template-columns: 90px 90px 90px 1fr 1fr 90px 90px"><span>实例</span><span>状态</span><span>类型</span><span>开始</span><span>结束</span><span>耗时</span><span>读/写</span></div>
+          ${task.history.map(row => `<div class="mini-row" style="grid-template-columns: 90px 90px 90px 1fr 1fr 90px 90px"><span>${row[0]}</span><span>${badge(row[1])}</span><span>${row[2]}</span><span>${row[3]}</span><span>${row[4]}</span><span>${row[5]}</span><span>${row[6]}</span></div>`).join('')}
+        </div>
+      `;
+    }
+
+    function sourceFieldRows(task) {
+      const rows = task.mappings.map((row, index) => ({
+        name: row[0],
+        type: inferSourceType(row[0], task.sourceType),
+        comment: inferComment(row[0]),
+        mode: row[2],
+        pk: index === 0,
+        nullable: index !== 0
+      }));
+      return rows.map((field, index) => `
+        <div class="field-row source-row">
+          <label><input type="checkbox" checked /> 同步</label>
+          <div class="field-name ellipsis">
+            <span class="ellipsis">${field.name}</span>
+            ${field.pk ? '<span class="tag">主键</span>' : field.nullable ? '<span class="tag">可空</span>' : '<span class="tag">非空</span>'}
+          </div>
+          <span class="ellipsis">${field.type}</span>
+          <span class="ellipsis" title="${field.comment}">${field.comment}</span>
+          <span class="anchor-dot" data-source-dot="${index}"></span>
+        </div>
+      `).join('');
+    }
+
+    function targetFieldRows(task) {
+      return task.mappings.map((row, index) => `
+        <div class="field-row target-row">
+          <span class="anchor-dot" data-target-dot="${index}"></span>
+          <input class="target-input" value="${row[1]}" />
+          <select class="target-select">
+            ${targetTypeOptions(task.targetType, row[1]).map(type => `<option>${type}</option>`).join('')}
+          </select>
+          <input class="target-input" value="${inferComment(row[1])}" />
+          <label class="target-check"><input type="checkbox" ${index === 0 ? 'checked' : ''} /></label>
+          <label class="target-check"><input type="checkbox" ${index !== 0 ? 'checked' : ''} /></label>
+        </div>
+      `).join('');
+    }
+
+    function inferSourceType(name, sourceType) {
+      const lower = name.toLowerCase();
+      if (lower.includes('id')) return sourceType === 'ORACLE' ? 'NUMBER(20)' : 'BIGINT';
+      if (lower.includes('time') || lower.includes('date')) return sourceType === 'ORACLE' ? 'TIMESTAMP' : 'TIMESTAMP';
+      if (lower.includes('amount') || lower.includes('price')) return sourceType === 'ORACLE' ? 'NUMBER(18,4)' : 'DECIMAL(18,4)';
+      return sourceType === 'ORACLE' ? 'VARCHAR2(255)' : 'VARCHAR(255)';
+    }
+
+    function inferComment(name) {
+      const map = {
+        id: '主键 ID',
+        ajbh: '案件编号',
+        ajmc: '案件名称',
+        case_name: '案件名称',
+        update_time: '更新时间',
+        synced_at: '同步时间',
+        ORDER_ID: '订单 ID',
+        order_id: '订单 ID',
+        AMOUNT: '订单金额',
+        amount: '订单金额',
+        ORDER_TIME: '订单时间',
+        order_time: '订单时间',
+        CUSTOMER_ID: '客户 ID',
+        customer_id: '客户 ID'
+      };
+      return map[name] || `${name} 字段说明`;
+    }
+
+    function targetTypeOptions(targetType, fieldName) {
+      const lower = fieldName.toLowerCase();
+      if (targetType === 'DORIS') {
+        if (lower.includes('id')) return ['BIGINT', 'VARCHAR(64)', 'STRING'];
+        if (lower.includes('time') || lower.includes('date')) return ['DATETIME', 'DATE', 'VARCHAR(32)'];
+        if (lower.includes('amount') || lower.includes('price')) return ['DECIMAL(10,2)', 'DECIMAL(18,4)', 'DOUBLE'];
+        return ['VARCHAR(255)', 'STRING', 'TEXT'];
+      }
+      if (targetType === 'POSTGRESQL') {
+        if (lower.includes('id')) return ['BIGINT', 'VARCHAR(64)', 'TEXT'];
+        if (lower.includes('time') || lower.includes('date')) return ['TIMESTAMP', 'DATE', 'TEXT'];
+        return ['VARCHAR(255)', 'TEXT', 'NUMERIC'];
+      }
+      return ['BIGINT', 'VARCHAR(255)', 'DATETIME', 'DECIMAL(18,4)', 'TEXT'];
+    }
+
+    function renderEditorModules() {
+      const task = state.editingTask;
+      const modules = [
+        ['mapping', '字段映射关系', '必配', `${task.mappings.length} 个字段，${task.mappings.filter(row => row[2] === '手动').length} 个手动映射`],
+        ['filter', '源端过滤条件', task.filter === '未配置' ? '可选' : '已配置', task.filter],
+        ['sink', '数据去向', task.sink === '未配置' ? '可选' : '已配置', task.sink],
+        ['processing', '数据处理', '暂未实现', '预留字符串替换、AI 辅助处理、向量化等能力']
+      ];
+      document.getElementById('editModuleList').innerHTML = modules.map(([key, title, tag, desc]) => `
+        <div class="module-item ${state.editModule === key ? 'active' : ''}" data-edit-module="${key}">
+          <div class="module-name">${title}</div>
+          <span class="badge ${tag === '必配' || tag === '已配置' ? 'success' : tag === '暂未实现' ? 'offline' : 'manual'}">${tag}</span>
+          <div class="module-desc ellipsis">${desc}</div>
+        </div>
+      `).join('');
+      document.querySelectorAll('[data-edit-module]').forEach(node => {
+        node.addEventListener('click', () => {
+          state.editModule = node.dataset.editModule;
+          renderEditorModules();
+        });
+      });
+      document.getElementById('editModuleContent').innerHTML = buildEditModuleBody(task);
+    }
+
+    function buildEditModuleBody(task) {
+      if (state.editModule === 'mapping') return `
+        <div class="field-workbench">
+          <div class="mapping-metrics">
+            <span class="badge success">自动映射 ${task.mappings.filter(row => row[2] === '自动').length}</span>
+            <span class="badge manual">手动映射 ${task.mappings.filter(row => row[2] === '手动').length}</span>
+            <span class="badge offline">未映射 0</span>
+            <span class="legend"><span class="line-sample dashed"></span>虚线：系统自动映射</span>
+            <span class="legend"><span class="line-sample"></span>实线：手动拖拽映射</span>
+          </div>
+          <div class="field-panels">
+            <div class="field-panel source">
+              <div class="field-panel-head">
+                <div class="field-panel-title">源字段区</div>
+                <div class="tool-row">
+                  <button class="tool">全选</button><button class="tool">反选</button><button class="tool">清空</button><button class="tool">只看异常</button>
+                </div>
+              </div>
+              <div class="field-table">
+                <div class="field-row source-row header"><span>同步</span><span>源字段</span><span>源类型</span><span>字段注释</span><span></span></div>
+                ${sourceFieldRows(task)}
+              </div>
+            </div>
+            <div class="mapping-lane">
+              <svg class="mapping-svg" viewBox="0 0 74 420" preserveAspectRatio="none">
+                ${task.mappings.map((row, index) => {
+                  const y = 68 + index * 42;
+                  const dash = row[2] === '自动' ? 'stroke-dasharray="6 5"' : '';
+                  return `<path d="M 0 ${y} C 28 ${y}, 46 ${y}, 74 ${y}" fill="none" stroke="#3b82f6" stroke-width="2" ${dash} />`;
+                }).join('')}
+              </svg>
+            </div>
+            <div class="field-panel target">
+              <div class="field-panel-head">
+                <div class="field-panel-title">目标字段设计区</div>
+                <div class="tool-row">
+                  <button class="tool">保持源名</button><button class="tool">全小写</button><button class="tool">全大写</button>
+                </div>
+              </div>
+              <div class="field-table">
+                <div class="field-row target-row header"><span></span><span>目标字段</span><span>目标类型</span><span>字段注释</span><span>主键</span><span>可空</span></div>
+                ${targetFieldRows(task)}
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+      if (state.editModule === 'filter') return `
+        <div class="detail-section">
+          <div class="section-head">源端过滤条件 <span class="badge manual">可选</span></div>
+          <div class="section-body">
+            <div class="condition-list">
+              <div class="condition-row">
+                <select class="field"><option>${task.filter.includes('order_time') ? 'order_time' : 'update_time'}</option><option>id</option><option>amount</option></select>
+                <select class="field"><option>大于等于</option><option>等于</option><option>不为空</option><option>IN</option></select>
+                <input class="field" value="${task.filter === '未配置' ? '' : task.filter.split('>=')[1]?.trim() || '${bizdate}'}" placeholder="请输入过滤值" />
+                <button class="btn">启用</button>
+              </div>
+              <div class="condition-row">
+                <select class="field"><option>id</option><option>update_time</option></select>
+                <select class="field"><option>不为空</option><option>等于</option></select>
+                <input class="field" value="" placeholder="为空/不为空不需要值" />
+                <button class="btn">删除</button>
+              </div>
+            </div>
+            <div class="sql-preview">source query preview<br />SELECT ${task.mappings.map(row => row[0]).join(', ')}<br />FROM ${task.sourcePath}<br />WHERE ${task.filter === '未配置' ? '1 = 1' : task.filter}</div>
+          </div>
+        </div>
+      `;
+      if (state.editModule === 'sink') return `
+        <div class="detail-section">
+          <div class="section-head">数据去向 <span class="badge manual">可选</span></div>
+          <div class="section-body">
+            <div class="kv-grid" style="margin-bottom: 10px">
+              <div class="kv"><div class="kv-label">目标表</div><div class="kv-value">${task.targetPath}</div></div>
+              <div class="kv"><div class="kv-label">SeaTunnel 参数</div><div class="kv-value">data_save_mode + custom_sql</div></div>
+              <div class="kv"><div class="kv-label">当前状态</div><div class="kv-value">${task.sink === '未配置' ? '未配置同步前 SQL' : '已配置同步前 SQL'}</div></div>
+            </div>
+            <label class="kv-label">同步前 SQL（custom_sql）</label>
+            <textarea class="textarea">${task.sink === '未配置' ? '' : 'truncate table ' + task.targetPath + ';'}</textarea>
+            <div class="sub" style="margin-top: 8px">若当前 sink 使用 query 写入模式，正式实现需要检查 custom_sql 是否会执行，不能静默生成无效配置。</div>
+          </div>
+        </div>
+      `;
+      return `
+        <div class="detail-section">
+          <div class="section-head">数据处理 <span class="badge offline">暂未实现</span></div>
+          <div class="section-body">
+            <div class="placeholder-block">
+              数据处理暂未实现。本期只保留入口，不参与保存、执行或 SeaTunnel 配置生成。
+              <br />后续可承接字符串替换、AI 辅助处理、数据向量化等能力。
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function openEditor(id) {
+      const task = tasks.find(t => t.id === id) || tasks[0];
+      state.editingTask = task;
+      state.editModule = 'mapping';
+      closeDetail();
+      document.getElementById('listView').style.display = 'none';
+      document.getElementById('editorShell').classList.add('open');
+      document.getElementById('editorTitle').textContent = task.status === 'FAILED' ? '编辑并修复同步任务' : task.status === 'DRAFT' ? '编辑同步任务草稿' : '编辑同步任务';
+      document.getElementById('editorSub').textContent = `${task.name} · 工作流 ${task.workflowCode}`;
+      document.getElementById('runningAlert').style.display = task.status === 'RUNNING' ? 'flex' : 'none';
+      document.getElementById('editSource').textContent = `${task.sourceType} / ${task.source}`;
+      document.getElementById('editSourcePath').textContent = task.sourcePath;
+      document.getElementById('editTarget').textContent = `${task.targetType} / ${task.target}`;
+      document.getElementById('editTargetPath').textContent = task.targetPath;
+      document.getElementById('editMappingMetric').textContent = `${task.mappings.length} 个字段 · ${task.mappings.filter(row => row[2] === '手动').length} 个手动`;
+      document.getElementById('editFilterMetric').textContent = task.filter;
+      document.getElementById('editSinkMetric').textContent = task.sink;
+      document.getElementById('editSchedule').textContent = `${scheduleMap[task.schedule][0]} · ${task.nextRun}`;
+      renderEditorModules();
+      showToast('已回填历史同步任务配置。');
+    }
+
+    document.getElementById('searchInput').addEventListener('input', event => {
+      state.keyword = event.target.value;
+      renderRows();
+    });
+    document.getElementById('projectFilter').addEventListener('change', event => {
+      state.project = event.target.value;
+      renderRows();
+    });
+    document.getElementById('statusFilter').addEventListener('change', event => {
+      state.status = event.target.value;
+      render();
+    });
+    document.getElementById('scheduleFilter').addEventListener('change', event => {
+      state.schedule = event.target.value;
+      render();
+    });
+    document.getElementById('typeFilter').addEventListener('change', event => {
+      state.type = event.target.value;
+      renderRows();
+    });
+    document.getElementById('resetBtn').addEventListener('click', () => {
+      state.keyword = '';
+      state.project = '';
+      state.status = '';
+      state.schedule = '';
+      state.type = '';
+      document.getElementById('searchInput').value = '';
+      document.getElementById('projectFilter').value = '';
+      document.getElementById('statusFilter').value = '';
+      document.getElementById('scheduleFilter').value = '';
+      document.getElementById('typeFilter').value = '';
+      render();
+    });
+    document.getElementById('newTaskBtn').addEventListener('click', () => showToast('进入新建同步任务四步向导。'));
+    document.getElementById('closeDrawerBtn').addEventListener('click', closeDetail);
+    document.getElementById('drawerMask').addEventListener('click', closeDetail);
+    document.getElementById('editFromDetailBtn').addEventListener('click', () => openEditor(state.selectedTask.id));
+    document.getElementById('runFromDetailBtn').addEventListener('click', () => showToast('已提交一次性运行。'));
+    document.getElementById('scheduleFromDetailBtn').addEventListener('click', () => showToast('打开同步任务专用调度弹框。'));
+    document.getElementById('detailBody').addEventListener('click', event => {
+      const target = event.target.closest('[data-edit-inline]');
+      if (target) openEditor(Number(target.dataset.editInline));
+    });
+    document.getElementById('backToListBtn').addEventListener('click', () => {
+      document.getElementById('editorShell').classList.remove('open');
+      document.getElementById('listView').style.display = 'block';
+    });
+
+    render();
+  </script>
+</body>
+</html>

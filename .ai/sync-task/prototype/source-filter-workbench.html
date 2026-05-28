@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>同步任务 - 第2步 配置同步方案原型</title>
+  <style>
+    :root{
+      --bg:#f4f7fb;
+      --panel:#fff;
+      --line:#d9e2ef;
+      --line2:#e5ebf4;
+      --text:#1f2937;
+      --subtle:#667085;
+      --muted:#98a2b3;
+      --primary:#2f6bff;
+      --primary-soft:rgba(47,107,255,.1);
+      --success:#12836a;
+      --warn:#c87d00;
+      --danger:#c63b5d;
+      --shadow:0 14px 32px rgba(25,40,74,.08);
+      --radius:10px;
+      --radius-sm:8px;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      background:var(--bg);
+      color:var(--text);
+      font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+      font-size:13px;
+    }
+    .page{min-height:100vh;padding:18px}
+    .shell{max-width:1720px;margin:0 auto;display:flex;flex-direction:column;gap:12px}
+    .topbar,.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}
+    .topbar{padding:14px 16px;display:flex;justify-content:space-between;align-items:center;gap:16px}
+    .title{font-size:16px;font-weight:700}
+    .subtitle{margin-top:4px;color:var(--subtle);font-size:12px;line-height:1.5}
+    .steps{display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+    .step{display:inline-flex;align-items:center;height:30px;padding:0 12px;border-radius:999px;border:1px solid var(--line);background:#fff;white-space:nowrap;color:var(--subtle)}
+    .step.current{background:var(--primary-soft);color:var(--primary);border-color:rgba(47,107,255,.25);font-weight:700}
+    .summary{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px;padding:12px}
+    .summary-item{border:1px solid var(--line2);background:#fbfcff;border-radius:var(--radius-sm);padding:10px 11px;min-width:0}
+    .summary-item span{display:block;font-size:11px;color:var(--muted);margin-bottom:4px}
+    .summary-item strong{display:block;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .main{display:grid;grid-template-columns:280px minmax(0,1fr);gap:12px;align-items:stretch}
+    .side,.content{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}
+    .side{padding:12px;display:flex;flex-direction:column;gap:10px}
+    .content{padding:14px;display:flex;flex-direction:column;gap:12px}
+    .panel-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+    .panel-title{font-size:15px;font-weight:700}
+    .panel-desc{margin-top:4px;color:var(--subtle);font-size:12px;line-height:1.5}
+    .chip{display:inline-flex;align-items:center;height:24px;padding:0 9px;border-radius:999px;font-size:12px;white-space:nowrap;border:1px solid transparent}
+    .chip.good{background:#eafaf3;color:var(--success);border-color:#ccefe0}
+    .chip.warn{background:#fff5e6;color:var(--warn);border-color:#ffe0a8}
+    .cardbox{border:1px solid var(--line2);border-radius:10px;background:#f9fbff;padding:12px;display:flex;flex-direction:column;gap:10px}
+    .section-title{font-weight:700}
+    .section-tip{margin-top:4px;color:var(--subtle);font-size:12px;line-height:1.5}
+    .module-list{display:flex;flex-direction:column;gap:8px}
+    .module-item{border:1px solid var(--line2);border-radius:10px;background:#fff;padding:10px 11px;cursor:pointer}
+    .module-item.active{border-color:rgba(47,107,255,.35);background:linear-gradient(180deg,#f6f9ff,#eef4ff)}
+    .module-top{display:flex;justify-content:space-between;gap:10px;align-items:center}
+    .module-name{font-weight:700}
+    .module-badges{display:none}
+    .badge{display:inline-flex;align-items:center;height:20px;padding:0 8px;border-radius:999px;background:#f3f6fb;color:#475467;font-size:11px;border:1px solid #e3e9f4}
+    .badge.primary{background:#eef4ff;color:var(--primary);border-color:#d8e4ff}
+    .badge.green{background:#ecfdf5;color:var(--success);border-color:#ccf0df}
+    .badge.orange{background:#fff7e6;color:var(--warn);border-color:#ffe2b0}
+    .mini-toolbar{display:flex;gap:8px;flex-wrap:wrap}
+    .btn{height:32px;border:1px solid #d8e0ec;background:#fff;border-radius:8px;padding:0 11px;cursor:pointer;color:#344054;font:inherit;white-space:nowrap}
+    .btn.primary{background:var(--primary);border-color:var(--primary);color:#fff}
+    .btn.ghost{background:#f7f9fc}
+    .btn:disabled{cursor:not-allowed;background:#f1f4f8;color:var(--muted)}
+    .grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+    .field{display:flex;flex-direction:column;gap:6px;min-width:0}
+    .field.full{grid-column:span 2}
+    label{color:var(--subtle);font-weight:600;font-size:12px}
+    select,input,textarea{
+      width:100%;height:34px;border:1px solid #d8e0ec;border-radius:8px;padding:0 10px;background:#fff;color:var(--text);outline:none;font:inherit
+    }
+    textarea{height:78px;padding:9px 10px;resize:none;line-height:1.55}
+    select:focus,input:focus,textarea:focus{border-color:#7aa2ff;box-shadow:0 0 0 3px rgba(47,107,255,.1)}
+    .statgrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+    .stat{border:1px solid var(--line2);background:#fbfcff;border-radius:var(--radius-sm);padding:9px 10px;min-width:0}
+    .stat span{display:block;font-size:11px;color:var(--muted)}
+    .stat strong{display:block;margin-top:4px;font-size:15px}
+    .stack{display:flex;flex-direction:column;gap:10px}
+    .block{border:1px solid var(--line2);border-radius:10px;background:#fff;padding:12px;display:flex;flex-direction:column;gap:10px}
+    .block-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+    .block-title{font-weight:700}
+    .block-tip{margin-top:4px;color:var(--subtle);font-size:12px;line-height:1.5}
+    .block-list{display:flex;flex-direction:column;gap:8px}
+    .filter-row{display:grid;grid-template-columns:40px minmax(140px,1.1fr) minmax(120px,.9fr) minmax(160px,1.25fr) 78px 78px;gap:8px;align-items:center}
+    .toggle{height:24px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;font-size:11px;cursor:pointer;user-select:none;background:var(--primary);color:#fff}
+    .toggle.off{background:#d5dbe7;color:#5b6475}
+    .sql-panel{border:1px solid #22304a;background:#0f172a;border-radius:10px;overflow:hidden}
+    .sql-head{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 10px;background:#172033;color:#d7e0ef;font-size:12px}
+    pre{margin:0;padding:12px 14px;color:#dbe6fa;line-height:1.68;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;white-space:pre-wrap;overflow:auto}
+    .kw{color:#c586c0}.where{color:#9cdcfe}.string{color:#ce9178}
+    .hint{font-size:11px;color:var(--muted);line-height:1.5}
+    .preview-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+    .preview{border:1px solid #e7edf6;background:#fbfcff;border-radius:8px;padding:9px 10px}
+    .preview span{display:block;font-size:11px;color:var(--muted)}
+    .preview strong{display:block;margin-top:4px;font-size:14px}
+    .map-shell{border:1px solid var(--line2);border-radius:10px;background:#f9fbff;padding:12px;display:flex;flex-direction:column;gap:10px}
+    .map-toolbar{display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap}
+    .map-toolbar-left{display:flex;gap:8px;flex-wrap:wrap}
+    .map-board{position:relative;display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start;min-height:420px;padding:8px 0}
+    .map-lines{position:absolute;inset:0;pointer-events:none;z-index:1}
+    .map-column{position:relative;z-index:2;background:#fff;border:1px solid var(--line2);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:10px}
+    .map-col-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+    .map-list{display:flex;flex-direction:column;gap:8px}
+    .map-row{display:grid;grid-template-columns: 1fr 1.1fr 1fr;gap:8px;align-items:center;border:1px solid #e7edf6;background:#fbfcff;border-radius:8px;padding:8px 10px;min-width:0}
+    .map-row.target{grid-template-columns: 1.15fr .9fr 72px 72px 34px}
+    .field-main{display:flex;flex-direction:column;gap:4px;min-width:0}
+    .field-name{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .field-meta{display:flex;gap:6px;flex-wrap:wrap;align-items:center;font-size:11px;color:var(--muted)}
+    .field-comment,.field-sub{font-size:11px;color:var(--subtle);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .field-types,.field-badges{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+    .type-tag,.state-tag{display:inline-flex;align-items:center;height:20px;padding:0 7px;border-radius:999px;font-size:11px;border:1px solid #e3e9f4;background:#f3f6fb;color:#475467}
+    .state-tag.pk{background:#ecfdf5;color:var(--success);border-color:#ccf0df}
+    .state-tag.null{background:#fff7e6;color:var(--warn);border-color:#ffe2b0}
+    .state-tag.nn{background:#eff4ff;color:var(--primary);border-color:#d8e4ff}
+    .node-dot{width:14px;height:14px;border-radius:50%;border:2px solid var(--primary);background:#fff;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 0 0 3px rgba(47,107,255,.08);justify-self:end}
+    .node-dot.right{justify-self:start}
+    .node-dot::after{content:'';width:6px;height:6px;border-radius:50%;background:var(--primary)}
+    .node-dot.selected{background:var(--primary-soft)}
+    .map-row.connected{border-color:#bfd0ff;background:#f5f8ff}
+    .map-row.unmapped{border-style:dashed}
+    .map-row.manual .state-tag.pk{background:#fff0f4;color:var(--danger);border-color:#ffd5e1}
+    .map-row.manual .state-tag.null{background:#eef2ff;color:#4f46e5;border-color:#d8ddff}
+    .map-row.manual .state-tag.nn{background:#ecfdf5;color:var(--success);border-color:#ccf0df}
+    .mapping-v4-wrap{border:1px solid var(--line2);border-radius:10px;background:#fff;overflow:hidden}
+    .mapping-v4-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;border-bottom:1px solid var(--line2);background:#f9fbff}
+    .line-legend{display:flex;align-items:center;gap:12px;color:var(--subtle);font-size:12px;flex-wrap:wrap}
+    .legend-item{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+    .legend-line{width:32px;height:0;border-top:2px solid #7ba2ff;display:inline-block}
+    .legend-line.auto{border-top-style:dashed}
+    .legend-line.manual{border-top-style:solid;border-top-color:#2f6bff}
+    .mapping-v4-mount{min-height:860px;background:#fff}
+    .mapping-v4-error{padding:14px;border:1px solid #ffd5e1;border-radius:8px;background:#fff0f4;color:#b4233f}
+  </style>
+</head>
+<body>
+<div class="page">
+  <div class="shell">
+    <div class="topbar">
+      <div>
+        <div class="title">同步任务 · 第 2 步：配置同步方案原型</div>
+        <div class="subtitle">参考 DataWorks 的分区方式，将第 2 步拆成多个功能块：字段映射关系、源端过滤条件、数据去向、数据处理。</div>
+      </div>
+      <div class="steps">
+        <span class="step">1 选择源与目标</span>
+        <span class="step current">2 配置同步方案</span>
+        <span class="step">3 执行与调度</span>
+        <span class="step">4 预览与发布</span>
+      </div>
+    </div>
+
+    <div class="card summary">
+      <div class="summary-item"><span>项目</span><strong>test1</strong></div>
+      <div class="summary-item"><span>源端连接</span><strong>mysql_case_workbench</strong></div>
+      <div class="summary-item"><span>源表</span><strong>case_workbench.ajxx_tab</strong></div>
+      <div class="summary-item"><span>目标端连接</span><strong>pgsql_test1</strong></div>
+      <div class="summary-item"><span>目标模式</span><strong>新建目标表</strong></div>
+      <div class="summary-item"><span>同步方案</span><strong id="summaryText">4 个模块</strong></div>
+    </div>
+
+    <div class="main">
+      <aside class="side">
+        <div class="panel-head">
+          <div>
+            <div class="panel-title">同步方案模块</div>
+            <div class="panel-desc">左侧选择模块，右侧显示当前模块的配置内容。</div>
+          </div>
+          <span class="chip good">第2步</span>
+        </div>
+        <div class="module-list" id="moduleList"></div>
+      </aside>
+
+      <section class="content">
+        <div class="panel-head">
+          <div>
+            <div class="panel-title" id="moduleTitle">数据处理</div>
+            <div class="panel-desc" id="moduleDesc">支持字符串替换、AI 辅助处理、数据向量化等处理方式，处理后写入目标表。</div>
+          </div>
+          <span class="chip" id="moduleChip">可启用</span>
+        </div>
+
+        <div id="moduleBody"></div>
+      </section>
+    </div>
+  </div>
+</div>
+
+<script>
+  const modules = [
+    {
+      id: 'mapping',
+      name: '字段映射关系',
+      desc: '配置源字段与目标字段的映射、主键、可空与类型兼容。',
+      chip: '核心步骤',
+      type: 'panel',
+      body: `
+        <div class="mapping-v4-wrap">
+          <div class="mapping-v4-head">
+            <div>
+              <div class="section-title">字段映射工作台</div>
+              <div class="section-tip">复用 V4 版双栏字段映射原型：源字段圆点、目标字段圆点、拖拽连线、主键/可空状态保持一致。</div>
+            </div>
+            <div class="line-legend">
+              <span class="legend-item"><span class="legend-line auto"></span>虚线：系统自动映射</span>
+              <span class="legend-item"><span class="legend-line manual"></span>实线：手动拖拽映射</span>
+            </div>
+          </div>
+          <div class="mapping-v4-mount" id="mappingV4Mount"></div>
+        </div>
+      `
+    },
+    {
+      id: 'filter',
+      name: '源端过滤条件',
+      desc: '在读取阶段拼接 WHERE 条件、时间范围和前 N 条限制。',
+      chip: '可配置',
+      type: 'filter',
+      body: `
+        <div class="block">
+          <div class="block-head">
+            <div>
+              <div class="block-title">源端过滤条件</div>
+              <div class="block-tip">结构化条件进入 source query，不开放自由 SQL；最多 3 条，默认 AND 拼接。</div>
+            </div>
+            <span class="chip good" id="filterState">已启用</span>
+          </div>
+          <div class="stack" id="filterRows"></div>
+          <div class="mini-toolbar">
+            <button class="btn primary" id="addFilter">添加条件</button>
+            <button class="btn ghost" id="previewRows">预估影响行数</button>
+            <button class="btn" id="clearFilter">清空全部</button>
+          </div>
+          <div class="preview-grid">
+            <div class="preview"><span>预计读取</span><strong id="estimateRows">-</strong></div>
+            <div class="preview"><span>条件数量</span><strong id="filterCount">2</strong></div>
+            <div class="preview"><span>预估状态</span><strong id="estimateState">未预估</strong></div>
+          </div>
+          <div class="sql-panel">
+            <div class="sql-head">
+              <span>Source Query 预览</span>
+              <button class="btn" id="copySql" style="height:24px;">复制 SQL</button>
+            </div>
+            <pre id="sqlText"></pre>
+          </div>
+        </div>
+      `
+    },
+    {
+      id: 'sink',
+      name: '数据去向',
+      desc: '配置目标写入前 SQL，例如通过 SeaTunnel JDBC custom_sql 在同步前清空旧数据。',
+      chip: '可配置',
+      type: 'panel',
+      body: `
+        <div class="cardbox">
+          <div class="block-head">
+            <div>
+              <div class="section-title">数据去向</div>
+              <div class="section-tip">SeaTunnel JDBC sink 支持 custom_sql 作为同步前 SQL；不是 preSql 参数名。</div>
+            </div>
+            <span class="chip warn">待配置</span>
+          </div>
+          <div class="grid2">
+            <div class="field full">
+              <label>同步前 SQL（custom_sql）</label>
+              <textarea>truncate table ajxx_tab_sync;</textarea>
+            </div>
+            <div class="field full">
+              <label>说明</label>
+              <input value="系统按 custom_sql 自动生成 SeaTunnel 同步前 SQL 配置。" disabled />
+            </div>
+          </div>
+        </div>
+      `
+    },
+    {
+      id: 'processing',
+      name: '数据处理',
+      desc: '支持字符串替换、AI 辅助处理、数据向量化等处理方式，处理后写入目标表。',
+      chip: '暂未实现',
+      type: 'panel',
+      body: `
+        <div class="cardbox">
+          <div class="block-head">
+            <div>
+              <div class="section-title">数据处理</div>
+              <div class="section-tip">该模块能力复杂，当前仅保留入口和产品位置，暂不进入实现。</div>
+            </div>
+            <span class="chip warn">暂未实现</span>
+          </div>
+          <div class="grid2">
+            <div class="field">
+              <label>处理方式</label>
+              <select>
+                <option>字符串替换</option>
+                <option>AI 辅助处理</option>
+                <option>数据向量化</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>处理名称</label>
+              <input value="暂未开放" disabled />
+            </div>
+            <div class="field full">
+              <label>处理说明</label>
+              <textarea disabled>后续再扩展字符串替换、AI 辅助处理、数据向量化等能力；本期只保留模块位置。</textarea>
+            </div>
+          </div>
+          <div class="preview-grid">
+            <div class="preview"><span>已配置项</span><strong>1 条</strong></div>
+            <div class="preview"><span>处理耗时</span><strong>低</strong></div>
+            <div class="preview"><span>是否影响结构</span><strong>否</strong></div>
+          </div>
+        </div>
+      `
+    },
+  ];
+
+  const fieldOptions = [
+    { value:'status', label:'status · 状态', type:'string' },
+    { value:'ajbh', label:'ajbh · 案件编号', type:'string' },
+    { value:'ajmc', label:'ajmc · 案件名称', type:'string' },
+    { value:'create_time', label:'create_time · 创建时间', type:'time' },
+    { value:'update_time', label:'update_time · 更新时间', type:'time' },
+    { value:'id', label:'id · 主键', type:'number' }
+  ];
+  const ops = {
+    string: [['EQ','等于'],['NE','不等于'],['CONTAINS','包含'],['PREFIX','前缀匹配'],['IN','IN'],['IS_NULL','为空'],['NOT_NULL','不为空']],
+    number: [['EQ','等于'],['NE','不等于'],['GT','大于'],['LT','小于'],['GTE','大于等于'],['LTE','小于等于'],['IN','IN']],
+    time: [['EQ','等于'],['GT','大于'],['LT','小于'],['GTE','大于等于'],['LTE','小于等于'],['BETWEEN','区间']]
+  };
+  const state = {
+    current: 'mapping',
+    rows: [
+      { enabled:true, field:'status', op:'EQ', value:'有效', valueEnd:'' },
+      { enabled:true, field:'create_time', op:'GTE', value:'2026-05-01 00:00:00', valueEnd:'' }
+    ],
+    estimated:false,
+    estimateRows:12480
+  };
+
+  const typeOf = field => (fieldOptions.find(f => f.value === field) || {}).type || 'string';
+  const quoteValue = (field, value) => typeOf(field) === 'number' ? (value || '0') : `'${String(value ?? '').replaceAll("'", "''")}'`;
+  const clause = row => {
+    if (!row.enabled || !row.field) return '';
+    const field = `\`${row.field}\``;
+    switch (row.op) {
+      case 'EQ': return `${field} = ${quoteValue(row.field, row.value)}`;
+      case 'NE': return `${field} <> ${quoteValue(row.field, row.value)}`;
+      case 'GT': return `${field} > ${quoteValue(row.field, row.value)}`;
+      case 'LT': return `${field} < ${quoteValue(row.field, row.value)}`;
+      case 'GTE': return `${field} >= ${quoteValue(row.field, row.value)}`;
+      case 'LTE': return `${field} <= ${quoteValue(row.field, row.value)}`;
+      case 'CONTAINS': return `${field} LIKE '%${String(row.value).replaceAll("'", "''")}%'`;
+      case 'PREFIX': return `${field} LIKE '${String(row.value).replaceAll("'", "''")}%'`;
+      case 'IN': return `${field} IN (${String(row.value).split(',').map(v => quoteValue(row.field, v.trim())).join(', ')})`;
+      case 'BETWEEN': return `${field} BETWEEN ${quoteValue(row.field, row.value)} AND ${quoteValue(row.field, row.valueEnd)}`;
+      case 'IS_NULL': return `${field} IS NULL`;
+      case 'NOT_NULL': return `${field} IS NOT NULL`;
+      default: return '';
+    }
+  };
+  const currentOps = field => ops[typeOf(field)] || ops.string;
+
+  function renderMenu(){
+    const wrap = document.getElementById('moduleList');
+    wrap.innerHTML = modules.map(m => `
+      <div class="module-item ${m.id === state.current ? 'active' : ''}" data-id="${m.id}">
+        <div class="module-top">
+          <div class="module-name">${m.name}</div>
+          <span class="badge ${m.id === 'mapping' ? 'primary' : m.id === 'filter' ? 'orange' : 'green'}">${m.chip}</span>
+        </div>
+        <div class="section-tip">${m.desc}</div>
+      </div>
+    `).join('');
+    wrap.querySelectorAll('.module-item').forEach(item => {
+      item.onclick = () => {
+        state.current = item.dataset.id;
+        render();
+      };
+    });
+  }
+
+  function buildSql(clauses){
+    return `source {\n  Jdbc {\n    query = "<span class=\\"kw\\">select</span> \`id\`, \`ajbh\`, \`ajmc\`, \`create_time\`, \`status\`\n            <span class=\\"kw\\">from</span> \`ajxx_tab\`${clauses.length ? `\n            <span class=\\"where\\">WHERE</span> ${clauses.join(' AND ')}` : ''}"\n    result_table_name = "<span class=\\"string\\">sync_source</span>"\n  }\n}`;
+  }
+
+  function renderFilter(){
+    const wrap = document.getElementById('moduleBody');
+    const rows = state.rows.map((row, index) => {
+      const opsList = currentOps(row.field);
+      return `
+        <div class="filter-row">
+          <span class="toggle ${row.enabled ? '' : 'off'}" data-act="toggle" data-i="${index}">${row.enabled ? '开' : '关'}</span>
+          <select data-k="field" data-i="${index}">
+            ${fieldOptions.map(f => `<option value="${f.value}" ${f.value === row.field ? 'selected' : ''}>${f.label}</option>`).join('')}
+          </select>
+          <select data-k="op" data-i="${index}">
+            ${opsList.map(([value, label]) => `<option value="${value}" ${value === row.op ? 'selected' : ''}>${label}</option>`).join('')}
+          </select>
+          ${row.op === 'BETWEEN'
+            ? `<div style="display:flex;gap:8px;min-width:0;width:100%;">
+                <input data-k="value" data-i="${index}" value="${row.value}" placeholder="开始值" />
+                <input data-k="valueEnd" data-i="${index}" value="${row.valueEnd || ''}" placeholder="结束值" />
+              </div>`
+            : `<input data-k="value" data-i="${index}" value="${row.value}" placeholder="${row.op === 'IN' ? '多个值用英文逗号分隔' : '输入值'}" />`
+          }
+          <button class="btn" data-act="copy" data-i="${index}">复制</button>
+          <button class="btn" data-act="del" data-i="${index}">删除</button>
+        </div>
+      `;
+    }).join('');
+
+    wrap.innerHTML = `
+      <div class="block">
+        <div class="block-head">
+          <div>
+            <div class="block-title">源端过滤条件</div>
+            <div class="block-tip">这是第 2 步里的一个小块，和数据处理、数据去向、字段映射并列展示。</div>
+          </div>
+          <span class="chip ${state.rows.some(r => r.enabled && clause(r)) ? 'good' : 'warn'}" id="filterState">${state.rows.some(r => r.enabled && clause(r)) ? '已启用' : '待设置'}</span>
+        </div>
+        <div class="stack" id="filterRows">${rows}</div>
+        <div class="mini-toolbar">
+          <button class="btn primary" id="addFilter">添加条件</button>
+          <button class="btn ghost" id="previewRows">预估影响行数</button>
+          <button class="btn" id="clearFilter">清空全部</button>
+        </div>
+        <div class="preview-grid">
+          <div class="preview"><span>预计读取</span><strong id="estimateRows">${state.estimated ? `${state.estimateRows.toLocaleString()} 行` : '-'}</strong></div>
+          <div class="preview"><span>条件数量</span><strong id="filterCount">${state.rows.length}</strong></div>
+          <div class="preview"><span>预估状态</span><strong id="estimateState">${state.estimated ? '已预估' : '未预估'}</strong></div>
+        </div>
+        <div class="sql-panel">
+          <div class="sql-head">
+            <span>Source Query 预览</span>
+            <button class="btn" id="copySql" style="height:24px;">复制 SQL</button>
+          </div>
+          <pre id="sqlText"></pre>
+        </div>
+      </div>
+    `;
+
+    wrap.querySelectorAll('select,input').forEach(el => {
+      el.onchange = () => {
+        const i = Number(el.dataset.i);
+        const key = el.dataset.k;
+        state.rows[i][key] = el.value;
+        if (key === 'field') state.rows[i].op = currentOps(el.value)[0][0];
+        if (key === 'op' && el.value !== 'BETWEEN') state.rows[i].valueEnd = '';
+        state.estimated = false;
+        render();
+      };
+      el.oninput = el.onchange;
+    });
+    wrap.querySelectorAll('[data-act="toggle"]').forEach(btn => {
+      btn.onclick = () => {
+        state.rows[Number(btn.dataset.i)].enabled = !state.rows[Number(btn.dataset.i)].enabled;
+        state.estimated = false;
+        render();
+      };
+    });
+    wrap.querySelectorAll('[data-act="copy"]').forEach(btn => {
+      btn.onclick = () => {
+        if (state.rows.length >= 3) return pulse('最多只能保留 3 条条件');
+        const i = Number(btn.dataset.i);
+        state.rows.splice(i + 1, 0, { ...state.rows[i] });
+        state.estimated = false;
+        render();
+      };
+    });
+    wrap.querySelectorAll('[data-act="del"]').forEach(btn => {
+      btn.onclick = () => {
+        const i = Number(btn.dataset.i);
+        if (state.rows.length === 1) {
+          state.rows[0] = { enabled:true, field:'status', op:'EQ', value:'', valueEnd:'' };
+        } else {
+          state.rows.splice(i, 1);
+        }
+        state.estimated = false;
+        render();
+      };
+    });
+
+    document.getElementById('addFilter').onclick = () => {
+      if (state.rows.length >= 3) return pulse('最多只能保留 3 条条件');
+      state.rows.push({ enabled:true, field:'status', op:'EQ', value:'', valueEnd:'' });
+      state.estimated = false;
+      render();
+    };
+    document.getElementById('clearFilter').onclick = () => {
+      state.rows = [{ enabled:true, field:'status', op:'EQ', value:'', valueEnd:'' }];
+      state.estimated = false;
+      render();
+    };
+    document.getElementById('previewRows').onclick = () => {
+      state.estimated = true;
+      const active = state.rows.filter(r => r.enabled && clause(r)).length;
+      const base = 24800;
+      state.estimateRows = Math.max(120, Math.round(base / Math.max(1, active * 2 + 1)));
+      render();
+    };
+    document.getElementById('copySql').onclick = async () => {
+      try {
+        const clauses = state.rows.map(clause).filter(Boolean);
+        const text = `select id, ajbh, ajmc, create_time, status from ajxx_tab${clauses.length ? ` where ${clauses.join(' and ')}` : ''};`;
+        await navigator.clipboard.writeText(text);
+        pulse('SQL 已复制');
+      } catch {
+        pulse('复制失败，请手动复制');
+      }
+    };
+
+    document.getElementById('sqlText').innerHTML = buildSql(state.rows.map(clause).filter(Boolean));
+  }
+
+  function renderPanel(){
+    const m = modules.find(item => item.id === state.current);
+    document.getElementById('moduleTitle').textContent = m.name;
+    document.getElementById('moduleDesc').textContent = m.desc;
+    document.getElementById('moduleChip').textContent = m.chip;
+    document.getElementById('moduleChip').className = `chip ${m.id === 'mapping' ? 'good' : m.id === 'filter' ? 'warn' : ''}`;
+    document.getElementById('moduleBody').innerHTML = m.body;
+    if (m.id === 'filter') renderFilter();
+  }
+
+  function pulse(msg){
+    const chip = document.getElementById('moduleChip');
+    const old = chip.textContent;
+    chip.textContent = msg;
+    chip.className = 'chip warn';
+    clearTimeout(pulse._t);
+    pulse._t = setTimeout(() => {
+      render();
+    }, 1000);
+  }
+
+  function render(){
+    renderMenu();
+    renderPanel();
+    document.getElementById('summaryText').textContent = '4 个模块';
+    ensureMappingWorkbenchLoaded();
+  }
+
+  async function loadMappingWorkbench() {
+    const mount = document.getElementById('mappingV4Mount');
+    if (!mount) return;
+    try {
+      mount.innerHTML = '<div class="hint">字段映射工作台加载中...</div>';
+      const response = await fetch('field-mapping-workbench-v4.html');
+      const html = await response.text();
+      const doc = new DOMParser().parseFromString(html, 'text/html');
+      const style = doc.querySelector('style');
+      const card = doc.querySelector('.mapping-card');
+      const toast = doc.querySelector('#toast');
+      const script = doc.querySelector('script');
+
+      if (style && !document.getElementById('mappingV4Style')) {
+        const styleNode = document.createElement('style');
+        styleNode.id = 'mappingV4Style';
+        styleNode.textContent = style.textContent;
+        document.head.appendChild(styleNode);
+      }
+
+      if (!card || !script) {
+        throw new Error('V4 mapping-card or script not found');
+      }
+
+      mount.innerHTML = `
+        <div id="summaryMetrics" style="display:none"></div>
+        <div id="summaryDesc" style="display:none"></div>
+        ${card.outerHTML}
+        ${toast ? toast.outerHTML : '<div class="toast" id="toast"></div>'}
+      `;
+      const scriptNode = document.createElement('script');
+      scriptNode.textContent = `(function(){\n${script.textContent}\n})();`;
+      document.body.appendChild(scriptNode);
+    } catch (error) {
+      mount.innerHTML = `<div class="mapping-v4-error">字段映射工作台加载失败：${error.message}</div>`;
+    }
+  }
+
+  function ensureMappingWorkbenchLoaded() {
+    if (state.current === 'mapping') {
+      loadMappingWorkbench();
+    }
+  }
+
+  render();
+</script>
+</body>
+</html>

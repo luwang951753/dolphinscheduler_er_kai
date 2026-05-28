@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>数据预览 · 表结构查看原型</title>
+    <style>
+      :root {
+        --bg: #eef1f5;
+        --panel: #ffffff;
+        --panel-soft: #f7f8fa;
+        --line: #d8dde6;
+        --line-strong: #c6ccd6;
+        --text: #1f2937;
+        --text-soft: #596579;
+        --text-faint: #8a94a6;
+        --blue: #2563eb;
+        --blue-soft: #e8f0ff;
+        --green: #0f766e;
+        --green-soft: #e7f6f2;
+        --red: #b42318;
+        --yellow: #b54708;
+        --shadow: 0 12px 28px rgba(16, 24, 40, 0.08);
+      }
+
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        height: 100vh;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+        color: var(--text);
+        background: var(--bg);
+        font-size: 13px;
+        overflow: hidden;
+      }
+      button, input, select { font: inherit; }
+      button { cursor: pointer; }
+
+      .app {
+        height: 100vh;
+        display: grid;
+        grid-template-rows: 52px minmax(0, 1fr);
+      }
+
+      .topbar {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 0 14px;
+        background: #fbfcfe;
+        border-bottom: 1px solid var(--line);
+      }
+      .brand { display: flex; align-items: center; gap: 8px; min-width: 122px; font-weight: 700; font-size: 14px; }
+      .brand-icon { width: 24px; height: 24px; border-radius: 6px; background: #2f6feb; display: grid; place-items: center; color: #fff; font-weight: 800; }
+      .selectbox { height: 32px; display: inline-flex; align-items: center; gap: 6px; padding: 0 10px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; min-width: 176px; }
+      .selectbox select { border: none; background: transparent; color: var(--text); font-weight: 650; outline: none; min-width: 118px; }
+      .table-context { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; color: var(--text-soft); }
+      .table-context strong { color: var(--text); font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .pill { display: inline-flex; align-items: center; height: 22px; padding: 0 7px; border: 1px solid var(--line); border-radius: 999px; background: var(--panel-soft); color: var(--text-soft); font-size: 12px; white-space: nowrap; }
+      .pill.blue { background: var(--blue-soft); color: #1649b8; border-color: #c8d7fb; }
+      .btn { height: 32px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--text); padding: 0 10px; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+      .btn.primary { border-color: #1d4ed8; background: #2563eb; color: #fff; }
+      .btn.icon { width: 32px; padding: 0; justify-content: center; }
+      .btn:active { transform: translateY(1px); }
+
+      .main { min-height: 0; display: grid; grid-template-columns: 288px minmax(0, 1fr); }
+      .sidebar { position: relative; min-width: 0; display: grid; grid-template-rows: 44px 78px minmax(0, 1fr) 34px; border-right: 1px solid var(--line); background: #f8fafc; }
+      .tree-search { padding: 8px 10px; border-bottom: 1px solid var(--line); }
+      .tree-search input { width: 100%; height: 28px; border: 1px solid var(--line); border-radius: 6px; padding: 0 9px; background: #fff; color: var(--text); }
+      .recent { padding: 8px 10px; border-bottom: 1px solid var(--line); display: grid; gap: 6px; }
+      .section-title { color: var(--text-faint); font-size: 11px; text-transform: uppercase; letter-spacing: 0.03em; font-weight: 700; }
+      .recent-row { display: flex; align-items: center; gap: 7px; color: var(--text-soft); min-width: 0; cursor: pointer; }
+      .recent-row:hover { color: var(--blue); }
+      .recent-row span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .tree { overflow: auto; padding: 8px 6px 12px; }
+      .node { min-height: 30px; display: flex; align-items: center; gap: 6px; padding: 4px 8px; border-radius: 5px; color: var(--text-soft); user-select: none; }
+      .node.toggle { cursor: pointer; }
+      .node.db { color: var(--text); font-weight: 650; }
+      .node.schema { margin-left: 14px; }
+      .node.group { margin-left: 28px; color: var(--text-faint); }
+      .node.table { margin-left: 42px; align-items: flex-start; min-height: 46px; cursor: pointer; }
+      .node.table:hover { background: #edf2f7; }
+      .node.active { background: var(--blue-soft); color: #1649b8; box-shadow: inset 3px 0 0 var(--blue); }
+      .node-main { min-width: 0; flex: 1; display: grid; gap: 2px; }
+      .node-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: inherit; }
+      .node-desc { color: var(--text-faint); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .node-badge { flex: 0 0 auto; max-width: 48px; overflow: hidden; color: var(--text-faint); font-size: 10px; font-weight: 700; line-height: 18px; text-overflow: ellipsis; white-space: nowrap; }
+      .sidebar-status { border-top: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; padding: 0 10px; color: var(--text-faint); font-size: 12px; }
+
+      .workspace { min-width: 0; min-height: 0; display: grid; grid-template-rows: 36px 42px 38px auto minmax(0, 1fr) 38px; background: var(--panel); }
+      .tabs { display: flex; align-items: end; gap: 4px; padding: 0 10px; background: #f4f6f9; border-bottom: 1px solid var(--line); overflow: hidden; }
+      .tab { height: 30px; display: flex; align-items: center; gap: 7px; padding: 0 10px; border: 1px solid var(--line); border-bottom: none; border-radius: 6px 6px 0 0; background: #e9edf3; color: var(--text-soft); max-width: 290px; }
+      .tab.active { background: #fff; color: var(--text); }
+      .tab span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .table-tools { display: flex; align-items: center; gap: 8px; padding: 0 10px; border-bottom: 1px solid var(--line); background: #fff; }
+      .view-tabs { display: flex; align-items: center; gap: 4px; padding: 0 10px; border-bottom: 1px solid var(--line); background: #fbfcfe; }
+      .view-tab { height: 28px; border: 1px solid transparent; border-radius: 5px; background: transparent; color: var(--text-soft); padding: 0 10px; }
+      .view-tab.active { border-color: #c8d7fb; background: var(--blue-soft); color: #1649b8; font-weight: 650; }
+      .tool-spacer { flex: 1; }
+      .search { width: 220px; height: 30px; border: 1px solid var(--line); border-radius: 6px; padding: 0 9px; background: #fff; color: var(--text); }
+      .page-size { height: 28px; border: 1px solid var(--line); border-radius: 5px; background: #fff; color: var(--text-soft); padding: 0 7px; }
+      .query-line { min-width: 0; display: flex; align-items: center; gap: 8px; padding: 5px 10px; min-height: 38px; border-bottom: 1px solid var(--line); background: #fbfcfe; flex-wrap: wrap; }
+      .query-line.hide { display: none; }
+      .query-label { width: 72px; color: #3b4b63; font-weight: 800; font-size: 12px; }
+      .condition-chip { height: 26px; display: inline-flex; align-items: center; gap: 6px; padding: 0 8px; border: 1px solid #cdd7e5; border-radius: 5px; background: #fff; color: var(--text); white-space: nowrap; }
+      .condition-chip .field { color: #1649b8; font-weight: 650; }
+      .condition-chip .op { color: #6b7280; }
+      .condition-chip .value { color: #087443; max-width: 180px; overflow: hidden; text-overflow: ellipsis; }
+      .add-link { color: var(--blue); font-weight: 650; white-space: nowrap; cursor: pointer; }
+
+      .content { min-height: 0; overflow: auto; background: #fff; }
+      table { border-collapse: separate; border-spacing: 0; width: 100%; font-size: 13px; }
+      th, td { border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); height: 34px; padding: 0 9px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: left; }
+      th { position: sticky; top: 0; z-index: 2; background: #f1f4f8; color: #344054; font-weight: 650; height: 40px; }
+      .row-num { position: sticky; left: 0; z-index: 3; width: 54px; min-width: 54px; text-align: right; color: var(--text-faint); background: #f7f8fa; font-variant-numeric: tabular-nums; }
+      th.row-num { z-index: 4; }
+      .data-grid { width: max-content; min-width: 100%; }
+      .data-grid th, .data-grid td { max-width: 260px; }
+      .th-inner { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; min-width: 0; }
+      .th-text { min-width: 0; display: grid; gap: 2px; }
+      .th-name { font-weight: 750; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .th-comment { color: #7a8699; font-size: 11px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 150px; }
+      .tag { display: inline-flex; align-items: center; height: 20px; padding: 0 6px; border-radius: 4px; border: 1px solid var(--line); background: #f8fafc; color: var(--text-soft); font-size: 12px; }
+      .tag.pk { color: #1649b8; background: var(--blue-soft); border-color: #c8d7fb; }
+      .tag.idx { color: #0f5f56; background: var(--green-soft); border-color: #bee4dc; }
+      .tag.warn { color: var(--yellow); background: #fff7ed; border-color: #fed7aa; }
+      .null { color: #6f7785; background: #eef0f3; border-radius: 4px; padding: 2px 5px; font-size: 12px; }
+      .structure-panel { min-height: 100%; display: grid; grid-template-rows: auto auto minmax(0, 1fr); }
+      .summary { display: grid; grid-template-columns: repeat(6, minmax(120px, 1fr)); gap: 1px; background: var(--line); border-bottom: 1px solid var(--line); }
+      .summary-item { background: #fbfcfe; padding: 10px 12px; display: grid; gap: 4px; min-width: 0; }
+      .summary-label { color: var(--text-faint); font-size: 12px; }
+      .summary-value { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .structure-toolbar { display: grid; grid-template-columns: minmax(220px, 1fr) auto auto; align-items: center; gap: 10px; padding: 8px 10px; border-bottom: 1px solid var(--line); background: #fff; }
+      .structure-filter-group { display: inline-flex; align-items: center; gap: 6px; min-width: max-content; white-space: nowrap; }
+      .structure-actions { display: inline-flex; align-items: center; gap: 8px; min-width: max-content; white-space: nowrap; }
+      .seg { height: 28px; min-width: 50px; display: inline-flex; align-items: center; justify-content: center; padding: 0 10px; border: 1px solid var(--line); background: #fff; color: var(--text-soft); border-radius: 5px; cursor: pointer; line-height: 1; white-space: nowrap; }
+      .seg.active { border-color: #c8d7fb; background: var(--blue-soft); color: #1649b8; font-weight: 650; }
+      .col-name { font-weight: 700; color: var(--text); }
+      .col-comment { color: var(--text-soft); }
+      .ddl-wrap { padding: 12px; background: #fbfcfe; min-height: 100%; }
+      .code-head { height: 36px; display: flex; align-items: center; gap: 8px; border: 1px solid var(--line); border-bottom: none; border-radius: 7px 7px 0 0; background: #fff; padding: 0 10px; }
+      pre.sql { margin: 0; min-height: 420px; overflow: auto; border: 1px solid var(--line); border-radius: 0 0 7px 7px; background: #0f172a; color: #dbeafe; padding: 14px 16px; line-height: 1.55; font-size: 13px; tab-size: 2; }
+      .kw { color: #93c5fd; font-weight: 700; }
+      .id { color: #fde68a; }
+      .cm { color: #86efac; }
+      .rel-wrap { padding: 12px; display: grid; gap: 12px; background: #fff; }
+      .rel-section { border: 1px solid var(--line); border-radius: 7px; overflow: hidden; background: #fff; }
+      .rel-head { height: 36px; display: flex; align-items: center; justify-content: space-between; padding: 0 10px; border-bottom: 1px solid var(--line); background: #fbfcfe; font-weight: 700; }
+      .empty { padding: 22px; color: var(--text-faint); text-align: center; }
+      .statusbar { display: flex; align-items: center; gap: 14px; padding: 0 10px; border-top: 1px solid var(--line); background: #f8fafc; color: var(--text-soft); font-size: 12px; }
+      .status-left { display: flex; align-items: center; gap: 12px; min-width: 0; flex: 1; }
+      .status-dot { width: 7px; height: 7px; border-radius: 50%; background: #12b76a; }
+      .mini-btn { height: 24px; min-width: 26px; border: 1px solid var(--line); border-radius: 4px; background: #fff; color: var(--text-soft); display: inline-flex; align-items: center; justify-content: center; padding: 0 6px; cursor: pointer; }
+      .toast { position: fixed; left: 50%; bottom: 54px; transform: translateX(-50%); background: #101828; color: #fff; border-radius: 6px; padding: 9px 13px; box-shadow: var(--shadow); opacity: 0; pointer-events: none; transition: 0.18s ease; z-index: 30; }
+      .toast.show { opacity: 1; }
+
+      @media (max-width: 1200px) {
+        .main { grid-template-columns: 248px minmax(0, 1fr); }
+        .summary { grid-template-columns: repeat(3, minmax(120px, 1fr)); }
+        .search { width: 170px; }
+        .structure-toolbar { grid-template-columns: minmax(170px, 1fr) auto; }
+        .structure-actions { grid-column: 1 / -1; justify-content: flex-end; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <header class="topbar">
+        <div class="brand"><div class="brand-icon">D</div><span>数据预览</span></div>
+        <div class="selectbox">数据源&nbsp;<select id="datasourceSelect"></select></div>
+        <div class="selectbox">数据库&nbsp;<select id="databaseSelect"></select></div>
+        <div class="table-context">
+          <span title="当前打开表">▦</span>
+          <strong id="currentTableTitle">customer_order（这是一个测试表）</strong>
+          <span class="pill" id="fieldCount">6 字段</span>
+          <span class="pill blue" id="modePill">数据预览</span>
+          <span class="pill" id="filterCount">2 筛选</span>
+          <span class="pill" id="sortCount">1 排序</span>
+        </div>
+        <button class="btn primary" id="queryBtn">▶ 查询</button>
+        <button class="btn" id="refreshBtn">刷新</button>
+        <button class="btn" id="exportBtn">导出</button>
+        <button class="btn" id="saveViewBtn">保存视图</button>
+      </header>
+
+      <main class="main">
+        <aside class="sidebar">
+          <div class="tree-search"><input id="treeSearch" placeholder="搜索表名或注释" value="案件" /></div>
+          <div class="recent">
+            <div class="section-title">最近打开</div>
+            <div class="recent-row" data-table="customer_order" data-comment="这是一个测试表"><span>▦</span><span>customer_order · 这是一个测试表</span></div>
+            <div class="recent-row" data-table="case_flow_log" data-comment="案件流转日志"><span>▦</span><span>case_flow_log · 案件流转日志</span></div>
+          </div>
+          <div class="tree" id="tree"></div>
+          <div class="sidebar-status"><span id="treeStatus">已加载 4 张表</span><span id="treeReload">刷新</span></div>
+        </aside>
+
+        <section class="workspace">
+          <div class="tabs">
+            <div class="tab active"><span id="activeTab">customer_order 这是一个测试表 · dp_qa</span><b>×</b></div>
+            <div class="tab"><span>case_flow_log</span><b>×</b></div>
+          </div>
+          <div class="table-tools">
+            <button class="btn icon" id="reloadIcon">↻</button>
+            <button class="btn">视图：默认视图 ▾</button>
+            <button class="btn" id="columnBtn">列设置</button>
+            <button class="btn" id="addFilterBtn">筛选</button>
+            <button class="btn" id="addSortBtn">排序</button>
+            <button class="btn" id="joinBtn">关联</button>
+            <button class="btn" id="copySqlBtn">复制SQL</button>
+            <div class="tool-spacer"></div>
+            <select class="page-size"><option>50 条/页</option><option>100 条/页</option><option>200 条/页</option></select>
+          </div>
+          <div class="view-tabs">
+            <button class="view-tab active" data-mode="data">数据预览</button>
+            <button class="view-tab" data-mode="structure">表结构</button>
+            <button class="view-tab" data-mode="ddl">DDL</button>
+            <button class="view-tab" data-mode="relation">索引约束</button>
+          </div>
+          <div class="query-line" id="whereLine"><div class="query-label">WHERE</div><span class="condition-chip"><span class="field">status</span><span class="op">=</span><span class="value">有效</span></span><span class="condition-chip"><span class="field">create_time</span><span class="op">&gt;=</span><span class="value">2026-05-01</span></span><span class="add-link">+ 条件</span></div>
+
+          <div class="content" id="content"></div>
+
+          <div class="statusbar">
+            <div class="status-left"><span class="status-dot"></span><span id="rowStatus">返回 50 行</span><span id="costStatus">耗时 0.38s</span><span id="refreshStatus">上次刷新 14:32:08</span><span id="pathStatus">mysql_case_workbench / ds_demo / ajxx_tab</span></div>
+            <div id="rightStatus"><span class="mini-btn">‹</span> 第 1 / 26 页 <span class="mini-btn">›</span></div>
+          </div>
+        </section>
+      </main>
+
+      <div class="toast" id="toast">已更新</div>
+    </div>
+
+    <script>
+      const catalogs = {
+        mysql_case_workbench: {
+          type: 'MySQL',
+          databases: {
+            ds_demo: [
+              { table: 'customer_order', comment: '这是一个测试表', engine: 'InnoDB', rows: '3', updated: '2026-05-20 12:32:10' },
+              { table: 'ajxx_tab', comment: '案件信息表', engine: 'InnoDB', rows: '1,284', updated: '2026-05-20 09:42:18' },
+              { table: 'case_flow_log', comment: '案件流转日志', engine: 'InnoDB', rows: '8,926', updated: '2026-05-20 09:31:05' },
+              { table: 'user_info', comment: '用户基础信息', engine: 'InnoDB', rows: '326', updated: '2026-05-19 18:04:22' },
+              { table: 'dept_dict', comment: '部门字典表', engine: 'InnoDB', rows: '68', updated: '2026-05-18 21:11:19' }
+            ]
+          }
+        },
+        pgsql_test1: {
+          type: 'PostgreSQL',
+          databases: {
+            public: [
+              { table: 'customer_profile', comment: '客户画像表', engine: 'heap', rows: '4,512', updated: '2026-05-19 16:34:20' },
+              { table: 'order_snapshot', comment: '订单快照表', engine: 'heap', rows: '23,090', updated: '2026-05-19 16:52:03' }
+            ]
+          }
+        }
+      };
+
+      const tableColumns = {
+        customer_order: [
+          { name: 'id', type: 'int', length: '10', nullable: false, pk: true, default: '', comment: '主键ID', index: 'PRIMARY' },
+          { name: 'order_no', type: 'varchar', length: '32', nullable: false, pk: false, default: '', comment: '订单号', index: '' },
+          { name: 'customer_name', type: 'varchar', length: '64', nullable: true, pk: false, default: '', comment: '客户名称', index: '' },
+          { name: 'amount', type: 'decimal', length: '10,2', nullable: false, pk: false, default: '0.00', comment: '订单金额', index: '' },
+          { name: 'created_at', type: 'datetime', length: '19', nullable: false, pk: false, default: '', comment: '创建时间', index: 'idx_created_at' },
+          { name: 'status', type: 'varchar', length: '16', nullable: true, pk: false, default: '', comment: '状态', index: 'idx_status' }
+        ],
+        ajxx_tab: [
+          { name: 'id', type: 'bigint', length: '20', nullable: false, pk: true, default: 'AUTO_INCREMENT', comment: '主键 ID', index: 'PRIMARY' },
+          { name: 'case_no', type: 'varchar', length: '64', nullable: false, pk: false, default: '', comment: '案件编号', index: 'uk_case_no' },
+          { name: 'case_name', type: 'varchar', length: '200', nullable: false, pk: false, default: '', comment: '案件名称', index: '' },
+          { name: 'status', type: 'varchar', length: '32', nullable: false, pk: false, default: '有效', comment: '案件当前处理状态', index: 'idx_status_time' },
+          { name: 'city', type: 'varchar', length: '32', nullable: true, pk: false, default: 'NULL', comment: '所属城市', index: '' },
+          { name: 'amount', type: 'decimal', length: '18,2', nullable: true, pk: false, default: '0.00', comment: '涉案金额', index: '' },
+          { name: 'create_time', type: 'datetime', length: '', nullable: false, pk: false, default: 'CURRENT_TIMESTAMP', comment: '创建时间，记录首次入库时间', index: 'idx_status_time' },
+          { name: 'owner_dept', type: 'varchar', length: '96', nullable: true, pk: false, default: 'NULL', comment: '负责部门', index: 'idx_owner_dept' },
+          { name: 'remark', type: 'text', length: '', nullable: true, pk: false, default: 'NULL', comment: '备注说明，内容可能很长', index: '' },
+          { name: 'update_user', type: 'varchar', length: '64', nullable: true, pk: false, default: 'NULL', comment: '最后更新人', index: '' }
+        ],
+        case_flow_log: [
+          { name: 'id', type: 'bigint', length: '20', nullable: false, pk: true, default: 'AUTO_INCREMENT', comment: '主键 ID', index: 'PRIMARY' },
+          { name: 'case_no', type: 'varchar', length: '64', nullable: false, pk: false, default: '', comment: '案件编号', index: 'idx_case_no' },
+          { name: 'node_name', type: 'varchar', length: '100', nullable: false, pk: false, default: '', comment: '流转节点', index: '' },
+          { name: 'handler', type: 'varchar', length: '64', nullable: true, pk: false, default: 'NULL', comment: '处理人', index: '' },
+          { name: 'handle_time', type: 'datetime', length: '', nullable: false, pk: false, default: 'CURRENT_TIMESTAMP', comment: '处理时间', index: 'idx_handle_time' },
+          { name: 'handle_result', type: 'varchar', length: '64', nullable: true, pk: false, default: 'NULL', comment: '处理结果', index: '' },
+          { name: 'remark', type: 'text', length: '', nullable: true, pk: false, default: 'NULL', comment: '备注', index: '' }
+        ],
+        user_info: [
+          { name: 'user_id', type: 'bigint', length: '20', nullable: false, pk: true, default: 'AUTO_INCREMENT', comment: '用户 ID', index: 'PRIMARY' },
+          { name: 'user_name', type: 'varchar', length: '64', nullable: false, pk: false, default: '', comment: '用户名', index: 'uk_user_name' },
+          { name: 'real_name', type: 'varchar', length: '64', nullable: true, pk: false, default: 'NULL', comment: '真实姓名', index: '' },
+          { name: 'dept_code', type: 'varchar', length: '64', nullable: true, pk: false, default: 'NULL', comment: '部门编码', index: 'idx_dept_code' },
+          { name: 'enabled', type: 'tinyint', length: '1', nullable: false, pk: false, default: '1', comment: '是否启用', index: '' }
+        ],
+        dept_dict: [
+          { name: 'dept_id', type: 'bigint', length: '20', nullable: false, pk: true, default: 'AUTO_INCREMENT', comment: '部门 ID', index: 'PRIMARY' },
+          { name: 'dept_code', type: 'varchar', length: '64', nullable: false, pk: false, default: '', comment: '部门编码', index: 'uk_dept_code' },
+          { name: 'dept_name', type: 'varchar', length: '128', nullable: false, pk: false, default: '', comment: '部门名称', index: '' },
+          { name: 'dept_manager', type: 'varchar', length: '64', nullable: true, pk: false, default: 'NULL', comment: '部门负责人', index: '' },
+          { name: 'region', type: 'varchar', length: '64', nullable: true, pk: false, default: 'NULL', comment: '所属区域', index: 'idx_region' }
+        ]
+      };
+
+      const rows = [
+        { id: 10001, case_no: 'AJ-202605-0001', case_name: '合同资料核验', status: '有效', city: '杭州', amount: '2,300.00', create_time: '2026-05-12 09:42:18', owner_dept: '数据治理一组', remark: '已完成源端校验，等待业务确认', update_user: 'admin' },
+        { id: 10002, case_no: 'AJ-202605-0002', case_name: '同步结果抽查', status: '有效', city: '上海', amount: '880.50', create_time: '2026-05-12 09:18:47', owner_dept: '同步平台组', remark: '目标表字段数与源端一致', update_user: 'luwang' },
+        { id: 10003, case_no: 'AJ-202605-0003', case_name: '客户主数据复核', status: '有效', city: '南京', amount: '1,128.00', create_time: '2026-05-12 08:55:04', owner_dept: '客户数据组', remark: null, update_user: 'system' }
+      ];
+
+      let currentDatasource = 'mysql_case_workbench';
+      let currentDatabase = 'ds_demo';
+      let currentTable = 'customer_order';
+      let currentComment = '这是一个测试表';
+      let mode = 'data';
+      let structureFilter = 'all';
+      let structureSearch = '';
+
+      const $ = (id) => document.getElementById(id);
+      const esc = (value) => String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+      const currentMeta = () => (catalogs[currentDatasource].databases[currentDatabase] || []).find(item => item.table === currentTable) || {};
+      const currentCols = () => tableColumns[currentTable] || tableColumns.customer_order;
+
+      function toast(text) {
+        $('toast').textContent = text;
+        $('toast').classList.add('show');
+        setTimeout(() => $('toast').classList.remove('show'), 1300);
+      }
+
+      function renderSelectors() {
+        $('datasourceSelect').innerHTML = Object.keys(catalogs).map(key => `<option value="${key}" ${key === currentDatasource ? 'selected' : ''}>${key}</option>`).join('');
+        const dbs = Object.keys(catalogs[currentDatasource].databases);
+        if (!dbs.includes(currentDatabase)) currentDatabase = dbs[0];
+        $('databaseSelect').innerHTML = dbs.map(db => `<option value="${db}" ${db === currentDatabase ? 'selected' : ''}>${db}</option>`).join('');
+      }
+
+      function renderTree() {
+        const tables = catalogs[currentDatasource].databases[currentDatabase] || [];
+        $('tree').innerHTML = `
+          <div class="node db toggle">▾ 🛢 ${currentDatasource}</div>
+          <div class="node schema toggle">▾ 📁 ${currentDatabase}</div>
+          <div class="node group toggle">▾ 表</div>
+          ${tables.map(item => `
+            <div class="node table ${item.table === currentTable ? 'active' : ''}" data-table="${item.table}" data-comment="${item.comment}">
+              <span>▦</span><div class="node-main"><div class="node-name">${item.table}</div><div class="node-desc">${item.comment || '暂无表注释'}</div></div><span class="node-badge">TABLE</span>
+            </div>
+          `).join('')}
+          <div class="node group toggle">▸ 视图</div>`;
+        $('treeStatus').textContent = `已加载 ${tables.length} 张表`;
+      }
+
+      function updateContext() {
+        const cols = currentCols();
+        $('currentTableTitle').textContent = `${currentTable}（${currentComment}）`;
+        $('activeTab').textContent = `${currentTable} ${currentComment} · ${currentDatabase}`;
+        $('fieldCount').textContent = `${cols.length} 字段`;
+        $('modePill').textContent = { data: '数据预览', structure: '表结构', ddl: 'DDL', relation: '索引约束' }[mode];
+        $('pathStatus').textContent = `${currentDatasource} / ${currentDatabase} / ${currentTable}`;
+      }
+
+      function renderData() {
+        const cols = currentCols();
+        $('content').innerHTML = `
+          <table class="data-grid">
+            <thead><tr><th class="row-num">#</th>${cols.map(col => `<th style="min-width: ${Math.max(110, col.name.length * 10)}px"><div class="th-inner"><div class="th-text"><span class="th-name">${col.name}</span><span class="th-comment">${col.comment}</span></div><span>⌕</span></div></th>`).join('')}</tr></thead>
+            <tbody>${rows.map((row, idx) => `<tr><td class="row-num">${idx + 1}</td>${cols.map(col => `<td>${row[col.name] == null ? '<span class="null">NULL</span>' : esc(row[col.name] ?? '')}</td>`).join('')}</tr>`).join('')}</tbody>
+          </table>`;
+        $('whereLine').classList.remove('hide');
+        $('rowStatus').textContent = '返回 50 行';
+        $('rightStatus').innerHTML = '<span class="mini-btn">‹</span> 第 1 / 26 页 <span class="mini-btn">›</span>';
+      }
+
+      function passFilter(col) {
+        const text = `${col.name} ${col.type} ${col.comment} ${col.index}`.toLowerCase();
+        const keywordOk = !structureSearch || text.includes(structureSearch.toLowerCase());
+        const typeOk = structureFilter === 'all' || (structureFilter === 'pk' && col.pk) || (structureFilter === 'notnull' && !col.nullable) || (structureFilter === 'indexed' && col.index) || (structureFilter === 'nocomment' && !col.comment);
+        return keywordOk && typeOk;
+      }
+
+      function renderStructure() {
+        const cols = currentCols();
+        const meta = currentMeta();
+        const visible = cols.filter(passFilter);
+        $('content').innerHTML = `
+          <div class="structure-panel">
+            <div class="summary">
+              <div class="summary-item"><span class="summary-label">表名</span><span class="summary-value">${currentTable}</span></div>
+              <div class="summary-item"><span class="summary-label">表注释</span><span class="summary-value">${currentComment || '-'}</span></div>
+              <div class="summary-item"><span class="summary-label">数据源类型</span><span class="summary-value">${catalogs[currentDatasource].type}</span></div>
+              <div class="summary-item"><span class="summary-label">存储引擎</span><span class="summary-value">${meta.engine || '-'}</span></div>
+              <div class="summary-item"><span class="summary-label">估算行数</span><span class="summary-value">${meta.rows || '-'}</span></div>
+              <div class="summary-item"><span class="summary-label">最近更新时间</span><span class="summary-value">${meta.updated || '-'}</span></div>
+            </div>
+            <div class="structure-toolbar">
+              <input class="search" id="structureSearch" placeholder="搜索字段名 / 类型 / 注释" value="${esc(structureSearch)}" />
+              <div class="structure-filter-group" aria-label="表结构字段筛选">
+                <span class="seg ${structureFilter === 'all' ? 'active' : ''}" data-filter="all">全部</span>
+                <span class="seg ${structureFilter === 'pk' ? 'active' : ''}" data-filter="pk">主键</span>
+                <span class="seg ${structureFilter === 'notnull' ? 'active' : ''}" data-filter="notnull">非空</span>
+                <span class="seg ${structureFilter === 'indexed' ? 'active' : ''}" data-filter="indexed">有索引</span>
+                <span class="seg ${structureFilter === 'nocomment' ? 'active' : ''}" data-filter="nocomment">无注释</span>
+              </div>
+              <div class="structure-actions">
+                <button class="btn" data-copy="fields">复制字段名</button>
+                <button class="btn" data-copy="ddl">复制建表SQL</button>
+              </div>
+            </div>
+            <div style="min-height:0; overflow:auto;">
+              <table>
+                <thead><tr><th class="row-num">#</th><th>字段名</th><th>类型</th><th>长度 / 精度</th><th>主键</th><th>可空</th><th>默认值</th><th>索引</th><th>字段注释</th></tr></thead>
+                <tbody>
+                  ${visible.map((col, index) => `
+                    <tr>
+                      <td class="row-num">${index + 1}</td>
+                      <td><span class="col-name">${col.name}</span></td>
+                      <td>${col.type}</td>
+                      <td>${col.length || '-'}</td>
+                      <td>${col.pk ? '<span class="tag pk">PK</span>' : '-'}</td>
+                      <td>${col.nullable ? '<span class="tag">可空</span>' : '<span class="tag warn">非空</span>'}</td>
+                      <td>${col.default || '-'}</td>
+                      <td>${col.index ? `<span class="tag idx">${col.index}</span>` : '-'}</td>
+                      <td><span class="col-comment">${col.comment || '-'}</span></td>
+                    </tr>
+                  `).join('') || '<tr><td colspan="9" class="empty">没有匹配的字段</td></tr>'}
+                </tbody>
+              </table>
+            </div>
+          </div>`;
+        $('whereLine').classList.add('hide');
+        $('rowStatus').textContent = `表结构：${cols.length} 字段`;
+        $('rightStatus').textContent = '结构元数据来自当前数据源';
+
+        $('structureSearch').oninput = (event) => {
+          structureSearch = event.target.value;
+          renderStructure();
+        };
+        document.querySelectorAll('[data-filter]').forEach(item => item.onclick = () => {
+          structureFilter = item.dataset.filter;
+          renderStructure();
+        });
+        document.querySelectorAll('[data-copy]').forEach(btn => btn.onclick = () => toast(btn.dataset.copy === 'ddl' ? '已复制建表 SQL' : '已复制字段名清单'));
+      }
+
+      function buildDDL() {
+        const cols = currentCols();
+        const pk = cols.find(col => col.pk);
+        const lines = cols.map((col) => {
+          const len = col.length ? `(${col.length})` : '';
+          const nullable = col.nullable ? 'NULL' : 'NOT NULL';
+          const def = col.default && col.default !== 'NULL' ? ` DEFAULT ${col.default === 'AUTO_INCREMENT' ? 'AUTO_INCREMENT' : `'${col.default}'`}` : '';
+          const comment = col.comment ? ` COMMENT '${col.comment}'` : '';
+          return `  \`${col.name}\` ${col.type.toUpperCase()}${len} ${nullable}${def}${comment}`;
+        });
+        if (pk) lines.push(`  PRIMARY KEY (\`${pk.name}\`)`);
+        return `CREATE TABLE \`${currentTable}\` (\n${lines.join(',\n')}\n) ENGINE=${currentMeta().engine || 'InnoDB'} COMMENT='${currentComment}';`;
+      }
+
+      function renderDDL() {
+        $('content').innerHTML = `
+          <div class="ddl-wrap">
+            <div class="code-head"><strong>${currentTable}</strong><span class="pill">一行一个字段</span><span class="tool-spacer"></span><button class="btn" id="copyDDL">复制 DDL</button></div>
+            <pre class="sql">${esc(buildDDL()).replace(/CREATE TABLE|PRIMARY KEY|ENGINE|COMMENT|DEFAULT|NOT NULL|NULL|AUTO_INCREMENT/g, '<span class="kw">$&</span>')}</pre>
+          </div>`;
+        $('whereLine').classList.add('hide');
+        $('rowStatus').textContent = 'DDL 已格式化';
+        $('rightStatus').textContent = '只读预览';
+        $('copyDDL').onclick = () => toast('已复制 DDL');
+      }
+
+      function renderRelation() {
+        const cols = currentCols();
+        const indexed = cols.filter(col => col.index);
+        $('content').innerHTML = `
+          <div class="rel-wrap">
+            <div class="rel-section">
+              <div class="rel-head"><span>索引</span><button class="btn" id="copyIndex">复制索引信息</button></div>
+              <table>
+                <thead><tr><th>索引名</th><th>字段</th><th>类型</th><th>唯一</th><th>说明</th></tr></thead>
+                <tbody>${indexed.map(col => `<tr><td>${col.index}</td><td>${col.name}</td><td>${col.pk ? 'PRIMARY' : 'BTREE'}</td><td>${col.index.startsWith('uk_') || col.pk ? '是' : '否'}</td><td>${col.comment}</td></tr>`).join('')}</tbody>
+              </table>
+            </div>
+            <div class="rel-section">
+              <div class="rel-head"><span>约束 / 外键</span></div>
+              ${currentTable === 'ajxx_tab' ? '<div class="empty">当前表没有外键约束。可在后续实现中展示约束名、关联表、更新/删除规则。</div>' : '<div class="empty">当前数据源暂未返回约束元数据。</div>'}
+            </div>
+          </div>`;
+        $('whereLine').classList.add('hide');
+        $('rowStatus').textContent = `索引：${indexed.length} 个`;
+        $('rightStatus').textContent = '约束为空时给出明确状态';
+        $('copyIndex').onclick = () => toast('已复制索引信息');
+      }
+
+      function renderMode() {
+        document.querySelectorAll('.view-tab').forEach(tab => tab.classList.toggle('active', tab.dataset.mode === mode));
+        updateContext();
+        if (mode === 'data') renderData();
+        if (mode === 'structure') renderStructure();
+        if (mode === 'ddl') renderDDL();
+        if (mode === 'relation') renderRelation();
+      }
+
+      function setCurrentTable(table, comment) {
+        currentTable = table;
+        currentComment = comment;
+        structureFilter = 'all';
+        structureSearch = '';
+        renderTree();
+        renderMode();
+      }
+
+      $('datasourceSelect').onchange = (event) => {
+        currentDatasource = event.target.value;
+        currentDatabase = Object.keys(catalogs[currentDatasource].databases)[0];
+        const first = catalogs[currentDatasource].databases[currentDatabase][0];
+        setCurrentTable(first.table, first.comment);
+        renderSelectors();
+      };
+      $('databaseSelect').onchange = (event) => {
+        currentDatabase = event.target.value;
+        const first = catalogs[currentDatasource].databases[currentDatabase][0];
+        setCurrentTable(first.table, first.comment);
+      };
+      $('tree').onclick = (event) => {
+        const node = event.target.closest('.node.table');
+        if (!node) return;
+        setCurrentTable(node.dataset.table, node.dataset.comment);
+      };
+      document.querySelectorAll('.recent-row').forEach(row => row.onclick = () => setCurrentTable(row.dataset.table, row.dataset.comment));
+      document.querySelectorAll('.view-tab').forEach(tab => tab.onclick = () => {
+        mode = tab.dataset.mode;
+        renderMode();
+      });
+      $('queryBtn').onclick = () => { mode = 'data'; renderMode(); toast('已按当前条件查询'); };
+      $('refreshBtn').onclick = () => toast(mode === 'data' ? '已刷新当前页数据' : '已刷新表结构元数据');
+      $('exportBtn').onclick = () => toast(mode === 'data' ? '已按当前视图导出数据' : '已导出表结构清单');
+      $('copySqlBtn').onclick = () => toast(mode === 'ddl' ? '已复制 DDL' : '已复制当前查询 SQL');
+      $('treeReload').onclick = () => toast('对象树已刷新');
+
+      renderSelectors();
+      renderTree();
+      renderMode();
+    </script>
+  </body>
+</html>

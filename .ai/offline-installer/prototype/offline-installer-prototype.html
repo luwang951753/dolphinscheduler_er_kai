@@ -1,0 +1,1065 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DolphinScheduler 离线安装向导</title>
+  <style>
+    :root {
+      --bg: #f5f7fb;
+      --panel: #ffffff;
+      --text: #202936;
+      --muted: #667085;
+      --line: #d9e0ea;
+      --blue: #1f6feb;
+      --blue-soft: #e8f1ff;
+      --green: #16a34a;
+      --green-soft: #eaf8ef;
+      --red: #dc2626;
+      --red-soft: #fdecec;
+      --amber: #d97706;
+      --amber-soft: #fff4de;
+      --code: #172033;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--text);
+      background: var(--bg);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      font-size: 14px;
+    }
+
+    button,
+    input,
+    select,
+    textarea {
+      font: inherit;
+    }
+
+    .shell {
+      min-height: 100vh;
+      display: grid;
+      grid-template-rows: 58px 1fr;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      background: var(--panel);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+    }
+
+    .brand-mark {
+      width: 30px;
+      height: 30px;
+      border-radius: 6px;
+      background: #1f6feb;
+      color: #fff;
+      display: grid;
+      place-items: center;
+      font-weight: 700;
+    }
+
+    .brand-title {
+      font-size: 16px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .top-meta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      height: 24px;
+      padding: 0 8px;
+      border-radius: 4px;
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
+    .tag.blue {
+      color: var(--blue);
+      background: var(--blue-soft);
+      border-color: #bfdbfe;
+    }
+
+    .tag.green {
+      color: var(--green);
+      background: var(--green-soft);
+      border-color: #bbf7d0;
+    }
+
+    .tag.amber {
+      color: var(--amber);
+      background: var(--amber-soft);
+      border-color: #fed7aa;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 260px minmax(0, 1fr);
+      gap: 0;
+      min-height: 0;
+    }
+
+    .side {
+      background: #fbfcfe;
+      border-right: 1px solid var(--line);
+      padding: 18px 14px;
+    }
+
+    .step {
+      width: 100%;
+      border: 0;
+      background: transparent;
+      display: grid;
+      grid-template-columns: 28px 1fr auto;
+      gap: 10px;
+      align-items: center;
+      padding: 10px 8px;
+      border-radius: 6px;
+      text-align: left;
+      color: var(--text);
+      cursor: pointer;
+    }
+
+    .step + .step {
+      margin-top: 4px;
+    }
+
+    .step:hover {
+      background: #eef4ff;
+    }
+
+    .step.active {
+      background: var(--blue-soft);
+      color: var(--blue);
+      font-weight: 700;
+    }
+
+    .step-index {
+      width: 24px;
+      height: 24px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      border: 1px solid var(--line);
+      background: #fff;
+      font-size: 12px;
+    }
+
+    .step.done .step-index {
+      color: #fff;
+      background: var(--green);
+      border-color: var(--green);
+    }
+
+    .step.error .step-index {
+      color: #fff;
+      background: var(--red);
+      border-color: var(--red);
+    }
+
+    .step-title {
+      min-width: 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .step-status {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .side-note {
+      margin-top: 18px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #fff;
+      color: var(--muted);
+      line-height: 1.7;
+      font-size: 12px;
+    }
+
+    .main {
+      min-width: 0;
+      padding: 22px;
+      overflow: auto;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .panel-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 18px 20px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .panel-title {
+      margin: 0;
+      font-size: 18px;
+      line-height: 1.3;
+    }
+
+    .panel-desc {
+      margin-top: 6px;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    .panel-body {
+      padding: 20px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .field {
+      min-width: 0;
+    }
+
+    .field.full {
+      grid-column: 1 / -1;
+    }
+
+    label {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 6px;
+      font-weight: 600;
+    }
+
+    .help {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 400;
+    }
+
+    input,
+    select,
+    textarea {
+      width: 100%;
+      min-height: 36px;
+      border: 1px solid #cfd8e3;
+      border-radius: 6px;
+      padding: 8px 10px;
+      color: var(--text);
+      background: #fff;
+      outline: none;
+    }
+
+    textarea {
+      min-height: 110px;
+      resize: vertical;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12px;
+      line-height: 1.6;
+    }
+
+    input:focus,
+    select:focus,
+    textarea:focus {
+      border-color: var(--blue);
+      box-shadow: 0 0 0 3px rgba(31, 111, 235, 0.12);
+    }
+
+    .check-list {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .check-card {
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 12px;
+      background: #fff;
+    }
+
+    .check-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 6px;
+      font-weight: 700;
+    }
+
+    .check-desc {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.6;
+    }
+
+    .actions {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px 20px;
+      border-top: 1px solid var(--line);
+      background: #fbfcfe;
+    }
+
+    .action-left,
+    .action-right {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .btn {
+      min-height: 34px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 0 14px;
+      background: #fff;
+      color: var(--text);
+      cursor: pointer;
+    }
+
+    .btn:hover {
+      border-color: var(--blue);
+      color: var(--blue);
+    }
+
+    .btn.primary {
+      border-color: var(--blue);
+      background: var(--blue);
+      color: #fff;
+    }
+
+    .btn.primary:hover {
+      color: #fff;
+      background: #185abc;
+    }
+
+    .btn:disabled {
+      cursor: not-allowed;
+      opacity: 0.55;
+    }
+
+    .preview-workbench {
+      display: grid;
+      grid-template-columns: 260px minmax(0, 1fr);
+      min-height: 460px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+      background: #fff;
+    }
+
+    .preview-files {
+      border-right: 1px solid var(--line);
+      background: #fbfcfe;
+      padding: 10px;
+    }
+
+    .preview-file-tab {
+      width: 100%;
+      border: 1px solid transparent;
+      border-radius: 6px;
+      background: transparent;
+      padding: 10px;
+      text-align: left;
+      color: var(--text);
+      cursor: pointer;
+    }
+
+    .preview-file-tab + .preview-file-tab {
+      margin-top: 6px;
+    }
+
+    .preview-file-tab:hover {
+      background: #eef4ff;
+    }
+
+    .preview-file-tab.active {
+      border-color: #bfdbfe;
+      background: var(--blue-soft);
+    }
+
+    .preview-file-name {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      font-weight: 700;
+    }
+
+    .preview-file-path {
+      margin-top: 6px;
+      color: var(--muted);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 11px;
+      line-height: 1.4;
+      word-break: break-all;
+    }
+
+    .preview-viewer {
+      min-width: 0;
+      display: grid;
+      grid-template-rows: auto 1fr;
+    }
+
+    .preview-meta {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto auto;
+      gap: 10px;
+      align-items: center;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+      background: #fff;
+    }
+
+    .preview-meta-main {
+      min-width: 0;
+    }
+
+    .preview-meta-title {
+      font-weight: 700;
+    }
+
+    .preview-meta-path {
+      margin-top: 4px;
+      color: var(--muted);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    pre {
+      margin: 0;
+      padding: 14px 16px;
+      min-height: 390px;
+      max-height: 560px;
+      overflow: auto;
+      color: #d8e1ff;
+      background: var(--code);
+      font-size: 12px;
+      line-height: 1.6;
+      white-space: pre-wrap;
+    }
+
+    .timeline {
+      display: grid;
+      gap: 10px;
+    }
+
+    .timeline-item {
+      display: grid;
+      grid-template-columns: 26px 1fr auto;
+      gap: 10px;
+      align-items: center;
+      padding: 11px 12px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #fff;
+    }
+
+    .dot {
+      width: 22px;
+      height: 22px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      border: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .timeline-item.done .dot {
+      color: #fff;
+      background: var(--green);
+      border-color: var(--green);
+    }
+
+    .timeline-item.running .dot {
+      color: #fff;
+      background: var(--blue);
+      border-color: var(--blue);
+    }
+
+    .summary {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .summary-card {
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #fbfcfe;
+    }
+
+    .summary-card span {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      margin-bottom: 6px;
+    }
+
+    .summary-card strong {
+      display: block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .toast {
+      position: fixed;
+      right: 18px;
+      bottom: 18px;
+      width: min(420px, calc(100vw - 36px));
+      padding: 12px 14px;
+      border: 1px solid #bfdbfe;
+      border-radius: 6px;
+      background: #eff6ff;
+      color: #1e3a8a;
+      box-shadow: 0 12px 30px rgba(15, 23, 42, 0.12);
+      transform: translateY(120%);
+      transition: transform 0.2s ease;
+      line-height: 1.6;
+      z-index: 20;
+    }
+
+    .toast.show {
+      transform: translateY(0);
+    }
+
+    @media (max-width: 980px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+
+      .side {
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .grid,
+      .check-list,
+      .summary {
+        grid-template-columns: 1fr;
+      }
+
+      .preview-workbench {
+        grid-template-columns: 1fr;
+      }
+
+      .preview-files {
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .top-meta {
+        display: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark">DS</div>
+        <div>
+          <div class="brand-title">DolphinScheduler 离线安装向导</div>
+        </div>
+      </div>
+      <div class="top-meta">
+        <span class="tag blue">Standalone</span>
+        <span class="tag">3.4.1 公司二开版</span>
+        <span class="tag amber" id="installState">未安装</span>
+      </div>
+    </header>
+
+    <div class="layout">
+      <aside class="side">
+        <button class="step active" data-step="0">
+          <span class="step-index">1</span>
+          <span class="step-title">环境检查</span>
+          <span class="step-status">当前</span>
+        </button>
+        <button class="step" data-step="1">
+          <span class="step-index">2</span>
+          <span class="step-title">数据库配置</span>
+          <span class="step-status">未开始</span>
+        </button>
+        <button class="step" data-step="2">
+          <span class="step-index">3</span>
+          <span class="step-title">服务配置</span>
+          <span class="step-status">未开始</span>
+        </button>
+        <button class="step" data-step="3">
+          <span class="step-index">4</span>
+          <span class="step-title">同步运行配置</span>
+          <span class="step-status">未开始</span>
+        </button>
+        <button class="step" data-step="4">
+          <span class="step-index">5</span>
+          <span class="step-title">预览与安装</span>
+          <span class="step-status">未开始</span>
+        </button>
+
+        <div class="side-note">
+          安装器只负责首次配置和启动。安装完成后会生成 install.lock，默认关闭安装入口，避免误覆盖生产配置。
+        </div>
+      </aside>
+
+      <main class="main">
+        <section class="panel">
+          <div class="panel-header">
+            <div>
+              <h1 class="panel-title" id="stepTitle">环境检查</h1>
+              <div class="panel-desc" id="stepDesc">检查 JDK、端口、目录权限和安装锁，确认当前服务器具备安装条件。</div>
+            </div>
+            <span class="tag blue" id="stepBadge">步骤 1 / 5</span>
+          </div>
+          <div class="panel-body" id="stepBody"></div>
+          <div class="actions">
+            <div class="action-left">
+              <button class="btn" id="checkBtn">检测当前步骤</button>
+              <span class="tag" id="currentStatus">未检测</span>
+            </div>
+            <div class="action-right">
+              <button class="btn" id="prevBtn">上一步</button>
+              <button class="btn primary" id="nextBtn">下一步</button>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    const state = {
+      step: 0,
+      checked: [false, false, false, false, false],
+      installing: false,
+      previewFile: 'application.yaml',
+      form: {
+        javaHome: '/usr/local/jdk1.8.0_371',
+        installDir: '/opt/dolphinscheduler-standalone',
+        dsPort: '12345',
+        dbHost: '192.168.10.25',
+        dbPort: '3306',
+        dbName: 'dolphinscheduler',
+        dbUser: 'ds_user',
+        dbPassword: '******',
+        initDb: 'yes',
+        publicHost: '192.168.10.80',
+        logDir: './logs',
+        resourceDir: './data/resource',
+        timezone: 'Asia/Shanghai',
+        seatunnelHome: '/opt/apache-seatunnel-2.3.3',
+        syncTmpDir: './data/sync/tmp',
+        syncLogDir: './logs/sync-task',
+        jdbcDir: './libs'
+      }
+    }
+
+    const steps = [
+      {
+        title: '环境检查',
+        desc: '检查 JDK、端口、目录权限和安装锁，确认当前服务器具备安装条件。',
+        render: renderEnv
+      },
+      {
+        title: '数据库配置',
+        desc: '填写公司内网 MySQL 元数据库信息，安装器会先测试连接再允许安装。',
+        render: renderDatabase
+      },
+      {
+        title: '服务配置',
+        desc: '配置 DolphinScheduler 对外访问地址、端口、日志目录和资源目录。',
+        render: renderService
+      },
+      {
+        title: '同步运行配置',
+        desc: '配置 SeaTunnel 和同步任务运行目录，保证同步任务可以离线执行。',
+        render: renderSync
+      },
+      {
+        title: '预览与安装',
+        desc: '预览将写入的配置文件，确认后执行备份、写配置、初始化数据库和启动服务。',
+        render: renderPreview
+      }
+    ]
+
+    function bindForm() {
+      document.querySelectorAll('[data-field]').forEach((node) => {
+        node.addEventListener('input', (event) => {
+          state.form[event.target.dataset.field] = event.target.value
+          if (state.step === 4) render()
+        })
+        node.addEventListener('change', (event) => {
+          state.form[event.target.dataset.field] = event.target.value
+          if (state.step === 4) render()
+        })
+      })
+    }
+
+    function field(name, label, help, type = 'text') {
+      const value = state.form[name] || ''
+      return `
+        <div class="field">
+          <label>${label}<span class="help">${help}</span></label>
+          <input data-field="${name}" type="${type}" value="${escapeHtml(value)}" />
+        </div>
+      `
+    }
+
+    function renderEnv() {
+      return `
+        <div class="grid">
+          ${field('javaHome', 'JDK 路径', '要求 1.8')}
+          ${field('installDir', '安装目录', 'standalone 根目录')}
+          ${field('dsPort', 'Dolphin 端口', '默认 12345')}
+        </div>
+        <div style="height:16px"></div>
+        <div class="check-list">
+          ${checkCard('JDK 版本', '通过', '检测到 Java 1.8，满足当前二开版本要求。', 'green')}
+          ${checkCard('Dolphin 服务端口', '通过', `${state.form.dsPort} 当前未被占用。安装向导自身端口只用于打开本页，不写入 Dolphin 配置。`, 'green')}
+          ${checkCard('目录权限', '通过', 'conf、logs、backup 目录可写。', 'green')}
+          ${checkCard('安装锁', '未安装', '未检测到 install.lock，可以继续安装。', 'amber')}
+        </div>
+      `
+    }
+
+    function renderDatabase() {
+      return `
+        <div class="grid">
+          <div class="field">
+            <label>数据库类型<span class="help">第一版固定 MySQL</span></label>
+            <select><option>MySQL</option></select>
+          </div>
+          ${field('dbHost', '主机', '内网 MySQL IP')}
+          ${field('dbPort', '端口', '默认 3306')}
+          ${field('dbName', '库名', 'Dolphin 元数据库')}
+          ${field('dbUser', '用户名', '需具备建表权限')}
+          ${field('dbPassword', '密码', '不会写入日志', 'password')}
+          <div class="field">
+            <label>初始化数据库<span class="help">首次安装建议开启</span></label>
+            <select data-field="initDb">
+              <option value="yes" ${state.form.initDb === 'yes' ? 'selected' : ''}>开启，自动导入 SQL</option>
+              <option value="no" ${state.form.initDb === 'no' ? 'selected' : ''}>关闭，库表已存在</option>
+            </select>
+          </div>
+        </div>
+        <div style="height:16px"></div>
+        ${checkCard('连接测试', state.checked[1] ? '通过' : '待检测', state.checked[1] ? '已连接 MySQL，账号具备访问 dolphinscheduler 库权限。' : '点击“检测当前步骤”验证数据库连通性。', state.checked[1] ? 'green' : 'amber')}
+      `
+    }
+
+    function renderService() {
+      return `
+        <div class="summary">
+          <div class="summary-card"><span>正式访问地址</span><strong>http://${state.form.publicHost}:${state.form.dsPort}/dolphinscheduler/ui</strong></div>
+          <div class="summary-card"><span>API 地址</span><strong>http://${state.form.publicHost}:${state.form.dsPort}/dolphinscheduler</strong></div>
+          <div class="summary-card"><span>部署模式</span><strong>Standalone</strong></div>
+          <div class="summary-card"><span>时区</span><strong>${state.form.timezone}</strong></div>
+        </div>
+        <div class="grid">
+          ${field('publicHost', '服务器 IP / 域名', '内网可访问地址')}
+          ${field('dsPort', '服务端口', '写入 server.port')}
+          ${field('logDir', '日志目录', 'Dolphin 日志')}
+          ${field('resourceDir', '资源目录', '本地资源存储')}
+          ${field('timezone', '默认时区', '建议 Asia/Shanghai')}
+        </div>
+      `
+    }
+
+    function renderSync() {
+      return `
+        <div class="grid">
+          ${field('seatunnelHome', 'SeaTunnel Home', '同步执行组件路径')}
+          ${field('syncTmpDir', '同步临时目录', '生成配置和临时脚本')}
+          ${field('syncLogDir', '同步任务日志目录', '排障日志')}
+          ${field('jdbcDir', 'JDBC 驱动目录', '离线驱动 jar')}
+        </div>
+        <div style="height:16px"></div>
+        <div class="check-list">
+          ${checkCard('SeaTunnel 路径', '可检测', '后端安装器会检查 bin/seatunnel.sh 是否存在。', 'amber')}
+          ${checkCard('驱动目录', '可检测', '会检查 MySQL、PostgreSQL 等 JDBC 驱动 jar。', 'amber')}
+        </div>
+      `
+    }
+
+    function renderPreview() {
+      const app = `spring:
+  profiles:
+    active: mysql
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://${state.form.dbHost}:${state.form.dbPort}/${state.form.dbName}?useUnicode=true&characterEncoding=UTF-8&serverTimezone=${state.form.timezone}&useSSL=false&allowPublicKeyRetrieval=true
+    username: ${state.form.dbUser}
+    password: ******
+
+server:
+  port: ${state.form.dsPort}
+
+dolphinscheduler:
+  api:
+    base-url: http://${state.form.publicHost}:${state.form.dsPort}/dolphinscheduler`
+
+      const common = `resource.storage.type=LOCAL
+resource.storage.upload.base.path=${state.form.resourceDir}
+data.basedir.path=./data
+shell.env_source_list=${state.form.installDir}/conf/dolphinscheduler_env.sh
+sync.task.tmp.dir=${state.form.syncTmpDir}
+sync.task.log.dir=${state.form.syncLogDir}`
+
+      const env = `export JAVA_HOME=${state.form.javaHome}
+export DOLPHINSCHEDULER_HOME=${state.form.installDir}
+export SEATUNNEL_HOME=${state.form.seatunnelHome}
+export PATH=$JAVA_HOME/bin:$SEATUNNEL_HOME/bin:$PATH`
+
+      const files = [
+        {
+          name: 'application.yaml',
+          path: `${state.form.installDir}/conf/application.yaml`,
+          risk: '高风险',
+          changes: 6,
+          code: app
+        },
+        {
+          name: 'common.properties',
+          path: `${state.form.installDir}/conf/common.properties`,
+          risk: '中风险',
+          changes: 5,
+          code: common
+        },
+        {
+          name: 'dolphinscheduler_env.sh',
+          path: `${state.form.installDir}/conf/dolphinscheduler_env.sh`,
+          risk: '中风险',
+          changes: 4,
+          code: env
+        }
+      ]
+
+      if (!files.some((file) => file.name === state.previewFile)) {
+        state.previewFile = files[0].name
+      }
+
+      return `
+        ${previewWorkbench(files)}
+        <div style="height:16px"></div>
+        <div class="timeline" id="installTimeline">
+          ${timelineItem('备份旧配置', '等待执行', '')}
+          ${timelineItem('写入新配置', '等待执行', '')}
+          ${timelineItem('初始化数据库', '等待执行', '')}
+          ${timelineItem('启动 DolphinScheduler', '等待执行', '')}
+          ${timelineItem('健康检查', '等待执行', '')}
+        </div>
+      `
+    }
+
+    function checkCard(title, status, desc, type) {
+      return `
+        <div class="check-card">
+          <div class="check-head">
+            <span>${title}</span>
+            <span class="tag ${type}">${status}</span>
+          </div>
+          <div class="check-desc">${desc}</div>
+        </div>
+      `
+    }
+
+    function previewWorkbench(files) {
+      const selected = files.find((file) => file.name === state.previewFile) || files[0]
+      const riskClass = selected.risk === '高风险' ? 'amber' : ''
+      return `
+        <div class="preview-workbench">
+          <div class="preview-files" role="tablist" aria-label="配置文件预览">
+            ${files.map((file) => `
+              <button class="preview-file-tab ${file.name === selected.name ? 'active' : ''}" type="button" data-preview-file="${escapeHtml(file.name)}" role="tab" aria-selected="${file.name === selected.name}">
+                <span class="preview-file-name">
+                  <span>${escapeHtml(file.name)}</span>
+                  <span class="tag ${file.risk === '高风险' ? 'amber' : ''}">${file.risk}</span>
+                </span>
+                <span class="preview-file-path">${escapeHtml(file.path)}</span>
+              </button>
+            `).join('')}
+          </div>
+          <div class="preview-viewer">
+            <div class="preview-meta">
+              <div class="preview-meta-main">
+                <div class="preview-meta-title">${escapeHtml(selected.name)}</div>
+                <div class="preview-meta-path">${escapeHtml(selected.path)}</div>
+              </div>
+              <span class="tag ${riskClass}">${selected.risk}</span>
+              <span class="tag">${selected.changes} 项变更</span>
+            </div>
+            <pre>${escapeHtml(selected.code)}</pre>
+          </div>
+        </div>
+      `
+    }
+
+    function bindPreviewTabs() {
+      document.querySelectorAll('[data-preview-file]').forEach((node) => {
+        node.addEventListener('click', () => {
+          state.previewFile = node.dataset.previewFile
+          render()
+        })
+      })
+    }
+
+    function timelineItem(title, status, cls) {
+      return `
+        <div class="timeline-item ${cls}">
+          <span class="dot">${cls === 'done' ? '✓' : cls === 'running' ? '…' : ''}</span>
+          <strong>${title}</strong>
+          <span class="tag">${status}</span>
+        </div>
+      `
+    }
+
+    function render() {
+      const current = steps[state.step]
+      document.getElementById('stepTitle').textContent = current.title
+      document.getElementById('stepDesc').textContent = current.desc
+      document.getElementById('stepBadge').textContent = `步骤 ${state.step + 1} / ${steps.length}`
+      document.getElementById('stepBody').innerHTML = current.render()
+      document.getElementById('prevBtn').disabled = state.step === 0
+      document.getElementById('nextBtn').textContent = state.step === 4 ? '开始安装' : '下一步'
+      document.getElementById('currentStatus').textContent = state.checked[state.step] ? '已通过' : '未检测'
+      document.getElementById('currentStatus').className = `tag ${state.checked[state.step] ? 'green' : ''}`
+
+      document.querySelectorAll('.step').forEach((node, index) => {
+        node.classList.toggle('active', index === state.step)
+        node.classList.toggle('done', state.checked[index])
+        node.querySelector('.step-status').textContent =
+          index === state.step ? '当前' : state.checked[index] ? '通过' : '未开始'
+      })
+
+      bindForm()
+      bindPreviewTabs()
+    }
+
+    function showToast(text) {
+      const toast = document.getElementById('toast')
+      toast.textContent = text
+      toast.classList.add('show')
+      setTimeout(() => toast.classList.remove('show'), 2600)
+    }
+
+    function runCheck() {
+      state.checked[state.step] = true
+      if (state.step === 0) showToast('环境检查通过：JDK、端口和目录权限均满足要求。')
+      if (state.step === 1) showToast('数据库连接成功：账号可访问 dolphinscheduler 库。')
+      if (state.step === 2) showToast('服务配置检查通过：访问地址和目录配置有效。')
+      if (state.step === 3) showToast('同步运行配置检查通过：目录和执行组件路径可用。')
+      if (state.step === 4) showToast('配置预览已生成，可以开始安装。')
+      render()
+    }
+
+    function startInstall() {
+      if (state.installing) return
+      state.installing = true
+      document.getElementById('installState').textContent = '安装中'
+      document.getElementById('installState').className = 'tag blue'
+      const titles = ['备份旧配置', '写入新配置', '初始化数据库', '启动 DolphinScheduler', '健康检查']
+      let index = 0
+      const tick = () => {
+        const items = titles.map((title, i) => {
+          if (i < index) return timelineItem(title, '完成', 'done')
+          if (i === index) return timelineItem(title, '执行中', 'running')
+          return timelineItem(title, '等待执行', '')
+        }).join('')
+        document.getElementById('installTimeline').innerHTML = items
+        index += 1
+        if (index <= titles.length) {
+          setTimeout(tick, 700)
+          return
+        }
+        document.getElementById('installTimeline').innerHTML = titles.map((title) => timelineItem(title, '完成', 'done')).join('')
+        document.getElementById('installState').textContent = '安装完成'
+        document.getElementById('installState').className = 'tag green'
+        showToast(`安装完成，可以访问 http://${state.form.publicHost}:${state.form.dsPort}/dolphinscheduler/ui`)
+      }
+      tick()
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+    }
+
+    document.querySelectorAll('.step').forEach((node) => {
+      node.addEventListener('click', () => {
+        state.step = Number(node.dataset.step)
+        render()
+      })
+    })
+    document.getElementById('checkBtn').addEventListener('click', runCheck)
+    document.getElementById('prevBtn').addEventListener('click', () => {
+      if (state.step > 0) {
+        state.step -= 1
+        render()
+      }
+    })
+    document.getElementById('nextBtn').addEventListener('click', () => {
+      if (state.step === 4) {
+        startInstall()
+        return
+      }
+      state.step += 1
+      render()
+    })
+
+    render()
+  </script>
+</body>
+</html>

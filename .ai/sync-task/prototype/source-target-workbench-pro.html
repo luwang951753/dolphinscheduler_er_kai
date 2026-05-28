@@ -1,0 +1,826 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="icon" href="data:," />
+  <title>同步任务 - 选择源与目标专业版原型</title>
+  <style>
+    :root {
+      --bg: #f5f7fb;
+      --panel: #ffffff;
+      --line: #dde4ef;
+      --line-strong: #c8d2e1;
+      --text: #1f2937;
+      --muted: #667085;
+      --faint: #98a2b3;
+      --blue: #1677ff;
+      --blue-soft: #eaf3ff;
+      --green: #15a36d;
+      --green-soft: #e9f8f1;
+      --amber: #d9822b;
+      --amber-soft: #fff6e7;
+      --red: #d92d20;
+      --shadow: 0 8px 18px rgba(31, 41, 55, .05);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      font-size: 14px;
+    }
+
+    button, input, select { font: inherit; }
+
+    .app {
+      min-height: 100vh;
+      display: grid;
+      grid-template-rows: 56px minmax(0, 1fr) 56px;
+    }
+
+    .topnav {
+      display: flex;
+      align-items: center;
+      gap: 28px;
+      padding: 0 22px;
+      border-bottom: 1px solid var(--line);
+      background: #fff;
+      min-width: 0;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 220px;
+      font-size: 17px;
+      font-weight: 700;
+    }
+
+    .brand-mark {
+      width: 34px;
+      height: 24px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, #18a0fb, #7fd3ff);
+      position: relative;
+    }
+
+    .brand-mark::after {
+      content: "";
+      position: absolute;
+      right: -7px;
+      bottom: -4px;
+      width: 14px;
+      height: 14px;
+      border: 3px solid #18a0fb;
+      border-radius: 50%;
+      background: #fff;
+    }
+
+    .nav {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex: 1;
+      min-width: 0;
+    }
+
+    .nav-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      height: 36px;
+      padding: 0 12px;
+      color: #2f3b4c;
+      border-radius: 6px;
+      white-space: nowrap;
+    }
+
+    .nav-item.active {
+      color: var(--blue);
+      background: var(--blue-soft);
+      font-weight: 700;
+    }
+
+    .nav-icon {
+      width: 16px;
+      height: 16px;
+      border: 1.8px solid currentColor;
+      border-radius: 3px;
+    }
+
+    .user {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: #344054;
+      white-space: nowrap;
+      flex: 0 0 auto;
+    }
+
+    .page {
+      min-width: 0;
+      padding: 18px 24px 24px;
+      overflow: auto;
+    }
+
+    .shell {
+      max-width: 1320px;
+      min-width: 0;
+      margin: 0 auto;
+      display: grid;
+      gap: 14px;
+    }
+
+    .wizard {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 0;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      overflow: hidden;
+    }
+
+    .step {
+      position: relative;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      height: 44px;
+      padding: 0 18px;
+      color: var(--faint);
+      border-right: 1px solid var(--line);
+      min-width: 0;
+    }
+
+    .step:last-child { border-right: 0; }
+
+    .step.active {
+      background: #f8fbff;
+      color: var(--text);
+      font-weight: 700;
+    }
+
+    .step.done { color: #475467; }
+
+    .step-num {
+      display: grid;
+      place-items: center;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      border: 1px solid var(--line-strong);
+      color: inherit;
+      font-size: 12px;
+      flex: 0 0 auto;
+    }
+
+    .step.active .step-num {
+      border-color: var(--blue);
+      background: var(--blue);
+      color: #fff;
+    }
+
+    .step-text {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .context {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 12px;
+      align-items: stretch;
+      padding: 0;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      overflow: hidden;
+    }
+
+    .panel {
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+    }
+
+    .context-card {
+      display: grid;
+      grid-template-columns: 180px 300px minmax(300px, 1fr);
+      gap: 12px;
+      align-items: center;
+      min-width: 0;
+      padding: 14px 16px 16px;
+    }
+
+    .field {
+      display: grid;
+      gap: 5px;
+      min-width: 0;
+    }
+
+    .field label {
+      color: #344054;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .input,
+    select {
+      width: 100%;
+      height: 34px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #fff;
+      color: var(--text);
+      padding: 0 10px;
+      outline: none;
+    }
+
+    .input:focus,
+    select:focus {
+      border-color: #7aa7ff;
+      box-shadow: 0 0 0 3px rgba(22, 119, 255, .1);
+    }
+
+    .status-card {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      min-width: 0;
+      min-height: 42px;
+      padding: 0 16px;
+      border-bottom: 1px solid var(--line);
+      background: #fbfcff;
+    }
+
+    .status-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 700;
+    }
+
+    .status-list {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    .status-row {
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 6px;
+      min-height: 24px;
+      padding: 0 8px;
+      border: 1px solid #edf1f6;
+      border-radius: 999px;
+      background: #fff;
+      color: var(--muted);
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .status-row strong {
+      color: var(--text);
+      font-weight: 700;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      height: 22px;
+      padding: 0 8px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: #f8fafc;
+      color: #475467;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .badge.good {
+      color: var(--green);
+      background: var(--green-soft);
+      border-color: #bfead7;
+    }
+
+    .badge.warn {
+      color: var(--amber);
+      background: var(--amber-soft);
+      border-color: #ffe0a8;
+    }
+
+    .workbench {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 118px minmax(0, 1fr);
+      gap: 12px;
+      align-items: start;
+      padding: 0;
+    }
+
+    .panel {
+      min-width: 0;
+      display: grid;
+      grid-template-rows: auto auto;
+      overflow: hidden;
+      box-shadow: none;
+    }
+
+    .panel-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      min-height: 48px;
+      padding: 0 16px;
+      border-bottom: 1px solid var(--line);
+      background: #fbfcff;
+    }
+
+    .panel-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 16px;
+      font-weight: 800;
+    }
+
+    .panel-body {
+      display: grid;
+      gap: 12px;
+      padding: 14px 16px 16px;
+      align-content: start;
+    }
+
+    .side-token {
+      display: inline-flex;
+      align-items: center;
+      height: 24px;
+      padding: 0 9px;
+      border-radius: 5px;
+      font-weight: 800;
+      letter-spacing: .02em;
+      font-size: 12px;
+    }
+
+    .side-token.source { color: #0b63ce; background: #e8f2ff; }
+    .side-token.target { color: #16803f; background: #e8f7ee; }
+
+    .selector-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .selector-grid .span-2 { grid-column: 1 / -1; }
+
+    .object-preview {
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      overflow: hidden;
+      background: #fff;
+    }
+
+    .object-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      height: 38px;
+      padding: 0 12px;
+      background: #f8fafc;
+      border-bottom: 1px solid var(--line);
+      color: #344054;
+      font-weight: 700;
+    }
+
+    .meta-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 0;
+    }
+
+    .meta {
+      min-height: 72px;
+      padding: 12px;
+      border-right: 1px solid var(--line);
+    }
+
+    .meta:last-child { border-right: 0; }
+
+    .meta span {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      margin-bottom: 6px;
+    }
+
+    .meta strong {
+      display: block;
+      color: var(--blue);
+      font-size: 20px;
+      line-height: 1.2;
+    }
+
+    .detail-list {
+      display: grid;
+      gap: 6px;
+      padding: 10px;
+    }
+
+    .detail-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 10px;
+      align-items: center;
+      min-height: 34px;
+      padding: 0 8px;
+      border: 1px solid #edf1f6;
+      border-radius: 5px;
+      color: #344054;
+    }
+
+    .detail-row.active {
+      border-color: #b7d3ff;
+      background: #f2f7ff;
+      color: #0b63ce;
+      font-weight: 700;
+    }
+
+    .detail-name {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .object-note {
+      padding: 10px 12px;
+      border-top: 1px solid var(--line);
+      background: #fbfcff;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.55;
+    }
+
+    .link-panel {
+      display: grid;
+      grid-template-rows: 1fr auto 1fr;
+      align-items: center;
+      justify-items: center;
+      min-height: 226px;
+      color: var(--muted);
+    }
+
+    .link-line {
+      display: block;
+      width: 2px;
+      height: 58px;
+      background: linear-gradient(#c9d6ea, #7fb4ff);
+    }
+
+    .link-core {
+      display: grid;
+      place-items: center;
+      width: 76px;
+      height: 76px;
+      border-radius: 50%;
+      border: 1px solid #b7d3ff;
+      background: #fff;
+      box-shadow: var(--shadow);
+      color: var(--blue);
+      font-weight: 800;
+      text-align: center;
+      line-height: 1.35;
+      font-size: 12px;
+    }
+
+    .target-check {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      min-height: 42px;
+      padding: 10px 12px;
+      border: 1px solid #d7e7ff;
+      border-radius: 6px;
+      background: #f2f7ff;
+      color: #475467;
+      line-height: 1.45;
+    }
+
+    .target-check.good {
+      border-color: #bfead7;
+      background: #f1fbf6;
+    }
+
+    .target-check strong {
+      color: var(--blue);
+    }
+
+    .target-check.good strong {
+      color: var(--green);
+    }
+
+    .target-check .badge {
+      flex: 0 0 auto;
+    }
+
+    .footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 0 24px;
+      border-top: 1px solid var(--line);
+      background: #fff;
+    }
+
+    .footer-info {
+      color: var(--muted);
+      font-size: 12px;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .workspace-card {
+      display: grid;
+      gap: 14px;
+      padding: 16px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      box-shadow: var(--shadow);
+    }
+
+    .workspace-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      min-height: 32px;
+    }
+
+    .workspace-title strong {
+      font-size: 16px;
+    }
+
+    .workspace-title span {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .btn {
+      height: 34px;
+      border: 1px solid var(--line-strong);
+      border-radius: 6px;
+      background: #fff;
+      color: #344054;
+      padding: 0 14px;
+      cursor: pointer;
+    }
+
+    .btn.primary {
+      border-color: var(--blue);
+      background: var(--blue);
+      color: #fff;
+      font-weight: 700;
+    }
+
+    .btn:disabled {
+      opacity: .48;
+      cursor: not-allowed;
+    }
+
+    @media (max-width: 1180px) {
+      .topnav { gap: 12px; }
+      .brand { min-width: auto; }
+      .nav { overflow: hidden; }
+      .context { grid-template-columns: 1fr; }
+      .context-card { grid-template-columns: 1fr; }
+      .status-card { align-items: flex-start; flex-direction: column; padding: 12px 16px; }
+      .status-list { flex-wrap: wrap; }
+      .workbench { grid-template-columns: 1fr; }
+      .link-panel { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="topnav">
+      <div class="brand">
+        <span class="brand-mark"></span>
+        <span>DolphinScheduler</span>
+      </div>
+      <nav class="nav">
+        <span class="nav-item"><span class="nav-icon"></span>首页</span>
+        <span class="nav-item"><span class="nav-icon"></span>项目管理</span>
+        <span class="nav-item"><span class="nav-icon"></span>资源中心</span>
+        <span class="nav-item"><span class="nav-icon"></span>源中心</span>
+        <span class="nav-item active"><span class="nav-icon"></span>同步任务</span>
+        <span class="nav-item"><span class="nav-icon"></span>数据预览</span>
+        <span class="nav-item"><span class="nav-icon"></span>监控中心</span>
+        <span class="nav-item"><span class="nav-icon"></span>安全中心</span>
+      </nav>
+      <div class="user">admin⌄</div>
+    </header>
+
+    <main class="page">
+      <div class="shell">
+        <div class="wizard">
+          <div class="step active"><span class="step-num">1</span><span class="step-text">选择源与目标</span></div>
+          <div class="step"><span class="step-num">2</span><span class="step-text">配置同步方案</span></div>
+          <div class="step"><span class="step-num">3</span><span class="step-text">执行与调度</span></div>
+          <div class="step"><span class="step-num">4</span><span class="step-text">预览与发布</span></div>
+        </div>
+
+        <section class="context">
+          <aside class="context-card status-card">
+            <div class="status-title">
+              <span>配置检查</span>
+              <span class="badge warn" id="checkBadge">还需 2 项</span>
+            </div>
+            <div class="status-list">
+              <div class="status-row"><span>项目</span><strong>已选择</strong></div>
+              <div class="status-row"><span>源端对象</span><strong>已选择</strong></div>
+              <div class="status-row"><span>目标端对象</span><strong id="targetObjectCheck">待确认</strong></div>
+              <div class="status-row"><span>目标预检查</span><strong id="targetPrecheck">待确认</strong></div>
+            </div>
+          </aside>
+          <div class="context-card">
+            <div class="field">
+              <label>归属项目</label>
+              <select>
+                <option>test1</option>
+                <option>ods</option>
+                <option>sync-platform</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>任务名称</label>
+              <input class="input" value="mysql_customer_to_pg_customer_ods" />
+            </div>
+            <div class="field">
+              <label>同步目标</label>
+              <input class="input" value="从 MySQL 读取 customer_orders，同步到 PostgreSQL public.customer_orders_ods" />
+            </div>
+          </div>
+        </section>
+
+        <section class="workspace-card">
+          <div class="workspace-title">
+            <div>
+              <strong>选择同步对象</strong>
+              <span>只确定源表和目标表，字段映射、过滤条件、数据去向在下一步配置。</span>
+            </div>
+          </div>
+
+          <div class="workbench">
+            <div class="panel">
+              <div class="panel-head">
+                <div class="panel-title"><span class="side-token source">SOURCE</span>源端</div>
+                <span class="badge good">连接正常</span>
+              </div>
+              <div class="panel-body">
+                <div class="selector-grid">
+                  <div class="field">
+                    <label>数据源</label>
+                    <select><option>mysql_case_workbench</option></select>
+                  </div>
+                  <div class="field">
+                    <label>数据库</label>
+                    <select><option>case_workbench</option></select>
+                  </div>
+                  <div class="field span-2">
+                    <label>数据表</label>
+                    <select><option>customer_orders</option></select>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="link-panel">
+              <span class="link-line"></span>
+              <div class="link-core">对象<br/>确认</div>
+              <span class="link-line"></span>
+            </div>
+
+            <div class="panel">
+              <div class="panel-head">
+                <div class="panel-title"><span class="side-token target">TARGET</span>目标端</div>
+                <span class="badge warn" id="targetStatusBadge">待确认表名</span>
+              </div>
+              <div class="panel-body">
+                <div class="selector-grid">
+                  <div class="field">
+                    <label>数据源</label>
+                    <select><option>pgsql_test1</option></select>
+                  </div>
+                  <div class="field">
+                    <label>数据库</label>
+                    <select><option>test1</option></select>
+                  </div>
+                  <div class="field">
+                    <label>Schema</label>
+                    <input class="input" value="public" />
+                  </div>
+                  <div class="field">
+                    <label id="targetTableLabel">目标表名</label>
+                    <input class="input" id="targetTableInput" value="customer_orders_ods" />
+                  </div>
+                </div>
+
+                <div class="target-check" id="targetCheckHint">
+                  <span id="targetCheckText">目标表 <strong>customer_orders_ods</strong> 不存在，下一步按“新建目标表”处理。</span>
+                  <span class="badge warn" id="targetCheckBadge">将新建</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-info"></div>
+      <div class="actions">
+        <button class="btn" disabled>上一步</button>
+        <button class="btn">测试连接</button>
+        <button class="btn primary">下一步</button>
+      </div>
+    </footer>
+  </div>
+  <script>
+    const existingTargetTables = new Set(['customer_orders', 'customer_orders_archive'])
+
+    const setBadge = (el, type, text) => {
+      el.classList.remove('good', 'warn')
+      el.classList.add(type)
+      el.textContent = text
+    }
+
+    const refreshTargetCheck = () => {
+      const input = document.getElementById('targetTableInput')
+      const tableName = input.value.trim()
+      const exists = existingTargetTables.has(tableName)
+      const hint = document.getElementById('targetCheckHint')
+      const text = document.getElementById('targetCheckText')
+      const badge = document.getElementById('targetCheckBadge')
+      hint.classList.toggle('good', exists)
+
+      if (!tableName) {
+        setBadge(document.getElementById('targetStatusBadge'), 'warn', '待确认表名')
+        setBadge(document.getElementById('checkBadge'), 'warn', '还需 2 项')
+        document.getElementById('targetObjectCheck').textContent = '待确认'
+        document.getElementById('targetPrecheck').textContent = '待确认'
+        badge.className = 'badge warn'
+        badge.textContent = '待检查'
+        text.textContent = '请输入目标表名，系统会自动判断是新建目标表还是使用已有表。'
+        return
+      }
+
+      if (exists) {
+        setBadge(document.getElementById('targetStatusBadge'), 'good', '目标表已存在')
+        setBadge(document.getElementById('checkBadge'), 'warn', '还需 1 项')
+        document.getElementById('targetObjectCheck').textContent = '已选择'
+        document.getElementById('targetPrecheck').textContent = '已存在'
+        badge.className = 'badge good'
+        badge.textContent = '使用已有表'
+        text.innerHTML = `目标表 <strong>${tableName}</strong> 已存在，下一步读取目标字段并按已有表映射。`
+        return
+      }
+
+      setBadge(document.getElementById('targetStatusBadge'), 'warn', '将新建目标表')
+      setBadge(document.getElementById('checkBadge'), 'warn', '还需 1 项')
+      document.getElementById('targetObjectCheck').textContent = '已填写'
+      document.getElementById('targetPrecheck').textContent = '不存在'
+      badge.className = 'badge warn'
+      badge.textContent = '将新建'
+      text.innerHTML = `目标表 <strong>${tableName}</strong> 不存在，下一步按“新建目标表”处理。`
+    }
+
+    document.getElementById('targetTableInput').addEventListener('input', refreshTargetCheck)
+    refreshTargetCheck()
+  </script>
+</body>
+</html>

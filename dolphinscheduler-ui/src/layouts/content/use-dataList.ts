@@ -342,6 +342,18 @@ export function useDataList() {
   }
 
   const changeHeaderMenuOptions = (state: any) => {
+    const headerOrder = [
+      'home',
+      'projects',
+      'datasource',
+      'sync-task',
+      'data-preview',
+      'theme-library',
+      'data-governance',
+      'monitor',
+      'resource',
+      'security'
+    ]
     const headerLabels: Record<string, string> = {
       home: '首页',
       projects: '项目',
@@ -354,15 +366,18 @@ export function useDataList() {
       monitor: '监控',
       security: '安全'
     }
-    state.headerMenuOptions = state.menuOptions.map(
-      (item: { label: string; key: string; icon: any }) => {
+    state.headerMenuOptions = state.menuOptions
+      .map((item: { label: string; key: string; icon: any }) => {
         return {
           label: headerLabels[item.key] || item.label,
           key: item.key,
           icon: item.icon
         }
+      })
+      .sort((left: { key: string }, right: { key: string }) => {
+        return headerOrder.indexOf(left.key) - headerOrder.indexOf(right.key)
       }
-    )
+      )
   }
 
   const changeUserDropdown = (state: any) => {

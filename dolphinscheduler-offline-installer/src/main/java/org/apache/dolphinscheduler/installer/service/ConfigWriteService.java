@@ -1,29 +1,24 @@
 /*
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
  *
- *   http://www.apache.org/licenses/LICENSE-2.0
+ *    http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
 package org.apache.dolphinscheduler.installer.service;
 
 import org.apache.dolphinscheduler.installer.core.InstallContext;
 import org.apache.dolphinscheduler.installer.dto.PreviewFile;
-
-import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -38,6 +33,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
+
 @Service
 public class ConfigWriteService {
 
@@ -46,11 +44,18 @@ public class ConfigWriteService {
             "common.properties",
             "dolphinscheduler_env.sh");
 
+    private static final List<String> SERVER_NAMES = Arrays.asList(
+            "api-server",
+            "master-server",
+            "worker-server",
+            "alert-server");
+
     public void writeFiles(InstallContext context, List<PreviewFile> files) throws IOException {
         for (PreviewFile file : files) {
             Path target = validateManagedFile(context, file.getPath());
             writeAtomically(target, file.getContent());
         }
+        syncServerConfigFiles(context);
     }
 
     public void rollback(InstallContext context, String backupId) throws IOException {
@@ -62,6 +67,7 @@ public class ConfigWriteService {
                 writeAtomically(target, new String(Files.readAllBytes(source), StandardCharsets.UTF_8));
             }
         }
+        syncServerConfigFiles(context);
     }
 
     private Path validateManagedFile(InstallContext context, String targetPath) throws IOException {
@@ -82,8 +88,34 @@ public class ConfigWriteService {
         return target;
     }
 
+    private void syncServerConfigFiles(InstallContext context) throws IOException {
+        for (String serverName : SERVER_NAMES) {
+            Path serverHome = context.getStandaloneHome().resolve(serverName);
+            if (!Files.isDirectory(serverHome)) {
+                continue;
+            }
+            Path serverConfDir = serverHome.resolve("conf");
+            Files.createDirectories(serverConfDir);
+            for (String fileName : MANAGED_FILE_NAMES) {
+                Path source = context.getConfDir().resolve(fileName);
+                if (Files.exists(source)) {
+                    writeAtomically(serverConfDir.resolve(fileName),
+                            new String(Files.readAllBytes(source), StandardCharsets.UTF_8));
+                }
+            }
+        }
+
+        Path envSource = context.getConfDir().resolve("dolphinscheduler_env.sh");
+        if (Files.exists(envSource)) {
+            Path binEnv = context.getStandaloneHome().resolve("bin").resolve("env").resolve("dolphinscheduler_env.sh");
+            Files.createDirectories(binEnv.getParent());
+            writeAtomically(binEnv, new String(Files.readAllBytes(envSource), StandardCharsets.UTF_8));
+        }
+    }
+
     private Path validateBackupDir(InstallContext context, String backupId) throws IOException {
-        if (!StringUtils.hasText(backupId) || backupId.contains("..") || backupId.contains("/") || backupId.contains("\\")) {
+        if (!StringUtils.hasText(backupId) || backupId.contains("..") || backupId.contains("/")
+                || backupId.contains("\\")) {
             throw new IOException("非法备份编号: " + backupId);
         }
         Path backupRoot = context.getBackupDir().toAbsolutePath().normalize();

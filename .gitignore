@@ -60,6 +60,10 @@ ds_schema_check_test
 *.log
 logs/
 data/
+release/
+.ai/qa/
+.ai/reference-screenshots/
+.ai/video/
 .ai/**/test/
 .ai/**/test/chrome-profile/
 .ai/**/test/artifacts/

@@ -775,6 +775,107 @@ CREATE TABLE t_ds_relation_datasource_user
 -- ----------------------------
 
 -- ----------------------------
+-- Table structure for t_ds_user_module_permission
+-- ----------------------------
+DROP TABLE IF EXISTS t_ds_user_module_permission CASCADE;
+CREATE TABLE t_ds_user_module_permission
+(
+    id          int(11) NOT NULL AUTO_INCREMENT,
+    user_id     int(11) NOT NULL,
+    module_key  varchar(128) NOT NULL,
+    create_time datetime DEFAULT NULL,
+    update_time datetime DEFAULT NULL,
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_user_module_permission (user_id, module_key)
+);
+
+-- ----------------------------
+-- Table structure for t_ds_data_governance_metadata
+-- ----------------------------
+DROP TABLE IF EXISTS t_ds_data_governance_metadata CASCADE;
+CREATE TABLE t_ds_data_governance_metadata
+(
+    id          int(11) NOT NULL AUTO_INCREMENT,
+    asset_id    varchar(512) NOT NULL,
+    owner       varchar(128) DEFAULT NULL,
+    description text DEFAULT NULL,
+    tags_json   text DEFAULT NULL,
+    create_time datetime DEFAULT NULL,
+    update_time datetime DEFAULT NULL,
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_data_governance_metadata_asset (asset_id)
+);
+
+-- ----------------------------
+-- Table structure for t_ds_data_governance_rule
+-- ----------------------------
+DROP TABLE IF EXISTS t_ds_data_governance_rule CASCADE;
+CREATE TABLE t_ds_data_governance_rule
+(
+    id             int(11) NOT NULL AUTO_INCREMENT,
+    rule_code      varchar(128) NOT NULL,
+    asset_id       varchar(512) NOT NULL,
+    name           varchar(255) DEFAULT NULL,
+    type           varchar(64) DEFAULT NULL,
+    level          varchar(32) DEFAULT NULL,
+    field_name     varchar(255) DEFAULT NULL,
+    severity       varchar(32) DEFAULT NULL,
+    frequency      varchar(64) DEFAULT NULL,
+    enabled        boolean DEFAULT true,
+    status         varchar(32) DEFAULT NULL,
+    last_run_at    varchar(64) DEFAULT NULL,
+    abnormal_count bigint DEFAULT NULL,
+    abnormal_rate  double DEFAULT NULL,
+    payload_json   text DEFAULT NULL,
+    create_time    datetime DEFAULT NULL,
+    update_time    datetime DEFAULT NULL,
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_data_governance_rule_code (asset_id, rule_code)
+);
+
+-- ----------------------------
+-- Table structure for t_ds_data_governance_issue
+-- ----------------------------
+DROP TABLE IF EXISTS t_ds_data_governance_issue CASCADE;
+CREATE TABLE t_ds_data_governance_issue
+(
+    id             int(11) NOT NULL AUTO_INCREMENT,
+    issue_code     varchar(128) NOT NULL,
+    asset_id       varchar(512) NOT NULL,
+    rule_id        varchar(128) DEFAULT NULL,
+    title          varchar(255) DEFAULT NULL,
+    severity       varchar(32) DEFAULT NULL,
+    status         varchar(32) DEFAULT NULL,
+    abnormal_count bigint DEFAULT NULL,
+    discovered_at  varchar(64) DEFAULT NULL,
+    resolved_at    varchar(64) DEFAULT NULL,
+    payload_json   text DEFAULT NULL,
+    create_time    datetime DEFAULT NULL,
+    update_time    datetime DEFAULT NULL,
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_data_governance_issue_code (asset_id, issue_code)
+);
+
+-- ----------------------------
+-- Table structure for t_ds_data_governance_lineage
+-- ----------------------------
+DROP TABLE IF EXISTS t_ds_data_governance_lineage CASCADE;
+CREATE TABLE t_ds_data_governance_lineage
+(
+    id               int(11) NOT NULL AUTO_INCREMENT,
+    asset_id         varchar(512) NOT NULL,
+    related_asset_id varchar(512) NOT NULL,
+    direction        varchar(32) NOT NULL,
+    sync_task_name   varchar(255) DEFAULT NULL,
+    last_run_status  varchar(64) DEFAULT NULL,
+    last_run_time    varchar(64) DEFAULT NULL,
+    payload_json     text DEFAULT NULL,
+    create_time      datetime DEFAULT NULL,
+    update_time      datetime DEFAULT NULL,
+    PRIMARY KEY (id)
+);
+
+-- ----------------------------
 -- Table structure for t_ds_relation_workflow_instance
 -- ----------------------------
 DROP TABLE IF EXISTS t_ds_relation_workflow_instance CASCADE;

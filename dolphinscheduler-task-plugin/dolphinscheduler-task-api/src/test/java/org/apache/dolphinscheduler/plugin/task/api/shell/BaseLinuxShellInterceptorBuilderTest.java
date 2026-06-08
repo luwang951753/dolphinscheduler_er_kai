@@ -50,7 +50,13 @@ class BaseLinuxShellInterceptorBuilderTest {
             List<String> sudoCommands = builder.generateBootstrapCommand();
             assertEquals("sudo -u root -i /tmp/test.sh", String.join(" ", sudoCommands));
 
+            builder.shellDirectory("./data/exec/process/8");
+            List<String> relativeDirectorySudoCommands = builder.generateBootstrapCommand();
+            assertEquals("sudo -u root -i " + System.getProperty("user.dir") + "/data/exec/process/8/test.sh",
+                    String.join(" ", relativeDirectorySudoCommands));
+
             // resource limit mode
+            builder.shellDirectory("/tmp");
             mockStatic.when(
                     () -> PropertyUtils.getBoolean(AbstractCommandExecutorConstants.TASK_RESOURCE_LIMIT_STATE, false))
                     .thenReturn(true);

@@ -66,6 +66,9 @@ interface IGovernanceQualityRule {
   severity?: string
   frequency?: string
   enabled?: boolean
+  createIssue?: boolean
+  escalateIssue?: boolean
+  autoCloseIssue?: boolean
   manualSql?: boolean
   sql?: string
   status?: string

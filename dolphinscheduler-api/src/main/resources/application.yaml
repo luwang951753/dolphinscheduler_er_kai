@@ -82,6 +82,18 @@ springdoc:
     path: /swagger-ui.html
   packages-to-scan: org.apache.dolphinscheduler.api
 
+magic-api:
+  web: /magic/web
+  prefix: /magic-api
+  editor-config: ./conf/magic-editor-config.js
+  allow-override: false
+  show-url: true
+  show-sql: true
+  resource:
+    type: file
+    location: ./data/magic-api/
+    readonly: false
+
 # Mybatis-plus configuration, you don't need to change it
 mybatis-plus:
   mapper-locations: classpath:org/apache/dolphinscheduler/dao/mapper/*Mapper.xml

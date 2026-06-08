@@ -26,6 +26,7 @@ type TAuthType =
   | 'authorize_project'
   | 'authorize_datasource'
   | 'authorize_namespace'
+  | 'authorize_module'
 
 interface IRecord {
   id: number

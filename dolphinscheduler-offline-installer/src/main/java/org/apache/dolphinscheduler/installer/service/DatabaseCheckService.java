@@ -1,20 +1,18 @@
 /*
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
  *
- *   http://www.apache.org/licenses/LICENSE-2.0
+ *    http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
 package org.apache.dolphinscheduler.installer.service;
@@ -22,18 +20,21 @@ package org.apache.dolphinscheduler.installer.service;
 import org.apache.dolphinscheduler.installer.dto.DatabaseCheckRequest;
 import org.apache.dolphinscheduler.installer.dto.DatabaseCheckResult;
 
-import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
-
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Properties;
+import java.util.regex.Pattern;
+
+import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 @Service
 public class DatabaseCheckService {
+
+    private static final Pattern MYSQL_IDENTIFIER_PATTERN = Pattern.compile("[A-Za-z0-9_]{1,64}");
 
     public DatabaseCheckResult check(DatabaseCheckRequest request) {
         DatabaseCheckResult invalidResult = validate(request);
@@ -48,7 +49,8 @@ public class DatabaseCheckService {
 
         try {
             DriverManager.setLoginTimeout(5);
-            try (Connection connection = DriverManager.getConnection(jdbcUrl, properties);
+            try (
+                    Connection connection = DriverManager.getConnection(jdbcUrl, properties);
                     Statement statement = connection.createStatement()) {
                 statement.execute("select 1");
                 return DatabaseCheckResult.success(queryDatabaseVersion(statement));
@@ -74,6 +76,10 @@ public class DatabaseCheckService {
         if (!StringUtils.hasText(request.getDatabase())) {
             return DatabaseCheckResult.fail("INVALID_DATABASE_CONFIG", "请填写 MySQL 数据库名");
         }
+        if (!isSafeMysqlIdentifier(request.getDatabase())) {
+            return DatabaseCheckResult.fail("INVALID_DATABASE_CONFIG",
+                    "MySQL 数据库名只能包含字母、数字和下划线，长度不能超过 64");
+        }
         if (!StringUtils.hasText(request.getUsername())) {
             return DatabaseCheckResult.fail("INVALID_DATABASE_CONFIG", "请填写 MySQL 用户名");
         }
@@ -86,6 +92,10 @@ public class DatabaseCheckService {
     private String buildMysqlJdbcUrl(DatabaseCheckRequest request) {
         return "jdbc:mysql://" + request.getHost() + ":" + request.getPort() + "/" + request.getDatabase()
                 + "?useSSL=false&connectTimeout=5000&socketTimeout=5000&serverTimezone=UTC";
+    }
+
+    static boolean isSafeMysqlIdentifier(String value) {
+        return StringUtils.hasText(value) && MYSQL_IDENTIFIER_PATTERN.matcher(value).matches();
     }
 
     private String queryDatabaseVersion(Statement statement) throws SQLException {

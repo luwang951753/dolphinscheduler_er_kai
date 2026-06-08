@@ -30,6 +30,7 @@ import {
   GrantNamespaceReq,
   ListAllReq,
   ListReq,
+  ModulePermissionKey,
   RegisterUserReq
 } from './types'
 
@@ -77,6 +78,37 @@ export function getUserInfo(): any {
   return axios({
     url: '/users/get-user-info',
     method: 'get'
+  })
+}
+
+export function queryCurrentUserModulePermissions(): any {
+  return axios({
+    url: '/users/module-permissions',
+    method: 'get'
+  })
+}
+
+export function queryUserModulePermissions(
+  userId: number
+): any {
+  return axios({
+    url: `/users/${userId}/module-permissions`,
+    method: 'get'
+  })
+}
+
+export function saveUserModulePermissions(
+  userId: number,
+  moduleKeys: ModulePermissionKey[]
+): any {
+  return axios({
+    url: `/users/${userId}/module-permissions`,
+    method: 'put',
+    data: moduleKeys,
+    headers: {
+      'Content-Type': 'application/json;charset=UTF-8'
+    },
+    transformRequest: (params) => JSON.stringify(params)
   })
 }
 

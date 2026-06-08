@@ -1,0 +1,884 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>DataFlow 数据回传查询原型</title>
+  <style>
+    :root {
+      --bg: #eef3f8;
+      --panel: #fff;
+      --panel-soft: #f8fafc;
+      --line: #d9e3f0;
+      --line-strong: #c8d5e5;
+      --text: #101828;
+      --muted: #667085;
+      --faint: #98a2b3;
+      --blue: #1f5fbf;
+      --blue-strong: #1769e0;
+      --blue-soft: #eef6ff;
+      --green: #12805c;
+      --green-soft: #e9f8f1;
+      --amber: #b76e00;
+      --amber-soft: #fff6e7;
+      --red: #c92a2a;
+      --red-soft: #fff1f1;
+      --shadow: 0 8px 20px rgba(16, 24, 40, .06);
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      width: 100%;
+      min-width: 1180px;
+      height: 100%;
+      overflow: hidden;
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      font-size: 13px;
+      background: var(--bg);
+    }
+
+    button, input { font: inherit; }
+    button { cursor: pointer; }
+
+    .app {
+      display: grid;
+      grid-template-rows: 48px minmax(0, 1fr);
+      height: 100vh;
+    }
+
+    .appbar {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 0 16px;
+      border-bottom: 1px solid var(--line);
+      background: #fff;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex: 0 0 auto;
+      font-size: 17px;
+      font-weight: 800;
+    }
+
+    .brand i {
+      display: grid;
+      place-items: center;
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      background: var(--blue);
+      color: #fff;
+      font-style: normal;
+      font-size: 13px;
+    }
+
+    .nav {
+      display: flex;
+      align-items: center;
+      gap: 2px;
+      min-width: 0;
+      height: 100%;
+    }
+
+    .nav span {
+      display: flex;
+      align-items: center;
+      height: 32px;
+      padding: 0 11px;
+      border-radius: 7px;
+      color: #475467;
+      white-space: nowrap;
+    }
+
+    .nav span.active {
+      background: var(--blue-soft);
+      color: var(--blue);
+      font-weight: 800;
+    }
+
+    .user {
+      margin-left: auto;
+      color: var(--muted);
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .page {
+      display: grid;
+      grid-template-rows: auto auto minmax(0, 1fr);
+      gap: 10px;
+      min-height: 0;
+      padding: 12px;
+      overflow: hidden;
+    }
+
+    .hero,
+    .query,
+    .results {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      box-shadow: var(--shadow);
+    }
+
+    .hero {
+      display: flex;
+      align-items: center;
+      min-height: 64px;
+      padding: 12px 14px;
+    }
+
+    .title h1 {
+      margin: 0;
+      font-size: 19px;
+      line-height: 26px;
+    }
+
+    .query {
+      padding: 12px;
+    }
+
+    .query-grid {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(150px, 1fr)) 170px;
+      gap: 10px;
+      align-items: end;
+    }
+
+    .field {
+      display: grid;
+      gap: 6px;
+      min-width: 0;
+    }
+
+    .field label {
+      color: #344054;
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .field input {
+      width: 100%;
+      height: 34px;
+      padding: 0 9px;
+      border: 1px solid var(--line-strong);
+      border-radius: 6px;
+      outline: none;
+      background: #fff;
+      color: var(--text);
+    }
+
+    .field input:focus {
+      border-color: #70a8ff;
+      box-shadow: 0 0 0 3px rgba(31, 95, 191, .12);
+    }
+
+    .actions {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+      min-width: 0;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      height: 34px;
+      padding: 0 12px;
+      border: 1px solid var(--line-strong);
+      border-radius: 6px;
+      background: #fff;
+      color: #344054;
+      white-space: nowrap;
+    }
+
+    .btn.primary {
+      border-color: var(--blue-strong);
+      background: var(--blue-strong);
+      color: #fff;
+      font-weight: 800;
+    }
+
+    .btn.active {
+      border-color: #70a8ff;
+      background: var(--blue-soft);
+      color: var(--blue);
+      font-weight: 800;
+    }
+
+    .payload {
+      display: flex;
+      align-items: center;
+      min-width: 0;
+      max-width: 62vw;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .payload code {
+      overflow: hidden;
+      color: #344054;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12px;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .results {
+      display: grid;
+      grid-template-rows: auto auto minmax(0, 1fr) 34px;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    .result-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      min-height: 44px;
+      padding: 0 12px;
+      border-bottom: 1px solid var(--line);
+      background: #fbfcff;
+    }
+
+    .result-title strong {
+      font-size: 15px;
+    }
+
+    .tabs {
+      display: flex;
+      align-items: end;
+      gap: 2px;
+      height: 42px;
+      padding: 0 12px;
+      border-bottom: 1px solid var(--line);
+      background: #f4f6f9;
+    }
+
+    .tab {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      height: 34px;
+      padding: 0 14px;
+      border: 1px solid transparent;
+      border-bottom: 0;
+      border-radius: 7px 7px 0 0;
+      color: #475467;
+      background: transparent;
+    }
+
+    .tab.active {
+      border-color: var(--line);
+      background: #fff;
+      color: var(--blue);
+      font-weight: 800;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 22px;
+      height: 20px;
+      padding: 0 7px;
+      border-radius: 999px;
+      background: #e9eef6;
+      color: #475467;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .tab.active .badge {
+      background: var(--blue-soft);
+      color: var(--blue);
+    }
+
+    .table-wrap {
+      position: relative;
+      min-height: 0;
+      overflow: auto;
+      background: #fff;
+    }
+
+    table {
+      width: max-content;
+      min-width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+    }
+
+    th, td {
+      height: 38px;
+      max-width: 260px;
+      padding: 0 10px;
+      border-right: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+      overflow: hidden;
+      text-align: left;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    th {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      height: 40px;
+      background: #f1f4f8;
+      color: #344054;
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    tbody tr:hover td {
+      background: #f8fbff;
+    }
+
+    .row-num {
+      position: sticky;
+      left: 0;
+      z-index: 3;
+      width: 52px;
+      min-width: 52px;
+      max-width: 52px;
+      background: #f7f8fa;
+      color: var(--faint);
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+
+    th.row-num {
+      z-index: 4;
+    }
+
+    .status {
+      display: inline-flex;
+      align-items: center;
+      height: 22px;
+      padding: 0 8px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .status.ok { background: var(--green-soft); color: var(--green); }
+    .status.wait { background: var(--amber-soft); color: var(--amber); }
+    .status.fail { background: var(--red-soft); color: var(--red); }
+
+    .empty {
+      display: none;
+      position: absolute;
+      inset: 0;
+      place-items: center;
+      background: #fff;
+      color: var(--muted);
+    }
+
+    .empty.show {
+      display: grid;
+    }
+
+    .empty-box {
+      display: grid;
+      justify-items: center;
+      gap: 8px;
+    }
+
+    .empty-icon {
+      display: grid;
+      place-items: center;
+      width: 52px;
+      height: 52px;
+      border-radius: 12px;
+      background: #f2f5f9;
+      color: #8a97aa;
+      font-size: 24px;
+    }
+
+    .statusbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 0 12px;
+      border-top: 1px solid var(--line);
+      background: #f8fafc;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .dot {
+      display: inline-block;
+      width: 7px;
+      height: 7px;
+      margin-right: 6px;
+      border-radius: 50%;
+      background: #12b76a;
+    }
+
+    .modal-mask {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 20;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      background: rgba(16, 24, 40, .42);
+    }
+
+    .modal-mask.show {
+      display: flex;
+    }
+
+    .modal {
+      width: 520px;
+      max-width: calc(100vw - 48px);
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      box-shadow: 0 20px 48px rgba(16, 24, 40, .18);
+    }
+
+    .modal-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--line);
+      background: #fbfcff;
+    }
+
+    .modal-head h2 {
+      margin: 0;
+      font-size: 16px;
+      line-height: 22px;
+    }
+
+    .modal-close {
+      display: grid;
+      place-items: center;
+      width: 28px;
+      height: 28px;
+      padding: 0;
+      border: 1px solid var(--line-strong);
+      border-radius: 6px;
+      background: #fff;
+      color: var(--muted);
+      font-size: 18px;
+      line-height: 1;
+    }
+
+    .modal-body {
+      padding: 14px 16px 16px;
+    }
+
+    .modal-tip {
+      margin: 0 0 12px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 18px;
+    }
+
+    .mapping-list {
+      display: grid;
+      gap: 8px;
+    }
+
+    .mapping-row {
+      display: grid;
+      grid-template-columns: 150px minmax(0, 1fr);
+      gap: 10px;
+      align-items: center;
+    }
+
+    .mapping-row label {
+      color: #344054;
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .mapping-row input {
+      width: 100%;
+      height: 34px;
+      padding: 0 9px;
+      border: 1px solid var(--line-strong);
+      border-radius: 6px;
+      outline: none;
+      background: #f8fbff;
+      color: var(--text);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12px;
+    }
+
+    .mapping-row input:focus {
+      border-color: #70a8ff;
+      box-shadow: 0 0 0 3px rgba(31, 95, 191, .12);
+    }
+
+    .modal-foot {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      padding: 12px 16px;
+      border-top: 1px solid var(--line);
+      background: #f8fafc;
+    }
+
+    @media (max-width: 1320px) {
+      .query-grid { grid-template-columns: repeat(3, minmax(160px, 1fr)); }
+      .actions { justify-content: flex-start; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="appbar">
+      <div class="brand"><i>DF</i>DataFlow</div>
+      <nav class="nav">
+        <span>首页</span>
+        <span>同步</span>
+        <span>预览</span>
+        <span>主题库</span>
+        <span>治理</span>
+        <span class="active">回传</span>
+        <span>接口开发</span>
+        <span>安全</span>
+      </nav>
+      <div class="user">admin · 数据中台演示环境</div>
+    </header>
+
+    <main class="page">
+      <section class="hero">
+        <div class="title">
+          <h1>数据回传</h1>
+        </div>
+      </section>
+
+      <section class="query">
+        <div class="query-grid">
+          <div class="field">
+            <label for="suspectNo">嫌疑人编号</label>
+            <input id="suspectNo" placeholder="例如 XYR20260521001" />
+          </div>
+          <div class="field">
+            <label for="suspectName">嫌疑人姓名</label>
+            <input id="suspectName" placeholder="例如 王某" />
+          </div>
+          <div class="field">
+            <label for="suspectIdCard">嫌疑人身份证号</label>
+            <input id="suspectIdCard" placeholder="输入身份证号" />
+          </div>
+          <div class="field">
+            <label for="caseNo">案件编号</label>
+            <input id="caseNo" placeholder="例如 AJ20260521008" />
+          </div>
+          <div class="field">
+            <label for="caseName">案件名称</label>
+            <input id="caseName" placeholder="例如 入室盗窃案" />
+          </div>
+          <div class="actions">
+            <button class="btn" id="mappingBtn" type="button" aria-pressed="false">参数映射</button>
+            <button class="btn primary" id="searchBtn">查询</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="results">
+        <div class="result-head">
+          <div class="result-title">
+            <strong>回传库查询结果</strong>
+          </div>
+        </div>
+
+        <div class="tabs" id="tabs">
+          <button class="tab active" data-target="tiandi"><span>天地伟业中间库</span><span class="badge">4</span></button>
+          <button class="tab" data-target="c3"><span>市局C3回传库</span><span class="badge">4</span></button>
+          <button class="tab" data-target="jingzong"><span>警综库</span><span class="badge">4</span></button>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th class="row-num">#</th>
+                <th>嫌疑人编号</th>
+                <th>嫌疑人姓名</th>
+                <th>嫌疑人身份证号</th>
+                <th>案件编号</th>
+                <th>案件名称</th>
+                <th>回传状态</th>
+                <th>目标库记录号</th>
+                <th>更新时间</th>
+                <th>复核意见</th>
+              </tr>
+            </thead>
+            <tbody id="tbody"></tbody>
+          </table>
+          <div class="empty" id="empty">
+            <div class="empty-box">
+              <div class="empty-icon">⌕</div>
+              <strong>暂无匹配回传数据</strong>
+              <span>请调整嫌疑人或案件查询条件后重试。</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="statusbar">
+          <span><i class="dot"></i><span id="statusText">已加载天地伟业中间库 4 条记录</span></span>
+          <span class="payload">Magic API 请求参数：<code id="payloadText">{}</code></span>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div class="modal-mask" id="mappingModal" aria-hidden="true">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="mappingTitle">
+      <div class="modal-head">
+        <h2 id="mappingTitle">参数映射</h2>
+        <button class="modal-close" id="mappingCloseBtn" type="button" aria-label="关闭参数映射">×</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-tip">配置页面查询字段提交到 Magic API 时使用的请求参数名。</p>
+        <div class="mapping-list">
+          <div class="mapping-row">
+            <label for="paramSuspectNo">嫌疑人编号</label>
+            <input id="paramSuspectNo" class="param-input" data-field="suspectNo" value="xyrbh" aria-label="嫌疑人编号请求参数名" />
+          </div>
+          <div class="mapping-row">
+            <label for="paramSuspectName">嫌疑人姓名</label>
+            <input id="paramSuspectName" class="param-input" data-field="suspectName" value="xyrmc" aria-label="嫌疑人姓名请求参数名" />
+          </div>
+          <div class="mapping-row">
+            <label for="paramSuspectIdCard">嫌疑人身份证号</label>
+            <input id="paramSuspectIdCard" class="param-input" data-field="suspectIdCard" value="xyrSfzh" aria-label="嫌疑人身份证号请求参数名" />
+          </div>
+          <div class="mapping-row">
+            <label for="paramCaseNo">案件编号</label>
+            <input id="paramCaseNo" class="param-input" data-field="caseNo" value="ajbh" aria-label="案件编号请求参数名" />
+          </div>
+          <div class="mapping-row">
+            <label for="paramCaseName">案件名称</label>
+            <input id="paramCaseName" class="param-input" data-field="caseName" value="ajmc" aria-label="案件名称请求参数名" />
+          </div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn" id="mappingCancelBtn" type="button">取消</button>
+        <button class="btn primary" id="mappingSaveBtn" type="button">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const targetMeta = {
+      tiandi: { label: '天地伟业中间库', code: 'TIANDI_MIDDLE' },
+      c3: { label: '市局C3回传库', code: 'C3_RETURN' },
+      jingzong: { label: '警综库', code: 'POLICE_COMPREHENSIVE' }
+    };
+
+    const seedRows = {
+      tiandi: [
+        ['XYR20260521001', '王某', '110101********1234', 'AJ20260521008', '西城入室盗窃案', '已回传', 'TD-MID-904512', '2026-06-02 09:42', '字段一致'],
+        ['XYR20260521002', '李某', '110102********3381', 'AJ20260521008', '西城入室盗窃案', '已回传', 'TD-MID-904513', '2026-06-02 09:42', '字段一致'],
+        ['XYR20260521005', '赵某', '110105********5510', 'AJ20260520017', '涉案财物转移案', '待复核', 'TD-MID-904530', '2026-06-02 09:18', '身份证号脱敏待确认'],
+        ['XYR20260521009', '钱某', '110108********7092', 'AJ20260519022', '电信网络诈骗案', '已回传', 'TD-MID-904544', '2026-06-02 08:51', '字段一致']
+      ],
+      c3: [
+        ['XYR20260521001', '王某', '110101********1234', 'AJ20260521008', '西城入室盗窃案', '已回传', 'C3-R-202606020041', '2026-06-02 09:45', 'C3接收成功'],
+        ['XYR20260521002', '李某', '110102********3381', 'AJ20260521008', '西城入室盗窃案', '已回传', 'C3-R-202606020042', '2026-06-02 09:45', 'C3接收成功'],
+        ['XYR20260521005', '赵某', '110105********5510', 'AJ20260520017', '涉案财物转移案', '回传失败', 'C3-R-202606020049', '2026-06-02 09:20', '案件名称超过目标字段长度'],
+        ['XYR20260521009', '钱某', '110108********7092', 'AJ20260519022', '电信网络诈骗案', '已回传', 'C3-R-202606020055', '2026-06-02 08:55', 'C3接收成功']
+      ],
+      jingzong: [
+        ['XYR20260521001', '王某', '110101********1234', 'AJ20260521008', '西城入室盗窃案', '已入库', 'JZ-AJ-771280', '2026-06-02 09:48', '警综主键已关联'],
+        ['XYR20260521002', '李某', '110102********3381', 'AJ20260521008', '西城入室盗窃案', '已入库', 'JZ-AJ-771281', '2026-06-02 09:48', '警综主键已关联'],
+        ['XYR20260521005', '赵某', '110105********5510', 'AJ20260520017', '涉案财物转移案', '待复核', 'JZ-AJ-771292', '2026-06-02 09:25', '等待人工确认后入库'],
+        ['XYR20260521009', '钱某', '110108********7092', 'AJ20260519022', '电信网络诈骗案', '已入库', 'JZ-AJ-771305', '2026-06-02 08:59', '警综主键已关联']
+      ]
+    };
+
+    let activeTarget = 'tiandi';
+    let mappingSnapshot = null;
+
+    const fields = ['suspectNo', 'suspectName', 'suspectIdCard', 'caseNo', 'caseName'];
+    const labels = {
+      suspectNo: '嫌疑人编号',
+      suspectName: '嫌疑人姓名',
+      suspectIdCard: '嫌疑人身份证号',
+      caseNo: '案件编号',
+      caseName: '案件名称'
+    };
+
+    function getQuery() {
+      return Object.fromEntries(fields.map(id => [id, document.getElementById(id).value.trim()]));
+    }
+
+    function getParamMapping() {
+      return Object.fromEntries(fields.map(id => {
+        const el = document.querySelector(`.param-input[data-field="${id}"]`);
+        return [id, (el && el.value.trim()) || id];
+      }));
+    }
+
+    function buildMagicApiParams() {
+      const q = getQuery();
+      const mapping = getParamMapping();
+      const payload = { target: targetMeta[activeTarget].code };
+      fields.forEach(field => {
+        if (q[field]) payload[mapping[field]] = q[field];
+      });
+      return payload;
+    }
+
+    function filterRows(rows) {
+      const q = getQuery();
+      return rows.filter(row => {
+        return (!q.suspectNo || row[0].includes(q.suspectNo))
+          && (!q.suspectName || row[1].includes(q.suspectName))
+          && (!q.suspectIdCard || row[2].includes(q.suspectIdCard))
+          && (!q.caseNo || row[3].includes(q.caseNo))
+          && (!q.caseName || row[4].includes(q.caseName));
+      });
+    }
+
+    function statusClass(text) {
+      if (/失败/.test(text)) return 'fail';
+      if (/待|复核/.test(text)) return 'wait';
+      return 'ok';
+    }
+
+    function render() {
+      const rows = filterRows(seedRows[activeTarget]);
+      const tbody = document.getElementById('tbody');
+      tbody.innerHTML = rows.map((row, index) => `
+        <tr>
+          <td class="row-num">${index + 1}</td>
+          <td title="${row[0]}">${row[0]}</td>
+          <td title="${row[1]}">${row[1]}</td>
+          <td title="${row[2]}">${row[2]}</td>
+          <td title="${row[3]}">${row[3]}</td>
+          <td title="${row[4]}">${row[4]}</td>
+          <td><span class="status ${statusClass(row[5])}">${row[5]}</span></td>
+          <td title="${row[6]}">${row[6]}</td>
+          <td title="${row[7]}">${row[7]}</td>
+          <td title="${row[8]}">${row[8]}</td>
+        </tr>
+      `).join('');
+
+      document.getElementById('empty').classList.toggle('show', rows.length === 0);
+      document.getElementById('statusText').textContent = `已加载${targetMeta[activeTarget].label} ${rows.length} 条记录`;
+      document.getElementById('payloadText').textContent = JSON.stringify(buildMagicApiParams());
+      updateBadges();
+    }
+
+    function updateBadges() {
+      document.querySelectorAll('.tab').forEach(tab => {
+        const target = tab.dataset.target;
+        const count = filterRows(seedRows[target]).length;
+        tab.querySelector('.badge').textContent = count;
+      });
+    }
+
+    function updateQueryText() {
+      document.getElementById('payloadText').textContent = JSON.stringify(buildMagicApiParams());
+    }
+
+    document.getElementById('tabs').addEventListener('click', event => {
+      const tab = event.target.closest('.tab');
+      if (!tab) return;
+      activeTarget = tab.dataset.target;
+      document.querySelectorAll('.tab').forEach(item => item.classList.toggle('active', item === tab));
+      render();
+    });
+
+    document.getElementById('searchBtn').addEventListener('click', () => {
+      updateQueryText();
+      render();
+    });
+
+    function setModalOpen(open) {
+      const modal = document.getElementById('mappingModal');
+      modal.classList.toggle('show', open);
+      modal.setAttribute('aria-hidden', String(!open));
+      document.getElementById('mappingBtn').classList.toggle('active', open);
+      document.getElementById('mappingBtn').setAttribute('aria-pressed', String(open));
+      if (open) document.querySelector('.param-input')?.focus();
+    }
+
+    function restoreParamMapping(snapshot) {
+      if (!snapshot) return;
+      document.querySelectorAll('.param-input').forEach(input => {
+        input.value = snapshot[input.dataset.field] || input.dataset.field;
+      });
+    }
+
+    function closeMappingModal({ restore = false } = {}) {
+      if (restore) restoreParamMapping(mappingSnapshot);
+      mappingSnapshot = null;
+      setModalOpen(false);
+      updateQueryText();
+    }
+
+    document.getElementById('mappingBtn').addEventListener('click', () => {
+      mappingSnapshot = getParamMapping();
+      setModalOpen(true);
+    });
+
+    document.getElementById('mappingCloseBtn').addEventListener('click', () => {
+      closeMappingModal({ restore: true });
+    });
+
+    document.getElementById('mappingCancelBtn').addEventListener('click', () => {
+      closeMappingModal({ restore: true });
+    });
+
+    document.getElementById('mappingSaveBtn').addEventListener('click', () => {
+      closeMappingModal();
+    });
+
+    document.getElementById('mappingModal').addEventListener('click', event => {
+      if (event.target.id === 'mappingModal') closeMappingModal({ restore: true });
+    });
+
+    document.addEventListener('keydown', event => {
+      if (event.key === 'Escape' && document.getElementById('mappingModal').classList.contains('show')) {
+        closeMappingModal({ restore: true });
+      }
+    });
+
+    fields.forEach(id => {
+      document.getElementById(id).addEventListener('keydown', event => {
+        if (event.key === 'Enter') {
+          updateQueryText();
+          render();
+        }
+      });
+    });
+
+    document.querySelectorAll('.param-input').forEach(input => {
+      input.addEventListener('keydown', event => {
+        if (event.key === 'Enter') {
+          closeMappingModal();
+        }
+      });
+    });
+
+    render();
+  </script>
+</body>
+</html>

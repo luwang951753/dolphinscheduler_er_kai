@@ -711,6 +711,112 @@ CREATE TABLE t_ds_relation_datasource_user (
 ) ;
 
 --
+-- Table structure for table t_ds_user_module_permission
+--
+
+DROP TABLE IF EXISTS t_ds_user_module_permission;
+CREATE TABLE t_ds_user_module_permission (
+  id int NOT NULL,
+  user_id int NOT NULL,
+  module_key varchar(128) NOT NULL,
+  create_time timestamp DEFAULT NULL,
+  update_time timestamp DEFAULT NULL,
+  PRIMARY KEY (id)
+);
+CREATE UNIQUE INDEX uk_user_module_permission on t_ds_user_module_permission(user_id, module_key);
+CREATE INDEX idx_user_module_permission_user_id on t_ds_user_module_permission(user_id);
+
+--
+-- Table structure for table t_ds_data_governance_metadata
+--
+
+DROP TABLE IF EXISTS t_ds_data_governance_metadata;
+CREATE TABLE t_ds_data_governance_metadata (
+  id int NOT NULL,
+  asset_id varchar(512) NOT NULL,
+  owner varchar(128) DEFAULT NULL,
+  description text DEFAULT NULL,
+  tags_json text DEFAULT NULL,
+  create_time timestamp DEFAULT NULL,
+  update_time timestamp DEFAULT NULL,
+  PRIMARY KEY (id)
+);
+CREATE UNIQUE INDEX uk_data_governance_metadata_asset on t_ds_data_governance_metadata(asset_id);
+
+--
+-- Table structure for table t_ds_data_governance_rule
+--
+
+DROP TABLE IF EXISTS t_ds_data_governance_rule;
+CREATE TABLE t_ds_data_governance_rule (
+  id int NOT NULL,
+  rule_code varchar(128) NOT NULL,
+  asset_id varchar(512) NOT NULL,
+  name varchar(255) DEFAULT NULL,
+  type varchar(64) DEFAULT NULL,
+  level varchar(32) DEFAULT NULL,
+  field_name varchar(255) DEFAULT NULL,
+  severity varchar(32) DEFAULT NULL,
+  frequency varchar(64) DEFAULT NULL,
+  enabled boolean DEFAULT true,
+  status varchar(32) DEFAULT NULL,
+  last_run_at varchar(64) DEFAULT NULL,
+  abnormal_count bigint DEFAULT NULL,
+  abnormal_rate double precision DEFAULT NULL,
+  payload_json text DEFAULT NULL,
+  create_time timestamp DEFAULT NULL,
+  update_time timestamp DEFAULT NULL,
+  PRIMARY KEY (id)
+);
+CREATE UNIQUE INDEX uk_data_governance_rule_code on t_ds_data_governance_rule(asset_id, rule_code);
+CREATE INDEX idx_data_governance_rule_asset on t_ds_data_governance_rule(asset_id);
+
+--
+-- Table structure for table t_ds_data_governance_issue
+--
+
+DROP TABLE IF EXISTS t_ds_data_governance_issue;
+CREATE TABLE t_ds_data_governance_issue (
+  id int NOT NULL,
+  issue_code varchar(128) NOT NULL,
+  asset_id varchar(512) NOT NULL,
+  rule_id varchar(128) DEFAULT NULL,
+  title varchar(255) DEFAULT NULL,
+  severity varchar(32) DEFAULT NULL,
+  status varchar(32) DEFAULT NULL,
+  abnormal_count bigint DEFAULT NULL,
+  discovered_at varchar(64) DEFAULT NULL,
+  resolved_at varchar(64) DEFAULT NULL,
+  payload_json text DEFAULT NULL,
+  create_time timestamp DEFAULT NULL,
+  update_time timestamp DEFAULT NULL,
+  PRIMARY KEY (id)
+);
+CREATE UNIQUE INDEX uk_data_governance_issue_code on t_ds_data_governance_issue(asset_id, issue_code);
+CREATE INDEX idx_data_governance_issue_asset on t_ds_data_governance_issue(asset_id);
+
+--
+-- Table structure for table t_ds_data_governance_lineage
+--
+
+DROP TABLE IF EXISTS t_ds_data_governance_lineage;
+CREATE TABLE t_ds_data_governance_lineage (
+  id int NOT NULL,
+  asset_id varchar(512) NOT NULL,
+  related_asset_id varchar(512) NOT NULL,
+  direction varchar(32) NOT NULL,
+  sync_task_name varchar(255) DEFAULT NULL,
+  last_run_status varchar(64) DEFAULT NULL,
+  last_run_time varchar(64) DEFAULT NULL,
+  payload_json text DEFAULT NULL,
+  create_time timestamp DEFAULT NULL,
+  update_time timestamp DEFAULT NULL,
+  PRIMARY KEY (id)
+);
+CREATE INDEX idx_data_governance_lineage_asset on t_ds_data_governance_lineage(asset_id, direction);
+CREATE INDEX idx_data_governance_lineage_related on t_ds_data_governance_lineage(related_asset_id);
+
+--
 -- Table structure for table t_ds_relation_workflow_instance
 --
 
@@ -1054,6 +1160,21 @@ ALTER TABLE t_ds_queue ALTER COLUMN id SET DEFAULT NEXTVAL('t_ds_queue_id_sequen
 DROP SEQUENCE IF EXISTS t_ds_relation_datasource_user_id_sequence;
 CREATE SEQUENCE  t_ds_relation_datasource_user_id_sequence;
 ALTER TABLE t_ds_relation_datasource_user ALTER COLUMN id SET DEFAULT NEXTVAL('t_ds_relation_datasource_user_id_sequence');
+DROP SEQUENCE IF EXISTS t_ds_user_module_permission_id_sequence;
+CREATE SEQUENCE  t_ds_user_module_permission_id_sequence;
+ALTER TABLE t_ds_user_module_permission ALTER COLUMN id SET DEFAULT NEXTVAL('t_ds_user_module_permission_id_sequence');
+DROP SEQUENCE IF EXISTS t_ds_data_governance_metadata_id_sequence;
+CREATE SEQUENCE  t_ds_data_governance_metadata_id_sequence;
+ALTER TABLE t_ds_data_governance_metadata ALTER COLUMN id SET DEFAULT NEXTVAL('t_ds_data_governance_metadata_id_sequence');
+DROP SEQUENCE IF EXISTS t_ds_data_governance_rule_id_sequence;
+CREATE SEQUENCE  t_ds_data_governance_rule_id_sequence;
+ALTER TABLE t_ds_data_governance_rule ALTER COLUMN id SET DEFAULT NEXTVAL('t_ds_data_governance_rule_id_sequence');
+DROP SEQUENCE IF EXISTS t_ds_data_governance_issue_id_sequence;
+CREATE SEQUENCE  t_ds_data_governance_issue_id_sequence;
+ALTER TABLE t_ds_data_governance_issue ALTER COLUMN id SET DEFAULT NEXTVAL('t_ds_data_governance_issue_id_sequence');
+DROP SEQUENCE IF EXISTS t_ds_data_governance_lineage_id_sequence;
+CREATE SEQUENCE  t_ds_data_governance_lineage_id_sequence;
+ALTER TABLE t_ds_data_governance_lineage ALTER COLUMN id SET DEFAULT NEXTVAL('t_ds_data_governance_lineage_id_sequence');
 DROP SEQUENCE IF EXISTS t_ds_relation_workflow_instance_id_sequence;
 CREATE SEQUENCE  t_ds_relation_workflow_instance_id_sequence;
 ALTER TABLE t_ds_relation_workflow_instance ALTER COLUMN id SET DEFAULT NEXTVAL('t_ds_relation_workflow_instance_id_sequence');

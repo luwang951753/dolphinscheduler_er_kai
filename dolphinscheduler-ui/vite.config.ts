@@ -27,8 +27,8 @@ const stripContextPath =
   process.env.VITE_APP_DEV_STRIP_CONTEXT_PATH ||
   env.VITE_APP_DEV_STRIP_CONTEXT_PATH
 
-export default defineConfig({
-  base: process.env.NODE_ENV === 'production' ? '/dolphinscheduler/ui/' : '/',
+export default defineConfig(({ mode }) => ({
+  base: mode === 'production' ? '/dolphinscheduler/ui/' : '/',
   plugins: [
     vue(),
     vueJsx(),
@@ -59,4 +59,4 @@ export default defineConfig({
       }
     }
   }
-})
+}))

@@ -1,20 +1,18 @@
 /*
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to You under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
  *
- *   http://www.apache.org/licenses/LICENSE-2.0
+ *    http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
 package org.apache.dolphinscheduler.installer.service;
@@ -25,12 +23,13 @@ import org.apache.dolphinscheduler.installer.core.InstallContext;
 import org.apache.dolphinscheduler.installer.dto.InstallConfigRequest;
 import org.apache.dolphinscheduler.installer.dto.InstallProgress;
 
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
-
+import java.util.concurrent.atomic.AtomicInteger;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 class InstallServiceTest {
 
@@ -41,19 +40,37 @@ class InstallServiceTest {
     void shouldInstallSuccessfully() throws Exception {
         InstallContext context = createStandaloneHome("echo started > ../logs/start.marker\nexit 0\n");
         InstallProgressService progressService = new InstallProgressService();
+        AtomicInteger actualDolphinPort = new AtomicInteger();
         InstallService installService = createInstallService(progressService,
-                new DolphinProcessService.ProcessResult(true, "started"));
+                new DolphinProcessService.ProcessResult(true, "started"),
+                actualDolphinPort);
 
         String installId = installService.install(context, createRequest(context.getStandaloneHome()));
 
         assertThat(context.getBackupDir()).exists();
-        assertThat(new String(Files.readAllBytes(context.getConfDir().resolve("application.yaml")), StandardCharsets.UTF_8))
-                .contains("password: real-password");
+        assertThat(new String(Files.readAllBytes(context.getConfDir().resolve("application.yaml")),
+                StandardCharsets.UTF_8))
+                        .contains("password: real-password");
         assertThat(context.getInstallLock()).hasContent(installId);
         assertThat(progressService.get(installId).getStatus()).isEqualTo(InstallProgress.STATUS_SUCCESS);
         assertThat(progressService.get(installId).getItems())
                 .extracting(InstallProgress.ProgressItem::getKey)
                 .contains("BACKUP_CONFIG", "WRITE_CONFIG", "START_DOLPHIN", "WRITE_LOCK", "SUCCESS");
+        assertThat(actualDolphinPort).hasValue(12345);
+        assertThat(context.getStandaloneHome().resolve("ui").resolve("index.html"))
+                .content()
+                .contains("/dolphinscheduler/ui/assets/index.js")
+                .doesNotContain("/dolphinscheduler/dolphinscheduler/ui/")
+                .doesNotContain("src=\"/ui/");
+        assertThat(context.getStandaloneHome().getParent().resolve("ui").resolve("index.html"))
+                .content()
+                .contains("/dolphinscheduler/ui/assets/root.js")
+                .doesNotContain("/dolphinscheduler/dolphinscheduler/ui/")
+                .doesNotContain("src=\"/ui/");
+        assertThat(context.getStandaloneHome().resolve("api-server").resolve("ui").resolve("index.html"))
+                .content()
+                .contains("/dolphinscheduler/ui/assets/api.js")
+                .doesNotContain("/dolphinscheduler/dolphinscheduler/ui/");
     }
 
     @Test
@@ -61,24 +78,42 @@ class InstallServiceTest {
         InstallContext context = createStandaloneHome("echo failed\nexit 1\n");
         InstallProgressService progressService = new InstallProgressService();
         InstallService installService = createInstallService(progressService,
-                new DolphinProcessService.ProcessResult(false, "failed"));
+                new DolphinProcessService.ProcessResult(false, "failed"),
+                new AtomicInteger());
 
         String installId = installService.install(context, createRequest(context.getStandaloneHome()));
 
         assertThat(context.getInstallLock()).doesNotExist();
         assertThat(progressService.get(installId).getStatus()).isEqualTo(InstallProgress.STATUS_FAILED);
         assertThat(progressService.get(installId).getCurrentStep()).isEqualTo("START_DOLPHIN");
+        assertThat(context.getStandaloneHome().resolve("logs").resolve("stop.marker")).exists();
+        assertThat(context.getConfDir().resolve("application.yaml")).hasContent(
+                "spring:\n"
+                        + "  profiles:\n"
+                        + "    active: h2\n"
+                        + "  datasource:\n"
+                        + "    driver-class-name: org.h2.Driver\n"
+                        + "    url: jdbc:h2:mem:dolphinscheduler\n"
+                        + "    username: sa\n"
+                        + "    password: \"\"\n"
+                        + "server:\n"
+                        + "  port: " + readConfiguredPort(context) + "\n"
+                        + "registry:\n"
+                        + "  type: jdbc\n");
     }
 
     private InstallService createInstallService(InstallProgressService progressService,
-                                                DolphinProcessService.ProcessResult processResult) {
+                                                DolphinProcessService.ProcessResult processResult,
+                                                AtomicInteger actualDolphinPort) {
         return new InstallService(
                 new ConfigBackupService(),
                 new ConfigWriteService(),
                 new ConfigRenderService(),
                 new DolphinProcessService() {
+
                     @Override
-                    public ProcessResult start(InstallContext context) {
+                    public ProcessResult start(InstallContext context, int dolphinPort) {
+                        actualDolphinPort.set(dolphinPort);
                         return processResult;
                     }
                 },
@@ -94,7 +129,11 @@ class InstallServiceTest {
         Files.createDirectories(context.getStandaloneHome().resolve("logs"));
         Files.createDirectories(context.getStandaloneHome().resolve("bin"));
         Files.createDirectories(context.getStandaloneHome().resolve("installer"));
+        Files.createDirectories(context.getStandaloneHome().getParent().resolve("ui").resolve("assets"));
+        Files.createDirectories(context.getStandaloneHome().getParent().resolve("api-server").resolve("ui")
+                .resolve("assets"));
         Files.createDirectories(context.getStandaloneHome().resolve("ui").resolve("assets"));
+        Files.createDirectories(context.getStandaloneHome().resolve("api-server").resolve("ui").resolve("assets"));
         Files.createDirectories(context.getStandaloneHome().resolve("libs"));
         Files.createDirectories(context.getStandaloneHome().resolve("api-server").resolve("libs"));
         Files.createDirectories(context.getStandaloneHome().resolve("master-server").resolve("libs"));
@@ -115,14 +154,30 @@ class InstallServiceTest {
                         + "registry:\n"
                         + "  type: jdbc\n").getBytes(StandardCharsets.UTF_8));
         Files.write(context.getConfDir().resolve("common.properties"), "old-common".getBytes(StandardCharsets.UTF_8));
-        Files.write(context.getConfDir().resolve("dolphinscheduler_env.sh"), "old-env".getBytes(StandardCharsets.UTF_8));
+        Files.write(context.getConfDir().resolve("dolphinscheduler_env.sh"),
+                "old-env".getBytes(StandardCharsets.UTF_8));
         Files.write(context.getStandaloneHome().resolve("bin").resolve("install-web.sh"), new byte[0]);
-        Files.write(context.getStandaloneHome().resolve("bin").resolve("stop.sh"), new byte[0]);
+        Path stopScript = context.getStandaloneHome().resolve("bin").resolve("stop.sh");
+        Files.write(stopScript, ("#!/bin/bash\n"
+                + "echo stopped > logs/stop.marker\n").getBytes(StandardCharsets.UTF_8));
+        stopScript.toFile().setExecutable(true);
         Files.write(context.getStandaloneHome().resolve("bin").resolve("status.sh"), new byte[0]);
         Files.write(context.getStandaloneHome().resolve("installer").resolve("ds-offline-installer.jar"), new byte[0]);
+        Files.write(context.getStandaloneHome().getParent().resolve("ui").resolve("index.html"),
+                ("<div id=\"app\"></div>"
+                        + "<script type=\"module\" src=\"/ui/assets/root.js\"></script>")
+                                .getBytes(StandardCharsets.UTF_8));
+        Files.write(context.getStandaloneHome().getParent().resolve("api-server").resolve("ui").resolve("index.html"),
+                ("<div id=\"app\"></div>"
+                        + "<script type=\"module\" src=\"/ui/assets/api.js\"></script>")
+                                .getBytes(StandardCharsets.UTF_8));
         Files.write(context.getStandaloneHome().resolve("ui").resolve("index.html"),
                 ("<div id=\"app\"></div>"
                         + "<script type=\"module\" src=\"/dolphinscheduler/ui/assets/index.js\"></script>")
+                                .getBytes(StandardCharsets.UTF_8));
+        Files.write(context.getStandaloneHome().resolve("api-server").resolve("ui").resolve("index.html"),
+                ("<div id=\"app\"></div>"
+                        + "<script type=\"module\" src=\"/dolphinscheduler/dolphinscheduler/ui/assets/api.js\"></script>")
                                 .getBytes(StandardCharsets.UTF_8));
         Files.write(context.getStandaloneHome().resolve("ui").resolve("lodash.min.js"),
                 "window._ = {};".getBytes(StandardCharsets.UTF_8));
@@ -167,5 +222,16 @@ class InstallServiceTest {
         try (java.net.ServerSocket socket = new java.net.ServerSocket(0)) {
             return socket.getLocalPort();
         }
+    }
+
+    private String readConfiguredPort(InstallContext context) throws Exception {
+        for (String line : Files.readAllLines(context.getConfDir().resolve("application.yaml"),
+                StandardCharsets.UTF_8)) {
+            String trimmed = line.trim();
+            if (trimmed.startsWith("port:")) {
+                return trimmed.substring("port:".length()).trim();
+            }
+        }
+        return "";
     }
 }

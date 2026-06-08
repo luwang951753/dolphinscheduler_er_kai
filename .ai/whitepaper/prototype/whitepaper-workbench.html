@@ -1,0 +1,3562 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>DataFlow 白皮书原型</title>
+  <style>
+    :root {
+      --bg: #eef3f8;
+      --panel: #ffffff;
+      --panel-soft: #f7f9fc;
+      --line: #d9e2ec;
+      --line-strong: #c7d3e0;
+      --text: #172033;
+      --muted: #617083;
+      --faint: #8d99aa;
+      --blue: #1f5fbf;
+      --blue-strong: #1769e0;
+      --blue-soft: #eaf3ff;
+      --green: #12805c;
+      --green-soft: #e9f8f1;
+      --amber: #b76e00;
+      --amber-soft: #fff6e7;
+      --red: #bf2d2d;
+      --red-soft: #fff1f1;
+      --ink: #2d3b4f;
+      --shadow: 0 10px 24px rgba(16, 24, 40, .07);
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      width: 100%;
+      min-width: 1280px;
+      height: 100%;
+      overflow: hidden;
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      font-size: 13px;
+      background: var(--bg);
+    }
+
+    button, input, select, textarea { font: inherit; }
+    button { cursor: pointer; }
+
+    .app {
+      display: grid;
+      grid-template-rows: 50px minmax(0, 1fr);
+      height: 100vh;
+    }
+
+    .appbar {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 0 16px;
+      border-bottom: 1px solid var(--line);
+      background: #fff;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      flex: 0 0 auto;
+      font-size: 17px;
+      font-weight: 800;
+    }
+
+    .brand i {
+      display: grid;
+      place-items: center;
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      background: var(--blue);
+      color: #fff;
+      font-style: normal;
+      font-size: 13px;
+    }
+
+    .nav {
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      height: 100%;
+    }
+
+    .nav button {
+      height: 32px;
+      padding: 0 12px;
+      border: 0;
+      border-radius: 7px;
+      background: transparent;
+      color: #475467;
+      white-space: nowrap;
+    }
+
+    .nav button.active {
+      background: var(--blue-soft);
+      color: var(--blue);
+      font-weight: 800;
+    }
+
+    .top-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-left: auto;
+    }
+
+    .user {
+      color: var(--muted);
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      height: 32px;
+      padding: 0 11px;
+      border: 1px solid var(--line-strong);
+      border-radius: 6px;
+      background: #fff;
+      color: #344054;
+      white-space: nowrap;
+    }
+
+    .btn.primary {
+      border-color: var(--blue-strong);
+      background: var(--blue-strong);
+      color: #fff;
+      font-weight: 800;
+    }
+
+    .btn.green {
+      border-color: #10845f;
+      background: #10845f;
+      color: #fff;
+      font-weight: 800;
+    }
+
+    .btn.ghost {
+      border-color: transparent;
+      background: transparent;
+      color: var(--muted);
+    }
+
+    .btn:disabled,
+    .add:disabled {
+      cursor: not-allowed;
+      opacity: .55;
+    }
+
+    .page {
+      display: none;
+      min-height: 0;
+      height: 100%;
+      padding: 12px;
+      overflow: hidden;
+    }
+
+    .page.active { display: grid; }
+
+    .panel {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .section-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      min-height: 42px;
+      padding: 0 12px;
+      border-bottom: 1px solid var(--line);
+      background: #fbfcfe;
+    }
+
+    .section-title strong {
+      font-size: 14px;
+    }
+
+    .meta {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      height: 22px;
+      padding: 0 7px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: var(--panel-soft);
+      color: var(--muted);
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .tag.blue {
+      border-color: #b7d4ff;
+      background: var(--blue-soft);
+      color: var(--blue);
+      font-weight: 700;
+    }
+
+    .tag.green {
+      border-color: #b6e7d1;
+      background: var(--green-soft);
+      color: var(--green);
+      font-weight: 700;
+    }
+
+    .tag.amber {
+      border-color: #ffd99a;
+      background: var(--amber-soft);
+      color: var(--amber);
+      font-weight: 700;
+    }
+
+    .tag.red {
+      border-color: #ffc9c9;
+      background: var(--red-soft);
+      color: var(--red);
+      font-weight: 700;
+    }
+
+    .workbench {
+      grid-template-rows: 94px minmax(0, 1fr);
+      gap: 12px;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      padding: 14px;
+    }
+
+    .hero h1 {
+      margin: 0 0 6px;
+      font-size: 20px;
+      line-height: 26px;
+    }
+
+    .hero p {
+      margin: 0;
+      color: var(--muted);
+    }
+
+    .hero-stats {
+      display: grid;
+      grid-template-columns: repeat(4, 132px);
+      gap: 10px;
+    }
+
+    .stat {
+      display: grid;
+      gap: 4px;
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: var(--panel-soft);
+    }
+
+    .stat strong {
+      font-size: 20px;
+      line-height: 22px;
+    }
+
+    .stat span {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .home-grid {
+      display: grid;
+      grid-template-columns: 1.15fr .85fr;
+      gap: 12px;
+      min-height: 0;
+    }
+
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      padding: 12px;
+      overflow: auto;
+    }
+
+    .template-card {
+      display: grid;
+      gap: 8px;
+      min-height: 150px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: #fff;
+    }
+
+    .template-card:hover {
+      border-color: #9ec5ff;
+      box-shadow: 0 8px 20px rgba(23, 105, 224, .10);
+    }
+
+    .card-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .card-head h3 {
+      margin: 0;
+      font-size: 15px;
+      line-height: 20px;
+    }
+
+    .card-desc {
+      min-height: 36px;
+      margin: 0;
+      color: var(--muted);
+      line-height: 18px;
+    }
+
+    .card-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .activity {
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+      min-height: 0;
+    }
+
+    .timeline {
+      display: grid;
+      align-content: start;
+      gap: 8px;
+      padding: 12px;
+      overflow: auto;
+    }
+
+    .event {
+      display: grid;
+      grid-template-columns: 28px minmax(0, 1fr);
+      gap: 8px;
+      padding: 9px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: #fff;
+    }
+
+    .event i {
+      display: grid;
+      place-items: center;
+      width: 28px;
+      height: 28px;
+      border-radius: 7px;
+      background: var(--blue-soft);
+      color: var(--blue);
+      font-style: normal;
+      font-weight: 800;
+    }
+
+    .event strong {
+      display: block;
+      margin-bottom: 3px;
+    }
+
+    .event span {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 18px;
+    }
+
+    .dataset {
+      grid-template-columns: 290px minmax(0, 1fr) 340px;
+      gap: 12px;
+      min-height: 0;
+    }
+
+    .source-pane,
+    .chart-pane,
+    .builder {
+      display: grid;
+      min-height: 0;
+    }
+
+    .source-pane {
+      grid-template-rows: auto auto minmax(0, 1fr);
+    }
+
+    .form {
+      display: grid;
+      gap: 10px;
+      padding: 12px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .field {
+      display: grid;
+      gap: 5px;
+      min-width: 0;
+    }
+
+    .field label {
+      color: #344054;
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .input,
+    .select,
+    .textarea {
+      width: 100%;
+      border: 1px solid var(--line-strong);
+      border-radius: 6px;
+      outline: none;
+      background: #fff;
+      color: var(--text);
+    }
+
+    .input,
+    .select {
+      height: 32px;
+      padding: 0 8px;
+    }
+
+    .textarea {
+      min-height: 78px;
+      padding: 8px;
+      resize: none;
+      line-height: 18px;
+    }
+
+    .tree {
+      overflow: auto;
+      padding: 8px;
+    }
+
+    .tree-node {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      min-height: 32px;
+      padding: 5px 7px;
+      border-radius: 6px;
+      color: var(--muted);
+    }
+
+    .tree-node.active {
+      background: var(--blue-soft);
+      color: var(--blue);
+      box-shadow: inset 3px 0 0 var(--blue);
+      font-weight: 800;
+    }
+
+    .tree-node.table {
+      margin-left: 18px;
+      align-items: flex-start;
+      min-height: 44px;
+    }
+
+    .tree-node.table:hover {
+      background: #f0f5fb;
+    }
+
+    .tree-main {
+      display: grid;
+      min-width: 0;
+      gap: 2px;
+    }
+
+    .tree-main strong,
+    .tree-main span {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .tree-main span {
+      color: var(--faint);
+      font-size: 12px;
+      font-weight: 400;
+    }
+
+    .builder {
+      grid-template-rows: 42px auto auto auto minmax(0, 1fr);
+    }
+
+    .steps {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0 12px;
+      border-bottom: 1px solid var(--line);
+      background: #fbfcfe;
+    }
+
+    .step {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      height: 26px;
+      padding: 0 8px;
+      border-radius: 999px;
+      color: var(--muted);
+    }
+
+    .step b {
+      display: grid;
+      place-items: center;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #e8eef5;
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .step.active {
+      background: var(--blue-soft);
+      color: var(--blue);
+      font-weight: 800;
+    }
+
+    .step.active b {
+      background: var(--blue);
+      color: #fff;
+    }
+
+    .field-palette {
+      display: grid;
+      grid-template-columns: 116px minmax(0, 1fr);
+      gap: 8px;
+      align-items: start;
+      padding: 9px 12px;
+      border-bottom: 1px solid var(--line);
+      background: #fbfcfe;
+    }
+
+    .field-palette-title {
+      display: flex;
+      align-items: center;
+      color: #344054;
+      font-size: 12px;
+      font-weight: 900;
+      line-height: 26px;
+    }
+
+    .field-palette-list {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 6px;
+      min-width: 0;
+    }
+
+    .filter-empty-tip {
+      min-height: 28px;
+      display: flex;
+      align-items: center;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .field-token {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      min-height: 26px;
+      padding: 0 24px 0 8px;
+      border: 1px solid #cdd7e5;
+      border-radius: 5px;
+      background: #fff;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
+    .field-token.kind-field {
+      border-color: #9ec5ff;
+      background: #f4f8ff;
+      color: #1f3f67;
+    }
+
+    .field-token input {
+      width: 13px;
+      height: 13px;
+      margin: 0 1px 0 0;
+      accent-color: var(--blue);
+    }
+
+    .field-token.selected {
+      border-color: var(--blue-strong);
+      background: var(--blue-soft);
+      color: #1f3f67;
+    }
+
+    .field-token[draggable="true"] {
+      cursor: grab;
+    }
+
+    .field-token.dragging,
+    .field-palette-list.drop-over,
+    .field-slot.drop-over {
+      border-color: var(--blue-strong);
+      background: var(--blue-soft);
+    }
+
+    .field-token b {
+      color: var(--blue);
+    }
+
+    .field-remove {
+      position: absolute;
+      top: -7px;
+      right: -7px;
+      width: 18px;
+      height: 18px;
+      border: 1px solid #c8d4e4;
+      border-radius: 50%;
+      background: #fff;
+      color: #667085;
+      font-size: 14px;
+      line-height: 16px;
+      cursor: pointer;
+    }
+
+    .field-remove:hover {
+      border-color: #f04438;
+      color: #f04438;
+    }
+
+    .field-check-list {
+      display: grid;
+      gap: 4px;
+      max-height: 280px;
+      overflow: auto;
+      padding: 4px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #fff;
+    }
+
+    .field-check-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 32px;
+      padding: 4px 8px;
+      border-radius: 5px;
+      color: var(--text);
+      cursor: pointer;
+    }
+
+    .field-check-item:hover {
+      background: var(--blue-soft);
+    }
+
+    .field-check-item input {
+      width: 14px;
+      height: 14px;
+      accent-color: var(--blue);
+    }
+
+    .field-check-item b {
+      color: var(--blue);
+    }
+
+    .inline-plus {
+      display: inline-grid;
+      place-items: center;
+      width: 18px;
+      height: 18px;
+      border: 1px dashed #aebccd;
+      border-radius: 5px;
+      background: #fff;
+      color: var(--blue);
+      font-weight: 900;
+      line-height: 1;
+    }
+
+    .inline-plus:hover {
+      border-color: var(--blue-strong);
+      background: var(--blue-soft);
+    }
+
+    .dataset-status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--line);
+      background: #fff;
+      color: var(--muted);
+    }
+
+    .dataset-status span:last-child {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .dataset-status strong {
+      color: var(--text);
+    }
+
+    .chips {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 6px;
+      min-height: 28px;
+    }
+
+    .inline-chips {
+      display: contents;
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      height: 26px;
+      padding: 0 8px;
+      border: 1px solid #cdd7e5;
+      border-radius: 5px;
+      background: #fff;
+      color: var(--text);
+      white-space: nowrap;
+    }
+
+    .chip .field-name {
+      color: var(--blue);
+      font-weight: 800;
+    }
+
+    .chip .op {
+      color: var(--muted);
+    }
+
+    .chip .value {
+      color: var(--green);
+      font-weight: 700;
+    }
+
+    .chip.kind-join {
+      border-color: #c7b7ff;
+      background: #f6f2ff;
+    }
+
+    .chip.kind-filter {
+      border-color: #9fd8bd;
+      background: #f0fbf5;
+    }
+
+    .chip.kind-dimension {
+      border-color: #ffc98f;
+      background: #fff7ed;
+    }
+
+    .chip.kind-metric {
+      border-color: #8edfd2;
+      background: #eefcf9;
+    }
+
+    .chip.kind-join .field-name {
+      color: #6f42c1;
+    }
+
+    .chip.kind-filter .field-name,
+    .chip.kind-filter .value {
+      color: #118a55;
+    }
+
+    .chip.kind-dimension .field-name {
+      color: #b54708;
+    }
+
+    .chip.kind-metric .field-name,
+    .chip.kind-metric .value {
+      color: #08756f;
+    }
+
+    .chip[draggable="true"],
+    .slot-value[draggable="true"] {
+      cursor: grab;
+    }
+
+    .chip.sorting,
+    .slot-value.sorting {
+      opacity: .55;
+    }
+
+    .add {
+      height: 26px;
+      border: 1px dashed #aebccd;
+      border-radius: 5px;
+      background: #fff;
+      color: var(--blue);
+      padding: 0 8px;
+      font-weight: 800;
+    }
+
+    .chip button {
+      width: 16px;
+      height: 16px;
+      border: 0;
+      border-radius: 50%;
+      background: transparent;
+      color: var(--faint);
+      padding: 0;
+      line-height: 16px;
+    }
+
+    .chip button:hover {
+      background: rgba(23, 105, 224, .10);
+      color: var(--blue);
+    }
+
+    .preview-area {
+      display: grid;
+      grid-template-rows: 42px minmax(0, 1fr);
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    .preview-tabs {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 0 12px;
+      border-bottom: 1px solid var(--line);
+      background: #fbfcfe;
+    }
+
+    .preview-tabs button {
+      height: 28px;
+      padding: 0 10px;
+      border: 1px solid transparent;
+      border-radius: 6px;
+      background: transparent;
+      color: var(--muted);
+    }
+
+    .preview-tabs button.active {
+      border-color: #b7d4ff;
+      background: var(--blue-soft);
+      color: var(--blue);
+      font-weight: 800;
+    }
+
+    .preview-tabs button[data-action] {
+      border-color: var(--line-strong);
+      background: #fff;
+      color: #344054;
+    }
+
+    .preview-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      min-height: 0;
+    }
+
+    .preview-grid.chart-only {
+      grid-template-columns: 1fr;
+    }
+
+    .preview-grid.data-only {
+      grid-template-columns: 1fr;
+    }
+
+    .preview-grid.data-only .chart-card {
+      display: none;
+    }
+
+    .preview-grid.table-mode .chart-card {
+      display: none;
+    }
+
+    .preview-grid:not(.table-mode) .table-card {
+      display: none;
+    }
+
+    .preview-grid.result-mode {
+      grid-template-columns: minmax(0, 1.05fr) minmax(360px, .95fr);
+      gap: 0;
+    }
+
+    .preview-grid.result-mode .chart-card,
+    .preview-grid.result-mode .table-card {
+      display: grid;
+    }
+
+    .preview-grid.result-mode .table-card {
+      border-left: 1px solid var(--line);
+    }
+
+    .preview-grid.result-mode.table-mode {
+      grid-template-columns: 1fr;
+    }
+
+    .preview-grid.result-mode.table-mode .chart-card {
+      display: none;
+    }
+
+    .viz-switch {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 6px;
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--line);
+      background: #fbfcfe;
+    }
+
+    .viz-switch strong {
+      color: var(--text);
+      margin-right: 4px;
+    }
+
+    .viz-btn {
+      min-height: 28px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #fff;
+      color: var(--muted);
+      padding: 0 10px;
+      font-weight: 800;
+    }
+
+    .viz-btn.active {
+      border-color: #80b7ff;
+      background: var(--blue-soft);
+      color: var(--blue);
+    }
+
+    .preview-grid.hidden,
+    .sql-preview.hidden {
+      display: none;
+    }
+
+    .chart-card {
+      display: grid;
+      grid-template-rows: 42px minmax(0, 1fr);
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    .chart-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 12px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .chart {
+      display: grid;
+      align-items: end;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 12px;
+      padding: 20px 24px 32px;
+      background:
+        linear-gradient(#edf2f7 1px, transparent 1px) 0 0 / 100% 44px,
+        #fff;
+    }
+
+    .chart.line-mode {
+      display: block;
+      position: relative;
+      padding: 18px;
+    }
+
+    .chart.line-mode svg {
+      width: 100%;
+      height: 100%;
+    }
+
+    .chart.pie-mode {
+      display: grid;
+      grid-template-columns: 230px minmax(0, 1fr);
+      align-items: center;
+      gap: 18px;
+      padding: 24px;
+      background: #fff;
+    }
+
+    .pie {
+      width: 210px;
+      height: 210px;
+      border-radius: 50%;
+      background: conic-gradient(#1769e0 0 42%, #12a97f 42% 70%, #f59e0b 70% 86%, #8b5cf6 86% 100%);
+      box-shadow: inset 0 0 0 34px #fff, 0 0 0 1px var(--line);
+    }
+
+    .legend {
+      display: grid;
+      gap: 10px;
+    }
+
+    .legend-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      min-height: 28px;
+      color: var(--muted);
+    }
+
+    .legend-row i {
+      width: 10px;
+      height: 10px;
+      border-radius: 3px;
+      font-style: normal;
+    }
+
+    .kpi-preview {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      align-content: center;
+      padding: 24px;
+      background: #fff;
+    }
+
+    .kpi-preview .kpi {
+      min-height: 110px;
+      justify-content: center;
+    }
+
+    .bar {
+      display: grid;
+      align-items: end;
+      gap: 6px;
+      height: 100%;
+      text-align: center;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .bar i {
+      display: block;
+      width: 100%;
+      border-radius: 5px 5px 0 0;
+      background: linear-gradient(180deg, #4e8df5, #1769e0);
+    }
+
+    .table-card {
+      min-height: 0;
+      overflow: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+
+    th,
+    td {
+      height: 34px;
+      padding: 0 9px;
+      border-bottom: 1px solid var(--line);
+      border-right: 1px solid var(--line);
+      text-align: left;
+      white-space: nowrap;
+    }
+
+    th {
+      position: sticky;
+      top: 0;
+      background: #f1f5f9;
+      color: #344054;
+      font-weight: 800;
+    }
+
+    td.num {
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .chart-pane {
+      grid-template-rows: auto minmax(0, 1fr) auto;
+    }
+
+    .chart-types {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      padding: 12px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .type-card {
+      display: grid;
+      place-items: center;
+      gap: 6px;
+      min-height: 58px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: #fff;
+      color: var(--muted);
+    }
+
+    .type-card.active {
+      border-color: #80b7ff;
+      background: var(--blue-soft);
+      color: var(--blue);
+      font-weight: 800;
+    }
+
+    .type-card:hover,
+    .source-ref:hover,
+    .insert-card button:hover,
+    .outline-item:hover {
+      border-color: #9ec5ff;
+    }
+
+    .type-card i {
+      font-style: normal;
+      font-size: 18px;
+    }
+
+    .config-list {
+      display: grid;
+      align-content: start;
+      gap: 10px;
+      padding: 12px;
+      overflow: auto;
+    }
+
+    .field-slot {
+      display: grid;
+      gap: 6px;
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: #fff;
+    }
+
+    .slot-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .slot-value {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      min-height: 30px;
+      padding: 0 8px;
+      border: 1px solid #cdd7e5;
+      border-radius: 5px;
+      background: var(--panel-soft);
+      color: var(--text);
+    }
+
+    .slot-remove {
+      width: 18px;
+      height: 18px;
+      border: 0;
+      border-radius: 50%;
+      background: transparent;
+      color: var(--faint);
+      padding: 0;
+      line-height: 18px;
+    }
+
+    .slot-remove:hover {
+      background: rgba(23, 105, 224, .10);
+      color: var(--blue);
+    }
+
+    .security-note {
+      display: grid;
+      gap: 6px;
+      padding: 10px 12px;
+      border-top: 1px solid var(--line);
+      background: #fbfcfe;
+      color: var(--muted);
+      line-height: 18px;
+    }
+
+    .editor {
+      grid-template-columns: 220px minmax(0, 1fr) 330px;
+      gap: 12px;
+      min-height: 0;
+    }
+
+    .outline {
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+      min-height: 0;
+    }
+
+    .outline-list {
+      padding: 10px;
+      overflow: auto;
+    }
+
+    .outline-item {
+      display: grid;
+      gap: 2px;
+      padding: 8px;
+      border-radius: 6px;
+      color: var(--muted);
+    }
+
+    .outline-item.active {
+      background: var(--blue-soft);
+      color: var(--blue);
+      font-weight: 800;
+    }
+
+    .outline-item span {
+      font-size: 12px;
+      color: var(--faint);
+      font-weight: 400;
+    }
+
+    .doc-shell {
+      display: grid;
+      grid-template-rows: 88px minmax(0, 1fr);
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    .doc-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--line);
+      background: #fbfcfe;
+      overflow-x: auto;
+      overflow-y: hidden;
+    }
+
+    .tool-group {
+      display: grid;
+      align-content: start;
+      gap: 5px;
+      min-height: 70px;
+      padding: 0 8px;
+      border-right: 1px solid var(--line);
+      flex: 0 0 auto;
+    }
+
+    .tool-row {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      min-height: 30px;
+      white-space: nowrap;
+    }
+
+    .tool-label {
+      color: var(--faint);
+      font-size: 11px;
+      line-height: 12px;
+      white-space: nowrap;
+    }
+
+    .tool {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 30px;
+      height: 30px;
+      border: 1px solid var(--line);
+      border-radius: 5px;
+      background: #fff;
+      color: var(--muted);
+      font-weight: 800;
+    }
+
+    .tool.wide {
+      min-width: 56px;
+      padding: 0 8px;
+      font-weight: 700;
+    }
+
+    .tool.primary {
+      border-color: var(--blue-strong);
+      background: var(--blue-strong);
+      color: #fff;
+    }
+
+    .toolbar-select {
+      height: 30px;
+      min-width: 82px;
+      border: 1px solid var(--line);
+      border-radius: 5px;
+      background: #fff;
+      color: var(--text);
+      padding: 0 7px;
+    }
+
+    .toolbar-select.font {
+      min-width: 118px;
+    }
+
+    .color-swatch {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 30px;
+      height: 30px;
+      border: 1px solid var(--line);
+      border-radius: 5px;
+      background: #fff;
+    }
+
+    .color-swatch i {
+      display: block;
+      width: 16px;
+      height: 16px;
+      border-radius: 4px;
+      font-style: normal;
+    }
+
+    .doc-canvas {
+      min-height: 0;
+      overflow: auto;
+      padding: 0;
+      background: #dfe7f1;
+    }
+
+    .doc-canvas.drag-over {
+      background: #cfe1f7;
+    }
+
+    .paper {
+      width: 794px;
+      min-height: 1123px;
+      margin: 0 auto;
+      padding: 58px 64px;
+      border: 1px solid #cfd8e3;
+      background: #fff;
+      box-shadow: 0 12px 32px rgba(16, 24, 40, .16);
+      color: #1f2937;
+      font-size: 14px;
+      line-height: 1.8;
+    }
+
+    .paper h1 {
+      margin: 0 0 22px;
+      text-align: center;
+      font-size: 25px;
+      letter-spacing: 0;
+    }
+
+    .paper h2 {
+      margin: 24px 0 10px;
+      font-size: 18px;
+    }
+
+    .paper p {
+      margin: 8px 0;
+    }
+
+    .word-editor {
+      display: grid;
+      grid-template-rows: minmax(0, 1fr);
+      min-height: 0;
+      background: #dfe7f1;
+    }
+
+    .word-editor textarea {
+      min-height: 100%;
+    }
+
+    .tox.tox-tinymce {
+      height: 100% !important;
+      border: 0;
+      border-radius: 0;
+      font-family: inherit;
+    }
+
+    .tox .tox-editor-header {
+      border-bottom: 1px solid var(--line);
+      box-shadow: none !important;
+    }
+
+    .tox .tox-edit-area {
+      background: #dfe7f1;
+    }
+
+    .mce-content-body {
+      color: #1f2937;
+      font-family: "Microsoft YaHei", "PingFang SC", Arial, sans-serif;
+      font-size: 14px;
+      line-height: 1.8;
+    }
+
+    .report-block {
+      margin: 16px 0;
+      border: 1px solid #b9c7d8;
+      border-radius: 6px;
+      overflow: hidden;
+      background: #fff;
+    }
+
+    .report-block-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      min-height: 36px;
+      padding: 0 10px;
+      border-bottom: 1px solid var(--line);
+      background: #f5f8fc;
+      font-weight: 800;
+    }
+
+    .mini-chart {
+      display: grid;
+      grid-template-columns: 1.1fr .9fr;
+      gap: 12px;
+      padding: 12px;
+    }
+
+    .line-chart {
+      position: relative;
+      min-height: 150px;
+      background:
+        linear-gradient(#edf2f7 1px, transparent 1px) 0 0 / 100% 38px,
+        linear-gradient(90deg, #edf2f7 1px, transparent 1px) 0 0 / 92px 100%,
+        #fff;
+    }
+
+    .line-chart svg {
+      position: absolute;
+      inset: 8px;
+      width: calc(100% - 16px);
+      height: calc(100% - 16px);
+    }
+
+    .kpis {
+      display: grid;
+      gap: 8px;
+      align-content: start;
+    }
+
+    .kpi {
+      display: grid;
+      gap: 3px;
+      padding: 9px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: var(--panel-soft);
+    }
+
+    .kpi strong {
+      font-size: 18px;
+      line-height: 22px;
+    }
+
+    .kpi span {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .insert-pane {
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+      min-height: 0;
+    }
+
+    .insert-list {
+      display: grid;
+      align-content: start;
+      gap: 10px;
+      padding: 12px;
+      overflow: auto;
+    }
+
+    .insert-card {
+      display: grid;
+      gap: 6px;
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: #fff;
+    }
+
+    .insert-card strong {
+      font-size: 13px;
+    }
+
+    .insert-card span {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 17px;
+    }
+
+    .source-ref {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      min-height: 30px;
+      padding: 0 8px;
+      border: 1px solid #cdd7e5;
+      border-radius: 5px;
+      background: var(--panel-soft);
+    }
+
+    .source-ref {
+      cursor: pointer;
+    }
+
+    .source-ref[draggable="true"] {
+      cursor: grab;
+      user-select: none;
+    }
+
+    .source-ref[draggable="true"]:active {
+      cursor: grabbing;
+    }
+
+    .source-ref.dragging {
+      opacity: .55;
+      border-color: #80b7ff;
+      background: var(--blue-soft);
+    }
+
+    .drag-hint {
+      color: var(--blue) !important;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .sql-preview {
+      min-height: 0;
+      overflow: auto;
+      padding: 14px;
+      background: #0f172a;
+      color: #dbeafe;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      font-size: 12px;
+      line-height: 1.7;
+    }
+
+    .drawer-mask {
+      position: fixed;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      background: rgba(15, 23, 42, .30);
+      z-index: 50;
+    }
+
+    .drawer-mask.open {
+      display: flex;
+    }
+
+    .modal {
+      width: 520px;
+      max-height: calc(100vh - 80px);
+      display: grid;
+      grid-template-rows: 46px minmax(0, 1fr) 52px;
+      border: 1px solid var(--line-strong);
+      border-radius: 9px;
+      background: #fff;
+      box-shadow: 0 18px 50px rgba(15, 23, 42, .24);
+      overflow: hidden;
+    }
+
+    .modal-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 14px;
+      border-bottom: 1px solid var(--line);
+      background: #fbfcfe;
+      font-weight: 800;
+    }
+
+    .modal-body {
+      display: grid;
+      gap: 12px;
+      padding: 14px;
+      overflow: auto;
+    }
+
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      padding: 10px 14px;
+      border-top: 1px solid var(--line);
+      background: #fbfcfe;
+    }
+
+    .popover {
+      position: fixed;
+      display: none;
+      width: 420px;
+      max-width: calc(100vw - 32px);
+      border: 1px solid var(--line-strong);
+      border-radius: 9px;
+      background: #fff;
+      box-shadow: 0 16px 38px rgba(15, 23, 42, .18);
+      overflow: hidden;
+      z-index: 65;
+    }
+
+    .popover.open {
+      display: block;
+    }
+
+    .popover-head {
+      height: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 12px;
+      border-bottom: 1px solid var(--line);
+      background: #fbfcfe;
+      font-weight: 800;
+    }
+
+    .popover-body {
+      display: grid;
+      gap: 12px;
+      padding: 12px;
+    }
+
+    .popover-actions {
+      height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 8px;
+      padding: 0 12px;
+      border-top: 1px solid var(--line);
+      background: #fbfcfe;
+    }
+
+    .toast {
+      position: fixed;
+      right: 18px;
+      bottom: 18px;
+      display: none;
+      min-width: 260px;
+      max-width: 420px;
+      padding: 12px 14px;
+      border: 1px solid #b6e7d1;
+      border-radius: 8px;
+      background: #f0fdf7;
+      color: #0f5f46;
+      box-shadow: var(--shadow);
+      z-index: 60;
+      line-height: 18px;
+    }
+
+    .toast.open {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="appbar">
+      <div class="brand"><i>D</i><span>DataFlow 白皮书</span></div>
+      <nav class="nav" aria-label="原型页面">
+        <button class="active" data-page="workbench">工作台</button>
+        <button data-page="dataset">报表数据集</button>
+        <button data-page="editor">模板编辑器</button>
+      </nav>
+      <div class="top-actions">
+        <button class="btn" data-action="import-template">导入模板</button>
+        <button class="btn primary" data-jump="editor">新建白皮书</button>
+        <span class="user">admin / 运维管理</span>
+      </div>
+    </header>
+
+    <main id="workbench" class="page workbench active">
+      <section class="panel hero">
+        <div>
+          <h1>白皮书工作台</h1>
+          <p>按模板生成总结性报告，正文可编辑，图表来自可配置报表数据集，可导出 Word / PDF。</p>
+        </div>
+        <div class="hero-stats">
+          <div class="stat"><strong>12</strong><span>白皮书模板</span></div>
+          <div class="stat"><strong>38</strong><span>报表数据集</span></div>
+          <div class="stat"><strong>9</strong><span>本月已生成</span></div>
+          <div class="stat"><strong>4</strong><span>待发布报告</span></div>
+        </div>
+      </section>
+
+      <section class="home-grid">
+        <div class="panel">
+          <div class="section-title">
+            <strong>常用模板</strong>
+            <button class="btn" data-jump="editor">模板管理</button>
+          </div>
+          <div class="card-grid">
+            <article class="template-card">
+              <div class="card-head">
+                <h3>涉案人员专题白皮书</h3>
+                <span class="tag blue">已发布</span>
+              </div>
+              <p class="card-desc">面向月度研判，汇总嫌疑人规模、案件类型分布、地区趋势和重点人员清单。</p>
+              <div class="card-meta">
+                <span class="tag">7 章节</span>
+                <span class="tag">11 报表块</span>
+                <span class="tag green">可生成</span>
+              </div>
+              <div>
+                <button class="btn primary" data-action="generate-report">生成报告</button>
+                <button class="btn" data-jump="editor">编辑模板</button>
+              </div>
+            </article>
+            <article class="template-card">
+              <div class="card-head">
+                <h3>警情治理成效白皮书</h3>
+                <span class="tag amber">草稿</span>
+              </div>
+              <p class="card-desc">跟踪警情数据质量、问题整改、主题库覆盖和下发回传完成情况。</p>
+              <div class="card-meta">
+                <span class="tag">5 章节</span>
+                <span class="tag">8 报表块</span>
+                <span class="tag amber">需补数据集</span>
+              </div>
+              <div>
+                <button class="btn" data-jump="editor">继续编辑</button>
+                <button class="btn" data-action="validate-template">校验</button>
+              </div>
+            </article>
+            <article class="template-card">
+              <div class="card-head">
+                <h3>数据中台运行月报</h3>
+                <span class="tag blue">已发布</span>
+              </div>
+              <p class="card-desc">统计同步任务、主题库服务、Magic API 调用、数据回传和下发运行状态。</p>
+              <div class="card-meta">
+                <span class="tag">6 章节</span>
+                <span class="tag">14 报表块</span>
+                <span class="tag green">可生成</span>
+              </div>
+              <div>
+                <button class="btn primary" data-action="generate-report">生成报告</button>
+                <button class="btn" data-jump="editor">预览</button>
+              </div>
+            </article>
+            <article class="template-card">
+              <div class="card-head">
+                <h3>案件专题研判报告</h3>
+                <span class="tag">仅只读</span>
+              </div>
+              <p class="card-desc">围绕重点案件构建人员、时间、地域、警情类型和处置结果统计。</p>
+              <div class="card-meta">
+                <span class="tag">4 章节</span>
+                <span class="tag">6 报表块</span>
+                <span class="tag">业务查看</span>
+              </div>
+              <div>
+                <button class="btn">查看样例</button>
+              </div>
+            </article>
+          </div>
+        </div>
+
+        <aside class="panel activity">
+          <div class="section-title">
+            <strong>最近生成记录</strong>
+            <button class="btn">全部记录</button>
+          </div>
+          <div class="timeline">
+            <div class="event">
+              <i>W</i>
+              <div>
+                <strong>2026 年 5 月涉案人员专题白皮书</strong>
+                <span>admin 生成，12 个报表块全部刷新成功，已导出 Word。</span>
+              </div>
+            </div>
+            <div class="event">
+              <i>D</i>
+              <div>
+                <strong>新增报表数据集：案件类型月度趋势</strong>
+                <span>数据源：公安主题库，分组：月份、案件类型，指标：案件数。</span>
+              </div>
+            </div>
+            <div class="event">
+              <i>R</i>
+              <div>
+                <strong>警情治理成效白皮书校验未通过</strong>
+                <span>“整改闭环率”报表块缺少时间范围参数，请维护后重新校验。</span>
+              </div>
+            </div>
+            <div class="event">
+              <i>P</i>
+              <div>
+                <strong>模板发布：数据中台运行月报</strong>
+                <span>维护人员发布模板，只读用户可查看生成记录和导出文件。</span>
+              </div>
+            </div>
+          </div>
+        </aside>
+      </section>
+    </main>
+
+    <main id="dataset" class="page dataset">
+      <aside class="panel source-pane">
+        <div class="section-title">
+          <strong>数据来源</strong>
+          <span class="tag green">只读查询</span>
+        </div>
+        <div class="form">
+          <div class="field">
+            <label>数据源</label>
+            <select class="select">
+              <option>公安主题库 MySQL</option>
+              <option>Oracle 业务库</option>
+              <option>市局 C3 回传库</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>数据库 / Schema</label>
+            <select class="select">
+              <option>dataflow_theme</option>
+              <option>C##POLICE</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>搜索表</label>
+            <input class="input" value="case" data-action-input="table-search" />
+          </div>
+        </div>
+        <div class="tree">
+          <div class="tree-node active"><span>▾</span><strong>dataflow_theme</strong></div>
+          <div class="tree-node table active" data-source-table="dwd_case_suspect">
+            <span>▦</span>
+            <div class="tree-main"><strong>dwd_case_suspect</strong><span>案件嫌疑人明细主题表</span></div>
+          </div>
+          <div class="tree-node table" data-source-table="dws_case_month_stat">
+            <span>▦</span>
+            <div class="tree-main"><strong>dws_case_month_stat</strong><span>案件月度统计汇总表</span></div>
+          </div>
+          <div class="tree-node table" data-source-table="dim_org_area">
+            <span>▦</span>
+            <div class="tree-main"><strong>dim_org_area</strong><span>单位和行政区划维表</span></div>
+          </div>
+          <div class="tree-node table" data-source-table="dim_case_type">
+            <span>▦</span>
+            <div class="tree-main"><strong>dim_case_type</strong><span>案件类型维表</span></div>
+          </div>
+        </div>
+      </aside>
+
+      <section class="panel builder">
+        <div class="steps">
+          <span class="step active"><b>1</b>选表</span>
+          <span class="step active"><b>2</b>关联</span>
+          <span class="step active"><b>3</b>筛选</span>
+          <span class="step active"><b>4</b>分组聚合</span>
+          <span class="step active"><b>5</b>预览保存</span>
+        </div>
+        <div class="field-palette">
+          <div class="field-palette-title">筛选准则</div>
+          <div class="field-palette-list" id="fieldPalette">
+            <span class="filter-empty-tip" id="queryEmptyTip">点击“+”以添加筛选准则</span>
+            <span class="chips inline-chips" id="joinChips"></span>
+            <span class="chips inline-chips" id="filterChips"></span>
+            <span class="chips inline-chips" id="dimensionChips"></span>
+            <span class="chips inline-chips" id="metricChips"></span>
+            <button class="add" data-field-palette-plus onclick="window.dataflowOpenFieldPalette?.(this)" title="添加可用字段">+ 字段</button>
+            <button class="add" data-add-chip="join" onclick="window.dataflowOpenConfig?.('join', this)">+ 关联表</button>
+            <button class="add" data-add-chip="filter" onclick="window.dataflowOpenConfig?.('filter', this)">+ 条件</button>
+            <button class="add" data-add-chip="dimension" onclick="window.dataflowOpenConfig?.('dimension', this)">+ 维度</button>
+            <button class="add" data-add-chip="metric" onclick="window.dataflowOpenConfig?.('metric', this)">+ 指标</button>
+          </div>
+        </div>
+        <div class="dataset-status" id="datasetStatus">
+          <span class="tag green">可保存</span>
+          <strong>统计口径</strong>
+          <span>统计近 12 个月已归档案件，按月份和案件类型展示案件数及嫌疑人数变化。</span>
+        </div>
+
+        <div class="preview-area">
+          <div class="preview-tabs">
+            <button class="active" data-preview-tab="chart">展示预览</button>
+            <button data-preview-tab="data">数据结果</button>
+            <button data-preview-tab="sql">生成 SQL</button>
+            <span class="tag green">耗时 286ms</span>
+            <span style="flex: 1"></span>
+            <button data-action="validate-query">校验 SQL</button>
+            <button data-action="run-preview">运行预览</button>
+          </div>
+          <div class="preview-grid chart-only" id="previewGrid">
+            <div class="chart-card">
+              <div class="chart-title">
+                <strong id="chartPreviewTitle">案件类型月度趋势</strong>
+                <span class="tag blue" id="chartTypeLabel">柱状图</span>
+              </div>
+              <div class="viz-switch" id="vizSwitch">
+                <strong>展现形式</strong>
+                <button class="viz-btn" data-chart-type="table">报表</button>
+                <button class="viz-btn active" data-chart-type="bar">柱状图</button>
+                <button class="viz-btn" data-chart-type="pie">饼状图</button>
+                <button class="viz-btn" data-chart-type="line">折线图</button>
+                <button class="viz-btn" data-chart-type="kpi">指标卡</button>
+              </div>
+              <div class="chart" id="chartCanvas">
+                <div class="bar"><i style="height:42%"></i><span>1月</span></div>
+                <div class="bar"><i style="height:58%"></i><span>2月</span></div>
+                <div class="bar"><i style="height:36%"></i><span>3月</span></div>
+                <div class="bar"><i style="height:72%"></i><span>4月</span></div>
+                <div class="bar"><i style="height:66%"></i><span>5月</span></div>
+                <div class="bar"><i style="height:84%"></i><span>6月</span></div>
+              </div>
+            </div>
+            <div class="table-card">
+              <table>
+                <thead>
+                  <tr><th>月份</th><th>案件类型</th><th>案件数</th><th>嫌疑人数</th><th>环比</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td>2026-06</td><td>电信网络诈骗</td><td class="num">238</td><td class="num">412</td><td class="num">+8.6%</td></tr>
+                  <tr><td>2026-06</td><td>盗窃</td><td class="num">186</td><td class="num">231</td><td class="num">-3.1%</td></tr>
+                  <tr><td>2026-06</td><td>寻衅滋事</td><td class="num">92</td><td class="num">119</td><td class="num">+2.4%</td></tr>
+                  <tr><td>2026-05</td><td>电信网络诈骗</td><td class="num">219</td><td class="num">388</td><td class="num">+5.2%</td></tr>
+                  <tr><td>2026-05</td><td>盗窃</td><td class="num">192</td><td class="num">240</td><td class="num">-1.0%</td></tr>
+                  <tr><td>2026-05</td><td>寻衅滋事</td><td class="num">90</td><td class="num">116</td><td class="num">+0.0%</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <pre class="sql-preview hidden" id="sqlPreview">SELECT
+  DATE_FORMAT(t.case_time, '%Y-%m') AS case_month,
+  ct.case_type_name,
+  COUNT(t.case_no) AS case_count,
+  COUNT(DISTINCT t.suspect_id) AS suspect_count
+FROM dwd_case_suspect t
+LEFT JOIN dim_case_type ct ON t.case_type_code = ct.case_type_code
+LEFT JOIN dim_org_area org ON t.org_code = org.org_code
+WHERE t.case_time &gt;= :start_time
+  AND t.case_status = :case_status
+  AND org.area_name LIKE CONCAT('%', :area_name, '%')
+GROUP BY DATE_FORMAT(t.case_time, '%Y-%m'), ct.case_type_name
+ORDER BY case_month ASC
+LIMIT 500;</pre>
+        </div>
+      </section>
+
+      <aside class="panel chart-pane">
+        <div class="section-title">
+          <strong>展示配置</strong>
+          <button class="btn primary" data-action="save-dataset">保存数据集</button>
+        </div>
+        <div class="chart-types">
+          <div class="type-card" data-chart-type="kpi"><i>▥</i><span>指标卡</span></div>
+          <div class="type-card" data-chart-type="table"><i>▤</i><span>表格</span></div>
+          <div class="type-card active" data-chart-type="bar"><i>▊</i><span>柱状图</span></div>
+          <div class="type-card" data-chart-type="line"><i>⌁</i><span>折线图</span></div>
+          <div class="type-card" data-chart-type="pie"><i>◔</i><span>饼图</span></div>
+          <div class="type-card" data-chart-type="compare"><i>↕</i><span>同环比</span></div>
+        </div>
+        <div class="config-list" id="chartConfigList">
+          <div class="field-slot">
+            <div class="slot-head"><span>X 轴 / 时间</span><button class="add" data-config-slot="x">+ 字段</button></div>
+            <div class="slot-value"><span>case_month · 按月</span><button class="slot-remove">×</button></div>
+          </div>
+          <div class="field-slot">
+            <div class="slot-head"><span>Y 轴 / 指标</span><button class="add" data-config-slot="y">+ 字段</button></div>
+            <div class="slot-value"><span>案件数 COUNT(case_no)</span><button class="slot-remove">×</button></div>
+            <div class="slot-value"><span>嫌疑人数 COUNT DISTINCT(suspect_id)</span><button class="slot-remove">×</button></div>
+          </div>
+          <div class="field-slot">
+            <div class="slot-head"><span>图例 / 拆分</span><button class="add" data-config-slot="legend">+ 字段</button></div>
+            <div class="slot-value"><span>case_type_name · 案件类型</span><button class="slot-remove">×</button></div>
+          </div>
+          <div class="field-slot">
+            <div class="slot-head"><span>展示设置</span><span>样式</span></div>
+            <select class="select"><option>蓝色政务配色</option><option>分类对比配色</option></select>
+            <select class="select"><option>显示数值标签</option><option>隐藏数值标签</option></select>
+          </div>
+          <div class="field">
+            <label>白皮书内标题</label>
+            <input class="input" value="案件类型月度趋势" data-action-input="chart-title" />
+          </div>
+          <div class="field">
+            <label>图表说明</label>
+            <textarea class="textarea">统计近 12 个月已归档案件，按月份和案件类型展示案件数及嫌疑人数变化。</textarea>
+          </div>
+        </div>
+        <div class="security-note">
+          <strong>安全边界</strong>
+          <span>运维人员配置的是字段、关联、聚合和图表映射；后端负责生成只读 SQL、参数绑定、行数限制、权限校验和审计记录。</span>
+        </div>
+      </aside>
+    </main>
+
+    <main id="editor" class="page editor">
+      <aside class="panel outline">
+        <div class="section-title">
+          <strong>章节目录</strong>
+          <button class="btn ghost">+</button>
+        </div>
+        <div class="outline-list">
+          <div class="outline-item active">封面<span>标题、生成周期</span></div>
+          <div class="outline-item">一、总体情况<span>核心指标和摘要</span></div>
+          <div class="outline-item">二、案件趋势<span>趋势图和环比分析</span></div>
+          <div class="outline-item">三、人员分布<span>重点人员画像</span></div>
+          <div class="outline-item">四、治理建议<span>可编辑正文</span></div>
+          <div class="outline-item">附录<span>明细表和口径说明</span></div>
+        </div>
+      </aside>
+
+      <section class="panel doc-shell">
+        <div class="doc-canvas">
+          <div class="word-editor">
+          <textarea id="paper">
+            <h1>涉案人员专题白皮书</h1>
+            <p>统计周期：2026 年 1 月至 2026 年 6 月。本文围绕市局辖区已归档案件和涉案人员数据，对案件类型变化、人员规模、重点风险趋势进行分析。</p>
+            <h2>一、总体情况</h2>
+            <p>本期平台共汇聚案件数据 1,024 条，涉案人员 1,936 人。数据来源覆盖公安主题库、警综库回传结果及数据中台治理后的标准化主题表。</p>
+            <div class="report-block" contenteditable="false">
+              <div class="report-block-head">
+                <span>案件类型月度趋势</span>
+                <span class="tag blue">绑定：案件类型月度趋势</span>
+              </div>
+              <div class="mini-chart">
+                <div class="line-chart">
+                  <svg viewBox="0 0 360 150" preserveAspectRatio="none">
+                    <polyline points="0,110 72,82 144,95 216,50 288,62 360,28" fill="none" stroke="#1769e0" stroke-width="4" />
+                    <polyline points="0,126 72,112 144,116 216,90 288,86 360,72" fill="none" stroke="#12a97f" stroke-width="4" />
+                  </svg>
+                </div>
+                <div class="kpis">
+                  <div class="kpi"><strong>1,024</strong><span>案件总数</span></div>
+                  <div class="kpi"><strong>1,936</strong><span>涉案人员</span></div>
+                  <div class="kpi"><strong>+8.6%</strong><span>重点类型环比</span></div>
+                </div>
+              </div>
+            </div>
+            <p>从月度趋势看，电信网络诈骗类案件在 6 月出现明显上升，应结合重点人员轨迹、涉案账户和辖区分布进一步研判。</p>
+            <h2>二、案件趋势</h2>
+            <p>下方段落可由业务人员在生成后继续调整表述，图表块保留数据来源和统计口径，支持重新刷新。</p>
+          </textarea>
+          </div>
+        </div>
+      </section>
+
+      <aside class="panel insert-pane">
+        <div class="section-title">
+          <strong>插入面板</strong>
+          <button class="btn" data-action="validate-template">校验模板</button>
+        </div>
+        <div class="insert-list">
+          <div class="insert-card">
+            <strong>报表数据集</strong>
+            <span>拖拽数据集到左侧 Word 文档指定位置，松开后插入为图表、表格或指标卡。</span>
+            <span class="drag-hint">按住数据集名称拖入文档区域</span>
+            <div class="source-ref" draggable="true" data-insert-source="案件类型月度趋势"><span>案件类型月度趋势</span><span class="tag green">可用</span></div>
+            <div class="source-ref" draggable="true" data-insert-source="涉案人员地区分布"><span>涉案人员地区分布</span><span class="tag green">可用</span></div>
+            <div class="source-ref" draggable="true" data-insert-source="整改闭环率"><span>整改闭环率</span><span class="tag amber">缺参数</span></div>
+          </div>
+          <div class="insert-card">
+            <strong>生成参数</strong>
+            <span>模板生成时由用户选择，所有报表块共享参数。</span>
+            <div class="field"><label>统计周期</label><input class="input" value="2026-01 至 2026-06" /></div>
+            <div class="field"><label>辖区范围</label><input class="input" value="市局辖区" /></div>
+            <div class="field"><label>密级</label><select class="select"><option>内部</option><option>秘密</option></select></div>
+          </div>
+        </div>
+      </aside>
+    </main>
+  </div>
+
+  <div class="drawer-mask" id="modalMask" aria-hidden="true">
+    <section class="modal" role="dialog" aria-modal="true">
+      <div class="modal-head">
+        <span id="modalTitle">操作</span>
+        <button class="btn ghost" data-action="close-modal">×</button>
+      </div>
+      <div class="modal-body" id="modalBody"></div>
+      <div class="modal-actions" id="modalActions">
+        <button class="btn" data-action="close-modal">取消</button>
+        <button class="btn primary" data-action="confirm-modal">确认</button>
+      </div>
+    </section>
+  </div>
+
+  <div class="popover" id="configPopover" aria-hidden="true"></div>
+  <div class="toast" id="toast"></div>
+
+  <script>
+    const navButtons = document.querySelectorAll('.nav button')
+    const pages = document.querySelectorAll('.page')
+    const modalMask = document.getElementById('modalMask')
+    const modalTitle = document.getElementById('modalTitle')
+    const modalBody = document.getElementById('modalBody')
+    const modalActions = document.getElementById('modalActions')
+    const configPopover = document.getElementById('configPopover')
+    const toast = document.getElementById('toast')
+    const previewGrid = document.getElementById('previewGrid')
+    const sqlPreview = document.getElementById('sqlPreview')
+    const chartCanvas = document.getElementById('chartCanvas')
+    const chartTypeLabel = document.getElementById('chartTypeLabel')
+    const paper = document.getElementById('paper')
+    const docCanvas = document.querySelector('.doc-canvas')
+
+    let toastTimer = null
+    let modalConfirm = null
+    let draggedSourceName = ''
+    let draggedSort = null
+    let draggedFieldIndex = -1
+    const tableCatalog = {
+      dwd_case_suspect: {
+        alias: 't',
+        label: '案件嫌疑人明细主题表',
+        fields: [
+          { name: 'case_no', label: '案件编号', kind: '标识', role: 'id', filter: true, metric: true },
+          { name: 'case_time', label: '案发时间', kind: '时间', role: 'time', filter: true, dimension: true },
+          { name: 'case_status', label: '案件状态', kind: '维度', role: 'category', filter: true, dimension: true },
+          { name: 'case_type_code', label: '案件类型编码', kind: '关联键', role: 'key', filter: true },
+          { name: 'org_code', label: '单位编码', kind: '关联键', role: 'key', filter: true },
+          { name: 'suspect_id', label: '嫌疑人ID', kind: '标识', role: 'id', filter: true, metric: true },
+          { name: 'case_amount', label: '涉案金额', kind: '数值', role: 'number', filter: true, metric: true }
+        ]
+      },
+      dws_case_month_stat: {
+        alias: 't',
+        label: '案件月度统计汇总表',
+        fields: [
+          { name: 'stat_month', label: '统计月份', kind: '时间', role: 'time', filter: true, dimension: true },
+          { name: 'case_type_name', label: '案件类型', kind: '维度', role: 'category', filter: true, dimension: true },
+          { name: 'case_count', label: '案件数', kind: '数值', role: 'number', filter: true, metric: true },
+          { name: 'suspect_count', label: '嫌疑人数', kind: '数值', role: 'number', filter: true, metric: true },
+          { name: 'amount_total', label: '涉案总额', kind: '数值', role: 'number', filter: true, metric: true }
+        ]
+      },
+      dim_org_area: {
+        alias: 'org',
+        label: '单位和行政区划维表',
+        fields: [
+          { name: 'org_code', label: '单位编码', kind: '关联键', role: 'key', filter: true },
+          { name: 'org_name', label: '办案单位', kind: '维度', role: 'category', filter: true, dimension: true },
+          { name: 'area_name', label: '辖区', kind: '维度', role: 'category', filter: true, dimension: true },
+          { name: 'city_level', label: '层级', kind: '维度', role: 'category', filter: true, dimension: true }
+        ]
+      },
+      dim_case_type: {
+        alias: 'ct',
+        label: '案件类型维表',
+        fields: [
+          { name: 'case_type_code', label: '案件类型编码', kind: '关联键', role: 'key', filter: true },
+          { name: 'case_type_name', label: '案件类型', kind: '维度', role: 'category', filter: true, dimension: true },
+          { name: 'risk_level', label: '风险等级', kind: '维度', role: 'category', filter: true, dimension: true }
+        ]
+      },
+      dim_suspect_risk: {
+        alias: 'risk',
+        label: '嫌疑人风险维表',
+        fields: [
+          { name: 'suspect_id', label: '嫌疑人ID', kind: '关联键', role: 'key', filter: true },
+          { name: 'risk_level', label: '风险等级', kind: '维度', role: 'category', filter: true, dimension: true },
+          { name: 'risk_score', label: '风险分值', kind: '数值', role: 'number', filter: true, metric: true },
+          { name: 'control_status', label: '管控状态', kind: '维度', role: 'category', filter: true, dimension: true }
+        ]
+      }
+    }
+
+    const joinOptions = [
+      { table: 'dim_case_type', field: 'case_type_code', label: '案件类型维表', requires: ['dwd_case_suspect'] },
+      { table: 'dim_org_area', field: 'org_code', label: '单位和行政区划维表', requires: ['dwd_case_suspect'] },
+      { table: 'dim_suspect_risk', field: 'suspect_id', label: '嫌疑人风险维表', requires: ['dwd_case_suspect'] }
+    ]
+
+    const tableFields = Object.fromEntries(Object.entries(tableCatalog).map(([table, meta]) => [
+      table,
+      meta.fields.map((field) => [field.name, field.label, field.kind])
+    ]))
+
+    const datasetState = {
+      table: 'dwd_case_suspect',
+      title: '案件类型月度趋势',
+      chartType: 'bar',
+      extraFields: [],
+      selectedFields: [],
+      joins: [],
+      filters: [],
+      dimensions: [],
+      metrics: [],
+      previewRan: false,
+      slots: {
+        x: [],
+        y: [],
+        legend: []
+      }
+    }
+
+    function showPage(pageId) {
+      navButtons.forEach((item) => item.classList.toggle('active', item.dataset.page === pageId))
+      pages.forEach((page) => page.classList.toggle('active', page.id === pageId))
+    }
+
+    function showToast(message) {
+      clearTimeout(toastTimer)
+      toast.textContent = message
+      toast.classList.add('open')
+      toastTimer = setTimeout(() => toast.classList.remove('open'), 2400)
+    }
+
+    function openModal(title, bodyHtml, confirmText, onConfirm) {
+      modalTitle.textContent = title
+      modalBody.innerHTML = bodyHtml
+      modalActions.querySelector('[data-action="confirm-modal"]').textContent = confirmText || '确认'
+      modalConfirm = onConfirm || null
+      modalMask.classList.add('open')
+      modalMask.setAttribute('aria-hidden', 'false')
+    }
+
+    function closeModal() {
+      modalMask.classList.remove('open')
+      modalMask.setAttribute('aria-hidden', 'true')
+      modalConfirm = null
+    }
+
+    function closePopover() {
+      configPopover.classList.remove('open')
+      configPopover.setAttribute('aria-hidden', 'true')
+      configPopover.innerHTML = ''
+    }
+
+    function getEditor() {
+      return window.tinymce?.get('paper') || null
+    }
+
+    function insertEditorContent(html) {
+      const editor = getEditor()
+      if (editor) {
+        editor.insertContent(html)
+        editor.focus()
+      } else {
+        paper.value += html
+      }
+    }
+
+    function loadScript(src) {
+      return new Promise((resolve, reject) => {
+        const existing = document.querySelector(`script[src="${src}"]`)
+        if (existing) {
+          existing.addEventListener('load', resolve, { once: true })
+          existing.addEventListener('error', reject, { once: true })
+          return
+        }
+        const script = document.createElement('script')
+        script.src = src
+        script.async = true
+        script.referrerPolicy = 'origin'
+        script.onload = resolve
+        script.onerror = reject
+        document.head.appendChild(script)
+      })
+    }
+
+    function placePopover(anchor) {
+      const rect = anchor.getBoundingClientRect()
+      const width = Math.min(420, window.innerWidth - 32)
+      configPopover.style.width = `${width}px`
+      configPopover.style.left = `${Math.min(rect.left, window.innerWidth - width - 16)}px`
+      configPopover.style.top = `${Math.min(rect.bottom + 6, window.innerHeight - 360)}px`
+      configPopover.classList.add('open')
+      configPopover.setAttribute('aria-hidden', 'false')
+    }
+
+    function chipHtml(parts, cls = '') {
+      const chipType = cls.includes('dimension') ? 'dimension' : cls.includes('metric') ? 'metric' : cls.includes('filter') ? 'filter' : ''
+      const typeClass = chipType ? `kind-${chipType}` : ''
+      return `<span class="${['chip', typeClass, cls].filter(Boolean).join(' ')}" draggable="true" ${chipType ? `data-chip-type="${chipType}"` : ''}><span class="field-name">${parts[0]}</span><span class="op">${parts[1] || ''}</span>${parts[2] ? `<span class="value">${parts[2]}</span>` : ''}<button title="移除">×</button></span>`
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? '').replace(/[&<>"']/g, (char) => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+      }[char]))
+    }
+
+    function fieldKey(table, name) {
+      return `${table}.${name}`
+    }
+
+    function parseFieldKey(key) {
+      const [table, name] = String(key || '').split('.')
+      return { table, name }
+    }
+
+    function getJoinedTables() {
+      return [datasetState.table].concat(datasetState.joins.map((item) => item.table))
+    }
+
+    function getAvailableFields(predicate) {
+      return (datasetState.extraFields || [])
+        .filter((field, index, list) => list.findIndex((item) => item.key === field.key) === index)
+        .filter((field) => !predicate || predicate(field))
+    }
+
+    function getQueryableFields(predicate) {
+      return getJoinedTables()
+        .filter((table, index, list) => list.indexOf(table) === index && tableCatalog[table])
+        .flatMap((table) => tableCatalog[table].fields.map((field) => ({
+          ...field,
+          table,
+          tableLabel: tableCatalog[table].label,
+          alias: tableCatalog[table].alias,
+          key: fieldKey(table, field.name)
+        })))
+        .filter((field) => !predicate || predicate(field))
+    }
+
+    function resolveField(keyOrName, preferredTable = datasetState.table) {
+      const parsed = String(keyOrName || '').includes('.')
+        ? parseFieldKey(keyOrName)
+        : { table: preferredTable, name: keyOrName }
+      const field = tableCatalog[parsed.table]?.fields.find((item) => item.name === parsed.name)
+      if (field) return { ...field, table: parsed.table, alias: tableCatalog[parsed.table].alias, key: fieldKey(parsed.table, field.name) }
+      return null
+    }
+
+    function sqlRef(keyOrName) {
+      const field = resolveField(keyOrName)
+      return field ? `${field.alias}.${field.name}` : keyOrName
+    }
+
+    function dimensionExpression(item) {
+      if ((item.key || item.field) === 'case_month') {
+        return datasetState.table === 'dws_case_month_stat' ? 't.stat_month' : "DATE_FORMAT(t.case_time, '%Y-%m')"
+      }
+      return sqlRef(item.key || item.field)
+    }
+
+    function dimensionLabel(item) {
+      return item.label || resolveField(item.key || item.field)?.label || item.field
+    }
+
+    function metricLabel(item) {
+      return `${item.alias} ${item.fn}(${resolveField(item.key || item.field)?.name || item.field})`
+    }
+
+    function hasQueryConfig() {
+      return datasetState.joins.length
+        || datasetState.filters.length
+        || datasetState.dimensions.length
+        || datasetState.metrics.length
+    }
+
+    function buildNarrative() {
+      const timeFilter = datasetState.filters.find((item) => (item.key || item.field || '').includes('case_time'))
+        || datasetState.filters.find((item) => (item.key || item.field || '').includes('stat_month'))
+      const statusFilter = datasetState.filters.find((item) => (item.key || item.field || '').includes('case_status'))
+      const dims = datasetState.dimensions.map(dimensionLabel).join('、') || '不分组'
+      const metrics = datasetState.metrics.map((item) => item.alias).join('、') || '未配置指标'
+      return `统计${timeFilter ? timeFilter.value : '当前条件'}${statusFilter ? statusFilter.value : ''}案件，按${dims}展示${metrics}。`
+    }
+
+    function selectOptions(fields, selectedKey) {
+      return fields.map((field) => `<option value="${field.key}" ${field.key === selectedKey ? 'selected' : ''}>${field.label}（${field.table}.${field.name}）</option>`).join('')
+    }
+
+    function applyDefaultTableConfig(table) {
+      datasetState.table = table
+      datasetState.extraFields = []
+      datasetState.selectedFields = []
+      datasetState.joins = []
+      datasetState.filters = []
+      datasetState.dimensions = []
+      datasetState.metrics = []
+      datasetState.previewRan = false
+      datasetState.slots = { x: [], y: [], legend: [] }
+    }
+
+    function syncSlotsWithQuery() {
+      const dimensionValues = datasetState.dimensions.map((item) => `${item.key || item.field} · ${dimensionLabel(item)}`)
+      const metricValues = datasetState.metrics.map(metricLabel)
+      datasetState.slots.x = datasetState.slots.x.filter((value) => dimensionValues.includes(value))
+      datasetState.slots.legend = datasetState.slots.legend.filter((value) => dimensionValues.includes(value))
+      datasetState.slots.y = datasetState.slots.y.filter((value) => metricValues.includes(value))
+    }
+
+    function addSelectedField(field) {
+      if (!field || datasetState.extraFields.some((item) => item.key === field.key)) return
+      datasetState.extraFields.push(field)
+      if (!datasetState.selectedFields.includes(field.key)) datasetState.selectedFields.push(field.key)
+    }
+
+    function removeSelectedField(key) {
+      datasetState.extraFields = datasetState.extraFields.filter((item) => item.key !== key)
+      datasetState.selectedFields = datasetState.selectedFields.filter((item) => item !== key)
+    }
+
+    function renderFieldPalette() {
+      const hasAnyContent = datasetState.extraFields.length || datasetState.joins.length || datasetState.filters.length || datasetState.dimensions.length || datasetState.metrics.length
+      const fieldTokens = getAvailableFields()
+        .map((field) => {
+          const checked = datasetState.selectedFields.includes(field.key)
+          return `<label class="field-token kind-field${checked ? ' selected' : ''}" draggable="true" data-field-key="${field.key}" title="拖动字段调整顺序，也可拖到图表字段槽"><input type="checkbox" data-field-check="${field.key}" ${checked ? 'checked' : ''}><b>${field.name}</b>${field.label}<button class="field-remove" data-remove-field="${field.key}" title="移除字段">×</button></label>`
+        })
+        .join('')
+      const actions = [
+        '<button class="add" data-field-palette-plus onclick="window.dataflowOpenFieldPalette?.(this)" title="添加可用字段">+ 字段</button>',
+        `<button class="add" data-add-chip="join" onclick="window.dataflowOpenConfig?.('join', this)">+ 关联表</button>`,
+        `<button class="add" data-add-chip="filter" onclick="window.dataflowOpenConfig?.('filter', this)">+ 条件</button>`,
+        `<button class="add" data-add-chip="dimension" onclick="window.dataflowOpenConfig?.('dimension', this)">+ 维度</button>`,
+        `<button class="add" data-add-chip="metric" onclick="window.dataflowOpenConfig?.('metric', this)">+ 指标</button>`
+      ].join('')
+      document.getElementById('fieldPalette').innerHTML = `
+        ${hasAnyContent ? '' : '<span class="filter-empty-tip" id="queryEmptyTip">点击“+”以添加筛选准则</span>'}
+        ${fieldTokens}
+        <span class="chips inline-chips" id="joinChips"></span>
+        <span class="chips inline-chips" id="filterChips"></span>
+        <span class="chips inline-chips" id="dimensionChips"></span>
+        <span class="chips inline-chips" id="metricChips"></span>
+        ${actions}
+      `
+    }
+
+    function renderQueryChips() {
+      document.getElementById('joinChips').innerHTML = datasetState.joins
+        .map((item) => `<span class="chip kind-join" draggable="true" data-chip-type="join" data-join-table="${item.table}"><span class="field-name">${item.table}</span><span class="op">${item.type}</span><span class="value">${item.field}</span><button title="移除">×</button></span>`)
+        .join('')
+      document.getElementById('filterChips').innerHTML = datasetState.filters
+        .map((item) => chipHtml([resolveField(item.key || item.field)?.label || item.field, item.op, item.value], 'filter'))
+        .join('')
+      document.getElementById('dimensionChips').innerHTML = datasetState.dimensions
+        .map((item) => chipHtml([resolveField(item.key || item.field)?.name || item.field, dimensionLabel(item), ''], 'dimension dim'))
+        .join('')
+      document.getElementById('metricChips').innerHTML = datasetState.metrics
+        .map((item) => chipHtml([item.fn, `(${resolveField(item.key || item.field)?.name || item.field})`, item.alias], 'metric'))
+        .join('')
+    }
+
+    function renderSlots() {
+      syncSlotsWithQuery()
+      const slotTitles = {
+        bar: { x: 'X 轴 / 维度', y: 'Y 轴 / 指标', legend: '图例 / 拆分' },
+        line: { x: 'X 轴 / 时间', y: 'Y 轴 / 指标', legend: '图例 / 拆分' },
+        pie: { x: '备用维度', y: '数值指标', legend: '分类字段' },
+        kpi: { x: '对比维度', y: '指标卡数值', legend: '状态拆分' },
+        table: { x: '表格维度列', y: '表格指标列', legend: '附加分组' },
+        compare: { x: '周期字段', y: '对比指标', legend: '对比口径' }
+      }[datasetState.chartType] || {}
+      const slotMap = { x: 'x', y: 'y', legend: 'legend' }
+      Object.entries(slotMap).forEach(([key, slot]) => {
+        const button = document.querySelector(`[data-config-slot="${slot}"]`)
+        if (!button) return
+        const fieldSlot = button.closest('.field-slot')
+        if (!fieldSlot) return
+        fieldSlot.querySelector('.slot-head span').textContent = slotTitles[key] || fieldSlot.querySelector('.slot-head span').textContent
+        fieldSlot.querySelectorAll('.slot-value').forEach((item) => item.remove())
+        datasetState.slots[key].forEach((value) => {
+          const row = document.createElement('div')
+          row.className = 'slot-value'
+          row.setAttribute('draggable', 'true')
+          row.innerHTML = `<span>${escapeHtml(value)}</span><button class="slot-remove" data-slot="${key}">×</button>`
+          fieldSlot.appendChild(row)
+        })
+      })
+    }
+
+    function renderChartConfig() {
+      const labels = {
+        kpi: '指标卡',
+        table: '报表',
+        bar: '柱状图',
+        line: '折线图',
+        pie: '饼状图',
+        compare: '同环比'
+      }
+      const slotTemplates = {
+        table: [
+          ['x', '报表维度列'],
+          ['y', '报表指标列'],
+          ['legend', '分组/汇总列']
+        ],
+        bar: [
+          ['x', 'X 轴 / 分类维度'],
+          ['y', 'Y 轴 / 聚合指标'],
+          ['legend', '系列 / 拆分字段']
+        ],
+        line: [
+          ['x', 'X 轴 / 时间维度'],
+          ['y', 'Y 轴 / 趋势指标'],
+          ['legend', '系列 / 对比分类']
+        ],
+        pie: [
+          ['legend', '分类字段'],
+          ['y', '数值指标'],
+          ['x', '备用钻取维度']
+        ],
+        kpi: [
+          ['y', '指标卡数值'],
+          ['x', '对比维度'],
+          ['legend', '状态拆分']
+        ],
+        compare: [
+          ['x', '周期字段'],
+          ['y', '对比指标'],
+          ['legend', '对比口径']
+        ]
+      }
+      const settings = {
+        table: `
+          <div class="field-slot"><div class="slot-head"><span>报表设置</span><span>明细</span></div>
+            <select class="select"><option>显示合计行</option><option>隐藏合计行</option></select>
+            <select class="select"><option>每页 20 行</option><option>每页 50 行</option></select>
+            <select class="select"><option>冻结首列</option><option>不冻结列</option></select>
+          </div>`,
+        bar: `
+          <div class="field-slot"><div class="slot-head"><span>柱状图设置</span><span>样式</span></div>
+            <select class="select"><option>纵向柱状图</option><option>横向柱状图</option><option>堆叠柱状图</option></select>
+            <select class="select"><option>显示数值标签</option><option>隐藏数值标签</option></select>
+            <select class="select"><option>蓝色政务配色</option><option>分类对比配色</option></select>
+          </div>`,
+        line: `
+          <div class="field-slot"><div class="slot-head"><span>折线图设置</span><span>趋势</span></div>
+            <select class="select"><option>平滑折线</option><option>直线连接</option></select>
+            <select class="select"><option>显示节点</option><option>隐藏节点</option></select>
+            <select class="select"><option>显示趋势区间</option><option>仅显示折线</option></select>
+          </div>`,
+        pie: `
+          <div class="field-slot"><div class="slot-head"><span>饼状图设置</span><span>占比</span></div>
+            <select class="select"><option>环形饼图</option><option>实心饼图</option></select>
+            <select class="select"><option>显示百分比</option><option>显示数值</option><option>显示名称和值</option></select>
+            <select class="select"><option>按数值降序</option><option>按名称排序</option></select>
+          </div>`,
+        kpi: `
+          <div class="field-slot"><div class="slot-head"><span>指标卡设置</span><span>摘要</span></div>
+            <select class="select"><option>大号数字卡</option><option>三列指标卡</option></select>
+            <select class="select"><option>显示环比</option><option>隐藏环比</option></select>
+            <select class="select"><option>异常值红色提示</option><option>普通提示</option></select>
+          </div>`,
+        compare: `
+          <div class="field-slot"><div class="slot-head"><span>同环比设置</span><span>对比</span></div>
+            <select class="select"><option>显示环比和同比</option><option>仅显示环比</option><option>仅显示同比</option></select>
+            <select class="select"><option>上升下降颜色区分</option><option>统一配色</option></select>
+          </div>`
+      }
+      const configList = document.getElementById('chartConfigList')
+      if (!configList) return
+      const slots = slotTemplates[datasetState.chartType] || slotTemplates.bar
+      configList.innerHTML = `
+        <div class="field-slot">
+          <div class="slot-head"><span>当前展现形式</span><span class="tag blue">${labels[datasetState.chartType] || '柱状图'}</span></div>
+          <span class="meta">点选左侧展现形式后，这里编辑对应图表或报表的字段映射和样式。</span>
+        </div>
+        ${slots.map(([slot, title]) => `
+          <div class="field-slot">
+            <div class="slot-head"><span>${title}</span><button class="add" data-config-slot="${slot}">+ 字段</button></div>
+            ${(datasetState.slots[slot] || []).map((value) => `<div class="slot-value" draggable="true"><span>${escapeHtml(value)}</span><button class="slot-remove" data-slot="${slot}">×</button></div>`).join('') || '<span class="meta">从已配置维度或指标中选择字段。</span>'}
+          </div>
+        `).join('')}
+        ${settings[datasetState.chartType] || settings.bar}
+        <div class="field">
+          <label>白皮书内标题</label>
+          <input class="input" value="${escapeHtml(datasetState.title)}" data-action-input="chart-title" />
+        </div>
+        <div class="field">
+          <label>图表说明</label>
+          <textarea class="textarea">${escapeHtml(buildNarrative())}</textarea>
+        </div>
+      `
+    }
+
+    function buildSql() {
+      if (!hasQueryConfig()) {
+        return '-- 点击“+”以添加筛选准则\n-- 系统会在这里生成只读 SELECT SQL'
+      }
+      const selectDims = datasetState.dimensions.map((item) => {
+        const alias = (item.key || item.field) === 'case_month' ? 'case_month' : (resolveField(item.key || item.field)?.name || item.field)
+        return `  ${dimensionExpression(item)} AS ${alias}`
+      })
+      const selectMetrics = datasetState.metrics.map((item) => {
+        const field = resolveField(item.key || item.field)
+        const ref = field ? `${field.alias}.${field.name}` : item.field
+        const expr = item.fn === 'COUNT DISTINCT'
+          ? `COUNT(DISTINCT ${ref})`
+          : `${item.fn}(${ref})`
+        return `  ${expr} AS ${item.alias}`
+      })
+      const joins = datasetState.joins.map((item) => {
+        const alias = tableCatalog[item.table]?.alias || item.table.replace(/^dim_/, '')
+        return `${item.type} ${item.table} ${alias} ON t.${item.field} = ${alias}.${item.field}`
+      })
+      const filters = datasetState.filters.map((item) => {
+        const field = resolveField(item.key || item.field)
+        const ref = field ? `${field.alias}.${field.name}` : item.field
+        const param = (field?.name || item.field).replace(/\W/g, '_')
+        if (item.op === '近') return `  AND ${ref} >= :start_time`
+        if (item.op === '包含') return `  AND ${ref} LIKE CONCAT('%', :${param}, '%')`
+        return `  AND ${ref} ${item.op} :${param}`
+      })
+      const groupBy = datasetState.dimensions.length
+        ? `GROUP BY ${datasetState.dimensions.map(dimensionExpression).join(', ')}`
+        : ''
+      return `SELECT\n${selectDims.concat(selectMetrics).join(',\\n')}\nFROM ${datasetState.table} t\n${joins.join('\\n')}\nWHERE 1 = 1\n${filters.join('\\n')}\n${groupBy}\nORDER BY 1 ASC\nLIMIT 500;`
+    }
+
+    function renderResultTable() {
+      const head = datasetState.dimensions.map(dimensionLabel).concat(datasetState.metrics.map((item) => item.alias))
+      if (!head.length) {
+        document.querySelector('.table-card table').innerHTML = `
+          <thead><tr><th>配置提示</th></tr></thead>
+          <tbody><tr><td>点击“+”以添加筛选准则、维度或指标。</td></tr></tbody>`
+        return
+      }
+      const dimSamples = {
+        case_month: ['2026-04', '2026-05', '2026-06'],
+        stat_month: ['2026-04', '2026-05', '2026-06'],
+        case_type_name: ['电信网络诈骗', '盗窃', '寻衅滋事'],
+        org_name: ['刑侦支队', '反诈中心', '城东分局'],
+        area_name: ['市局辖区', '城东辖区', '城南辖区'],
+        risk_level: ['高风险', '中风险', '低风险'],
+        case_status: ['已归档', '侦办中', '已移交'],
+        city_level: ['市级', '区县级', '派出所']
+      }
+      const rows = [0, 1, 2].map((rowIndex) => {
+        const dimValues = datasetState.dimensions.map((item) => {
+          const name = (item.key || item.field) === 'case_month' ? 'case_month' : (resolveField(item.key || item.field)?.name || item.field)
+          return dimSamples[name]?.[rowIndex] || `${dimensionLabel(item)}${rowIndex + 1}`
+        })
+        const metricValues = datasetState.metrics.map((item, metricIndex) => {
+          const base = rowIndex === 0 ? 238 : rowIndex === 1 ? 186 : 92
+          return item.fn === 'AVG' ? (12.6 - rowIndex * 2.1).toFixed(1) : String(base + metricIndex * 74)
+        })
+        return dimValues.concat(metricValues)
+      })
+      document.querySelector('.table-card table').innerHTML = `
+        <thead><tr>${head.map((item) => `<th>${item}</th>`).join('')}</tr></thead>
+        <tbody>${rows.map((row) => `<tr>${head.map((_, index) => `<td class="${index >= datasetState.dimensions.length ? 'num' : ''}">${row[index] || '-'}</td>`).join('')}</tr>`).join('')}</tbody>`
+    }
+
+    function getDatasetIssues() {
+      const issues = []
+      const joinedTables = getJoinedTables()
+      datasetState.joins.forEach((join) => {
+        const allowed = joinOptions.find((item) => item.table === join.table && item.field === join.field)
+        if (!allowed || !allowed.requires.includes(datasetState.table)) issues.push(`主表 ${datasetState.table} 暂不支持关联 ${join.table}`)
+      })
+      datasetState.filters.forEach((item) => {
+        const field = resolveField(item.key || item.field)
+        if (!field || !joinedTables.includes(field.table)) issues.push(`筛选字段 ${item.field} 不在当前查询范围内`)
+      })
+      datasetState.dimensions.forEach((item) => {
+        if ((item.key || item.field) !== 'case_month') {
+          const field = resolveField(item.key || item.field)
+          if (!field || !field.dimension) issues.push(`分组字段 ${item.field} 不可作为维度`)
+        }
+      })
+      datasetState.metrics.forEach((item) => {
+        const field = resolveField(item.key || item.field)
+        if (!field || !field.metric) issues.push(`指标字段 ${item.field} 不可聚合`)
+        if (['SUM', 'AVG', 'MAX'].includes(item.fn) && field?.role !== 'number') issues.push(`${item.fn} 只能用于数值字段`)
+      })
+      if (!datasetState.metrics.length) issues.push('至少需要 1 个聚合指标')
+      if ((datasetState.chartType === 'bar' || datasetState.chartType === 'line') && (!datasetState.slots.x.length || !datasetState.slots.y.length)) {
+        issues.push('柱状图/折线图必须配置 X 轴和 Y 轴')
+      }
+      if (datasetState.chartType === 'pie' && (!datasetState.slots.legend.length || !datasetState.slots.y.length)) {
+        issues.push('饼图必须配置分类和数值指标')
+      }
+      if (datasetState.chartType === 'kpi' && !datasetState.slots.y.length) {
+        issues.push('指标卡至少需要 1 个指标')
+      }
+      return issues
+    }
+
+    function renderDatasetStatus() {
+      const issues = getDatasetIssues()
+      const status = document.getElementById('datasetStatus')
+      status.innerHTML = !hasQueryConfig()
+        ? '<span class="tag amber">待配置</span><strong>配置提示</strong><span>点击“+”以添加筛选准则、关联表、维度或指标。</span>'
+        : issues.length
+        ? `<span class="tag red">不可保存</span><strong>待处理</strong><span>${issues.join('；')}</span>`
+        : `<span class="tag green">可保存</span><strong>统计口径</strong><span>${buildNarrative()}</span>`
+    }
+
+    function renderDataset() {
+      renderFieldPalette()
+      renderQueryChips()
+      renderChartConfig()
+      renderSlots()
+      renderResultTable()
+      sqlPreview.textContent = buildSql()
+      document.getElementById('chartPreviewTitle').textContent = datasetState.title
+      renderChart(document.querySelector('[data-chart-type].active')?.dataset.chartType || datasetState.chartType)
+      renderDatasetStatus()
+    }
+
+    function getConfigForm(type) {
+      const joinCandidates = joinOptions.filter((item) => item.requires.includes(datasetState.table) && !datasetState.joins.some((join) => join.table === item.table))
+      const filterFields = getQueryableFields((field) => field.filter)
+      const dimensionFields = [{ key: 'case_month', label: '按月（案发时间）', table: datasetState.table, name: 'case_month' }]
+        .concat(getQueryableFields((field) => field.dimension))
+      const metricFields = getQueryableFields((field) => field.metric)
+      return {
+        join: joinCandidates.length ? `
+          <div class="field"><label>关联表</label><select class="select" id="modalFieldA">${joinCandidates.map((item) => `<option value="${item.table}">${item.label}（${item.table}）</option>`).join('')}</select></div>
+          <div class="field"><label>关联方式</label><select class="select" id="modalOp"><option>LEFT JOIN</option><option>INNER JOIN</option><option>RIGHT JOIN</option></select></div>
+          <div class="field"><label>关联字段</label><select class="select" id="modalValue">${joinCandidates.map((item) => `<option value="${item.field}">${item.field}</option>`).join('')}</select></div>` : '<div class="tag amber">当前主表没有更多可关联维表</div>',
+        filter: `
+          <div class="field"><label>字段</label><select class="select" id="modalFieldA">${selectOptions(filterFields)}</select></div>
+          <div class="field"><label>条件</label><select class="select" id="modalOp"><option>>=</option><option>=</option><option>包含</option><option>近</option></select></div>
+          <div class="field"><label>取值</label><input class="input" id="modalValue" value="中风险"></div>`,
+        dimension: `
+          <div class="field"><label>维度字段</label><select class="select" id="modalFieldA">${selectOptions(dimensionFields)}</select></div>
+          <div class="field"><label>显示口径</label><input class="input" id="modalOp" value="按当前字段分组"></div>`,
+        metric: `
+          <div class="field"><label>聚合函数</label><select class="select" id="modalFieldA"><option>SUM</option><option>COUNT</option><option>COUNT DISTINCT</option><option>AVG</option><option>MAX</option></select></div>
+          <div class="field"><label>指标字段</label><select class="select" id="modalOp">${selectOptions(metricFields)}</select></div>
+          <div class="field"><label>显示名称</label><input class="input" id="modalValue" value="涉案金额"></div>`
+      }[type]
+    }
+
+    function applyConfigForm(type) {
+        const field = document.getElementById('modalFieldA')?.value || ''
+        const op = document.getElementById('modalOp')?.value || ''
+        const value = document.getElementById('modalValue')?.value || ''
+        if (type === 'join' && field) datasetState.joins.push({ table: field, type: op, field: value })
+        if (type === 'filter') {
+          const selected = resolveField(field)
+          datasetState.filters.push({ key: field, field: selected?.name || field, op, value })
+        }
+        if (type === 'dimension') {
+          const selected = resolveField(field)
+          datasetState.dimensions.push({ key: field, field: selected?.name || field, label: op === '按当前字段分组' ? (selected?.label || field) : op })
+        }
+        if (type === 'metric') {
+          const selected = resolveField(op)
+          datasetState.metrics.push({ key: op, fn: field, field: selected?.name || op, alias: value || selected?.label || '指标' })
+        }
+        renderDataset()
+        showToast('已添加配置项，SQL、表格和图表已同步刷新')
+    }
+
+    function addChip(type) {
+      const titles = {
+        join: '添加关联表',
+        filter: '新增筛选',
+        dimension: '新增维度',
+        metric: '新增指标'
+      }
+      openModal(titles[type], getConfigForm(type), '添加', () => applyConfigForm(type))
+    }
+
+    function openConfigPopover(type, anchor) {
+      const titles = {
+        join: '新增关联表',
+        filter: '新增筛选',
+        dimension: '新增维度',
+        metric: '新增指标'
+      }
+      configPopover.innerHTML = `
+        <div class="popover-head"><span>${titles[type]}</span><button class="btn ghost" data-action="close-popover">×</button></div>
+        <div class="popover-body">${getConfigForm(type)}</div>
+        <div class="popover-actions"><button class="btn" data-action="close-popover">取消</button><button class="btn primary" data-apply-popover="${type}">应用</button></div>
+      `
+      placePopover(anchor)
+    }
+
+    window.dataflowOpenConfig = function(type, anchor) {
+      window.event?.preventDefault?.()
+      window.event?.stopPropagation?.()
+      openConfigPopover(type, anchor)
+    }
+
+    window.dataflowOpenFieldPalette = function(anchor) {
+      window.event?.preventDefault?.()
+      window.event?.stopPropagation?.()
+      openFieldPaletteMenu(anchor)
+    }
+
+    function addFieldToArea(fieldKeyValue, area) {
+      const field = resolveField(fieldKeyValue)
+      if (!field) return showToast('字段不在当前查询范围内')
+      if (area === 'filter') {
+        datasetState.filters.push({ key: field.key, field: field.name, op: field.role === 'time' ? '近' : '=', value: field.role === 'time' ? '12 个月' : '待填写' })
+      }
+      if (area === 'dimension') {
+        if (!field.dimension) return showToast('该字段不适合作为分组维度')
+        datasetState.dimensions.push({ key: field.key, field: field.name, label: field.label })
+      }
+      if (area === 'metric') {
+        if (!field.metric) return showToast('该字段不适合作为聚合指标')
+        datasetState.metrics.push({ key: field.key, fn: field.role === 'number' ? 'SUM' : 'COUNT DISTINCT', field: field.name, alias: field.label })
+      }
+      if (area === 'x' || area === 'legend') {
+        if (!field.dimension) return showToast('该字段需先作为维度使用')
+        const value = `${field.key} · ${field.label}`
+        if (!datasetState.dimensions.some((item) => (item.key || item.field) === field.key)) {
+          datasetState.dimensions.push({ key: field.key, field: field.name, label: field.label })
+        }
+        if (!datasetState.slots[area].includes(value)) datasetState.slots[area].push(value)
+      }
+      if (area === 'y') {
+        if (!field.metric) return showToast('该字段需先作为指标使用')
+        let metric = datasetState.metrics.find((item) => (item.key || item.field) === field.key)
+        if (!metric) {
+          metric = { key: field.key, fn: field.role === 'number' ? 'SUM' : 'COUNT DISTINCT', field: field.name, alias: field.label }
+          datasetState.metrics.push(metric)
+        }
+        const value = metricLabel(metric)
+        if (!datasetState.slots.y.includes(value)) datasetState.slots.y.push(value)
+      }
+      renderDataset()
+      showToast('已按拖拽位置添加字段配置')
+    }
+
+    function openFieldUseMenu(fieldKeyValue) {
+      const field = resolveField(fieldKeyValue)
+      if (!field) return showToast('字段不在当前查询范围内')
+      const slotName = datasetState.chartType === 'pie'
+        ? '当前饼图字段'
+        : datasetState.chartType === 'table'
+          ? '当前表格列'
+          : '当前展示字段'
+      openModal(`选择字段用途：${field.label}`, `
+        <div class="field"><label>字段</label><input class="input" value="${escapeHtml(field.table)}.${escapeHtml(field.name)} / ${escapeHtml(field.label)}" readonly></div>
+        <div class="field"><label>加入到</label><select class="select" id="fieldUseTarget">
+          ${field.filter ? '<option value="filter">筛选条件 WHERE</option>' : ''}
+          ${field.dimension ? '<option value="dimension">分组维度 GROUP BY</option>' : ''}
+          ${field.metric ? '<option value="metric">聚合指标 METRICS</option>' : ''}
+          ${field.dimension ? '<option value="x">展示维度 / X 轴</option><option value="legend">图例 / 分类拆分</option>' : ''}
+          ${field.metric ? `<option value="y">${slotName} / 指标值</option>` : ''}
+        </select></div>
+        <p class="meta">系统会按字段用途生成合法 SQL，并自动补齐必要关联。</p>
+      `, '加入', () => {
+        const area = document.getElementById('fieldUseTarget')?.value
+        if (area) addFieldToArea(fieldKeyValue, area)
+      })
+    }
+
+    function openFieldPaletteMenu(anchor) {
+      const fields = getQueryableFields()
+      const selectedKeys = new Set(datasetState.extraFields.map((field) => field.key))
+      configPopover.innerHTML = `
+        <div class="popover-head"><span>添加可用字段</span><button class="btn ghost" data-action="close-popover">×</button></div>
+          <div class="popover-body">
+          ${fields.length ? `<div class="field"><label>字段</label><div class="field-check-list">
+          ${fields.map((field) => `<label class="field-check-item"><input type="checkbox" data-palette-field-check="${field.key}" ${selectedKeys.has(field.key) ? 'checked' : ''}><b>${field.name}</b><span>${field.label}</span><span class="meta">${field.table}</span></label>`).join('')}
+          </div></div>` : '<div class="tag amber">当前主表和关联表暂无字段</div>'}
+          <p class="meta">勾选字段后会立即显示到上方筛选准则区；取消勾选会从上方移除。</p>
+        </div>
+        <div class="popover-actions"><button class="btn primary" data-action="close-popover">完成</button></div>
+      `
+      placePopover(anchor)
+    }
+
+    function openJoinFieldMenu(table) {
+      const fields = tableCatalog[table]?.fields || []
+      if (!fields.length) return showToast('该关联表暂无可选字段')
+      const usableFields = fields.filter((field) => field.filter || field.dimension || field.metric)
+      openModal(`选择关联表字段：${table}`, `
+        <div class="field"><label>关联表</label><input class="input" value="${escapeHtml(tableCatalog[table]?.label || table)}" readonly></div>
+        <div class="field"><label>字段</label><select class="select" id="joinFieldKey">
+          ${usableFields.map((field) => `<option value="${fieldKey(table, field.name)}">${field.label}（${field.name}）</option>`).join('')}
+        </select></div>
+        <div class="field"><label>加入到</label><select class="select" id="joinFieldUse"><option value="dimension">分组维度 GROUP BY</option><option value="filter">筛选条件 WHERE</option><option value="legend">图例 / 分类拆分</option><option value="x">展示维度 / X 轴</option></select></div>
+        <p class="meta">这里的 + 表示从当前 JOIN 表继续挑选字段，不是新增一张表。</p>
+      `, '加入', () => {
+        const key = document.getElementById('joinFieldKey')?.value
+        const area = document.getElementById('joinFieldUse')?.value
+        if (key && area) addFieldToArea(key, area)
+      })
+    }
+
+    function moveItem(list, from, to) {
+      if (from === to || from < 0 || to < 0) return
+      const [item] = list.splice(from, 1)
+      list.splice(to, 0, item)
+    }
+
+    function reorderQueryConfig(area, from, to) {
+      if (area === 'WHERE') moveItem(datasetState.filters, from, to)
+      if (area === 'GROUP BY') moveItem(datasetState.dimensions, from, to)
+      if (area === 'METRICS') moveItem(datasetState.metrics, from, to)
+      renderDataset()
+      showToast('字段顺序已调整')
+    }
+
+    function reorderSlot(slot, from, to) {
+      if (!datasetState.slots[slot]) return
+      moveItem(datasetState.slots[slot], from, to)
+      renderDataset()
+      showToast('展示字段顺序已调整')
+    }
+
+    function reorderSelectedFields(from, to) {
+      moveItem(datasetState.extraFields, from, to)
+      renderDataset()
+      showToast('字段顺序已调整')
+    }
+
+    function addSlotValue(slot) {
+      const values = slot === 'y'
+        ? datasetState.metrics.map(metricLabel)
+        : datasetState.dimensions.map((item) => `${item.key || item.field} · ${dimensionLabel(item)}`)
+      openModal('添加图表字段', `
+        <div class="field"><label>字段槽</label><input class="input" value="${slot === 'x' ? 'X 轴 / 时间' : slot === 'y' ? 'Y 轴 / 指标' : '图例 / 拆分'}" readonly></div>
+        ${values.length ? `<div class="field"><label>字段</label><select class="select" id="slotValue">${values.map((item) => `<option>${item}</option>`).join('')}</select></div>` : '<div class="tag amber">请先在分组或指标区域添加可用字段</div>'}
+      `, '添加', () => {
+        const value = document.getElementById('slotValue')?.value
+        if (value && !datasetState.slots[slot].includes(value)) datasetState.slots[slot].push(value)
+        renderDataset()
+        showToast('图表字段已添加，保存校验已刷新')
+      })
+    }
+
+    function ensurePreviewDefaults() {
+      if (!datasetState.dimensions.length) {
+        const monthKey = datasetState.table === 'dws_case_month_stat' ? fieldKey(datasetState.table, 'stat_month') : 'case_month'
+        datasetState.dimensions.push({ key: monthKey, field: monthKey === 'case_month' ? 'case_month' : 'stat_month', label: monthKey === 'case_month' ? '按月（案发时间）' : '统计月份' })
+      }
+      if (!datasetState.metrics.length) {
+        const caseNo = resolveField(fieldKey(datasetState.table, 'case_no'), datasetState.table)
+        const caseCount = resolveField(fieldKey(datasetState.table, 'case_count'), datasetState.table)
+        const suspectId = resolveField(fieldKey(datasetState.table, 'suspect_id'), datasetState.table)
+        if (caseCount) {
+          datasetState.metrics.push({ key: caseCount.key, fn: 'SUM', field: caseCount.name, alias: '案件数' })
+        } else if (caseNo) {
+          datasetState.metrics.push({ key: caseNo.key, fn: 'COUNT', field: caseNo.name, alias: '案件数' })
+        }
+        if (suspectId) datasetState.metrics.push({ key: suspectId.key, fn: 'COUNT DISTINCT', field: suspectId.name, alias: '嫌疑人数' })
+      }
+      const dimensionValue = datasetState.dimensions[0] ? `${datasetState.dimensions[0].key || datasetState.dimensions[0].field} · ${dimensionLabel(datasetState.dimensions[0])}` : ''
+      if (dimensionValue && !datasetState.slots.x.length) datasetState.slots.x.push(dimensionValue)
+      const metricValues = datasetState.metrics.map(metricLabel)
+      if (!datasetState.slots.y.length) datasetState.slots.y = metricValues.slice(0, 2)
+      if (!datasetState.slots.legend.length) {
+        const legend = datasetState.dimensions.find((item) => !String(item.key || item.field).includes('month'))
+        if (legend) datasetState.slots.legend.push(`${legend.key || legend.field} · ${dimensionLabel(legend)}`)
+      }
+    }
+
+    function syncPreviewMode() {
+      const activeTab = document.querySelector('[data-preview-tab].active')?.dataset.previewTab || 'chart'
+      const sqlMode = activeTab === 'sql'
+      const dataMode = activeTab === 'data'
+      previewGrid.classList.toggle('hidden', sqlMode)
+      sqlPreview.classList.toggle('hidden', !sqlMode)
+      previewGrid.classList.toggle('result-mode', datasetState.previewRan && !sqlMode && !dataMode)
+      previewGrid.classList.toggle('data-only', datasetState.previewRan && dataMode)
+      previewGrid.classList.toggle('table-mode', datasetState.previewRan && (dataMode || (!sqlMode && datasetState.chartType === 'table')))
+      previewGrid.classList.toggle('chart-only', !datasetState.previewRan && !sqlMode)
+    }
+
+    function runPreview() {
+      ensurePreviewDefaults()
+      datasetState.previewRan = true
+      document.querySelector('.preview-tabs .tag.green').textContent = '耗时 193ms'
+      document.querySelectorAll('[data-preview-tab]').forEach((item) => {
+        item.classList.toggle('active', item.dataset.previewTab === 'chart')
+      })
+      renderChart(document.querySelector('[data-chart-type].active')?.dataset.chartType || 'bar')
+      renderResultTable()
+      sqlPreview.textContent = buildSql()
+      syncPreviewMode()
+      showToast('已按当前筛选准则生成数据结果，可继续选择报表、柱状图、饼状图等展现形式')
+    }
+
+    function validateQuery() {
+      const issues = getDatasetIssues()
+      const issueHtml = issues.length
+        ? issues.map((item) => `<div class="tag red">${escapeHtml(item)}</div>`).join('')
+        : '<div class="tag green">通过：字段、关联、聚合和图表槽位配置有效</div>'
+      openModal('SQL 安全校验', `
+        ${issueHtml}
+        <div class="tag green">通过：只生成只读 SELECT 查询</div>
+        <div class="tag green">通过：筛选条件按参数绑定表达</div>
+        <div class="tag green">通过：LIMIT 500 行，超时 30 秒</div>
+        <div class="tag amber">提醒：Oracle 数据源正式接入时需转换 DATE_FORMAT 日期函数</div>
+      `, '知道了', () => showToast(issues.length ? 'SQL 校验发现待处理项' : 'SQL 校验完成'))
+    }
+
+    function renderChart(type) {
+      datasetState.chartType = type
+      if (type === 'pie' && !datasetState.slots.legend.length && datasetState.dimensions.length) {
+        const dimension = datasetState.dimensions.find((item) => !String(item.key || item.field).includes('month')) || datasetState.dimensions[0]
+        datasetState.slots.legend.push(`${dimension.key || dimension.field} · ${dimensionLabel(dimension)}`)
+      }
+      document.querySelectorAll('[data-chart-type]').forEach((item) => {
+        item.classList.toggle('active', item.dataset.chartType === type)
+      })
+      const labels = {
+        kpi: '指标卡',
+        table: '报表',
+        bar: '柱状图',
+        line: '折线图',
+        pie: '饼状图',
+        compare: '同环比'
+      }
+      chartTypeLabel.textContent = labels[type]
+      chartCanvas.className = 'chart'
+      syncPreviewMode()
+      renderChartConfig()
+
+      if (!datasetState.dimensions.length && !datasetState.metrics.length) {
+        chartCanvas.className = 'chart kpi-preview'
+        chartCanvas.innerHTML = `
+          <div class="kpi"><strong>未配置</strong><span>点击“+”添加维度</span></div>
+          <div class="kpi"><strong>未配置</strong><span>点击“+”添加指标</span></div>
+          <div class="kpi"><strong>${labels[type]}</strong><span>选择展示形式后再运行预览</span></div>`
+        renderSlots()
+        renderDatasetStatus()
+        return
+      }
+
+      if (type === 'bar') {
+        chartCanvas.innerHTML = `
+          <div class="bar"><i style="height:42%"></i><span>1月</span></div>
+          <div class="bar"><i style="height:58%"></i><span>2月</span></div>
+          <div class="bar"><i style="height:36%"></i><span>3月</span></div>
+          <div class="bar"><i style="height:72%"></i><span>4月</span></div>
+          <div class="bar"><i style="height:66%"></i><span>5月</span></div>
+          <div class="bar"><i style="height:84%"></i><span>6月</span></div>`
+      } else if (type === 'line') {
+        chartCanvas.className = 'chart line-mode'
+        chartCanvas.innerHTML = `
+          <svg viewBox="0 0 600 260" preserveAspectRatio="none">
+            <polyline points="0,190 120,132 240,158 360,86 480,102 600,44" fill="none" stroke="#1769e0" stroke-width="5" />
+            <polyline points="0,215 120,186 240,196 360,142 480,130 600,106" fill="none" stroke="#12a97f" stroke-width="5" />
+          </svg>`
+      } else if (type === 'pie') {
+        chartCanvas.className = 'chart pie-mode'
+        chartCanvas.innerHTML = `
+          <div class="pie"></div>
+          <div class="legend">
+            <div class="legend-row"><span><i style="background:#1769e0"></i> 电信网络诈骗</span><strong>42%</strong></div>
+            <div class="legend-row"><span><i style="background:#12a97f"></i> 盗窃</span><strong>28%</strong></div>
+            <div class="legend-row"><span><i style="background:#f59e0b"></i> 寻衅滋事</span><strong>16%</strong></div>
+            <div class="legend-row"><span><i style="background:#8b5cf6"></i> 其他</span><strong>14%</strong></div>
+          </div>`
+      } else if (type === 'kpi' || type === 'compare') {
+        chartCanvas.className = 'chart kpi-preview'
+        chartCanvas.innerHTML = `
+          <div class="kpi"><strong>1,024</strong><span>案件总数</span></div>
+          <div class="kpi"><strong>1,936</strong><span>涉案人员</span></div>
+          <div class="kpi"><strong>${type === 'compare' ? '+8.6%' : '286ms'}</strong><span>${type === 'compare' ? '重点类型环比' : '查询耗时'}</span></div>`
+      } else if (type === 'table') {
+        renderResultTable()
+        chartCanvas.className = 'chart'
+        chartCanvas.innerHTML = ''
+      }
+      renderChartConfig()
+      renderSlots()
+      renderDatasetStatus()
+      syncPreviewMode()
+      showToast(`已切换为${labels[type]}预览`)
+    }
+
+    function insertReportBlock(sourceName, anchorNode) {
+      const blockHtml = `
+        <div class="report-block" contenteditable="false">
+        <div class="report-block-head">
+          <span>${sourceName}</span>
+          <span class="tag blue">绑定：${sourceName}</span>
+        </div>
+        <div class="mini-chart">
+          <div class="line-chart">
+            <svg viewBox="0 0 360 150" preserveAspectRatio="none">
+              <polyline points="0,118 72,96 144,104 216,78 288,62 360,42" fill="none" stroke="#1769e0" stroke-width="4"></polyline>
+            </svg>
+          </div>
+          <div class="kpis">
+            <div class="kpi"><strong>326</strong><span>重点人员</span></div>
+            <div class="kpi"><strong>18.4%</strong><span>高风险占比</span></div>
+          </div>
+        </div>
+        </div>`
+      insertEditorContent(blockHtml)
+      showToast(`已插入报表块：${sourceName}`)
+    }
+
+    function resolveDropAnchor(clientY) {
+      return null
+    }
+
+    document.querySelectorAll('.source-ref[draggable="true"]').forEach((item) => {
+      item.addEventListener('dragstart', (event) => {
+        draggedSourceName = item.dataset.insertSource || ''
+        item.classList.add('dragging')
+        event.dataTransfer.effectAllowed = 'copy'
+        event.dataTransfer.setData('text/plain', draggedSourceName)
+      })
+      item.addEventListener('dragend', () => {
+        item.classList.remove('dragging')
+        docCanvas.classList.remove('drag-over')
+      })
+    })
+
+    docCanvas.addEventListener('dragover', (event) => {
+      if (!draggedSourceName) return
+      event.preventDefault()
+      event.dataTransfer.dropEffect = 'copy'
+      docCanvas.classList.add('drag-over')
+    })
+
+    docCanvas.addEventListener('dragleave', (event) => {
+      if (!docCanvas.contains(event.relatedTarget)) {
+        docCanvas.classList.remove('drag-over')
+      }
+    })
+
+    docCanvas.addEventListener('drop', (event) => {
+      if (!draggedSourceName) return
+      event.preventDefault()
+      docCanvas.classList.remove('drag-over')
+      const sourceName = event.dataTransfer.getData('text/plain') || draggedSourceName
+      if (sourceName === '整改闭环率') {
+        showToast('该数据集缺少统计周期参数，暂不能拖入文档')
+      } else {
+        insertReportBlock(sourceName, resolveDropAnchor(event.clientY))
+      }
+      draggedSourceName = ''
+    })
+
+    document.addEventListener('dragstart', (event) => {
+      if (event.target.closest('.inline-plus')) {
+        event.preventDefault()
+        return
+      }
+      if (event.target.matches('input[type="checkbox"]')) {
+        event.preventDefault()
+        return
+      }
+      const sortSlot = event.target.closest('.slot-value[draggable="true"]')
+      if (sortSlot && !event.target.closest('button')) {
+        const fieldSlot = sortSlot.closest('.field-slot')
+        draggedSort = {
+          type: 'slot',
+          slot: fieldSlot.querySelector('[data-config-slot]')?.dataset.configSlot,
+          index: Array.from(fieldSlot.querySelectorAll('.slot-value')).indexOf(sortSlot)
+        }
+        sortSlot.classList.add('sorting')
+        event.dataTransfer.effectAllowed = 'move'
+        event.dataTransfer.setData('application/x-dataflow-sort', 'slot')
+        return
+      }
+      const token = event.target.closest('.field-token[draggable="true"]')
+      if (!token) return
+      draggedFieldIndex = Array.from(document.querySelectorAll('#fieldPalette .field-token')).indexOf(token)
+      token.classList.add('dragging')
+      event.dataTransfer.effectAllowed = 'copy'
+      event.dataTransfer.setData('application/x-dataflow-field', token.dataset.fieldKey)
+    })
+
+    document.addEventListener('dragend', (event) => {
+      const token = event.target.closest('.field-token[draggable="true"]')
+      if (token) token.classList.remove('dragging')
+      document.querySelectorAll('.chip.sorting, .slot-value.sorting').forEach((item) => item.classList.remove('sorting'))
+      document.querySelectorAll('.field-slot.drop-over, .field-palette-list.drop-over').forEach((item) => item.classList.remove('drop-over'))
+      draggedSort = null
+      draggedFieldIndex = -1
+    })
+
+    document.addEventListener('change', (event) => {
+      const paletteCheckbox = event.target.closest('[data-palette-field-check]')
+      if (paletteCheckbox) {
+        const key = paletteCheckbox.dataset.paletteFieldCheck
+        const field = resolveField(key, parseFieldKey(key).table)
+        if (paletteCheckbox.checked) {
+          addSelectedField(field)
+        } else {
+          removeSelectedField(key)
+        }
+        renderDataset()
+        showToast(paletteCheckbox.checked ? '字段已添加到筛选准则区' : '字段已从筛选准则区移除')
+        return
+      }
+
+      const checkbox = event.target.closest('[data-field-check]')
+      if (!checkbox) return
+      const key = checkbox.dataset.fieldCheck
+      if (!checkbox.checked) {
+        removeSelectedField(key)
+        renderDataset()
+        showToast('字段已从筛选准则区移除')
+      }
+    })
+
+    document.addEventListener('dragover', (event) => {
+      const fieldKeyValue = event.dataTransfer?.types?.includes('application/x-dataflow-field')
+      const sortValue = event.dataTransfer?.types?.includes('application/x-dataflow-sort')
+      if (!fieldKeyValue && !sortValue) return
+      const target = event.target.closest('.field-slot, #fieldPalette')
+      if (!target) return
+      event.preventDefault()
+      target.classList.add('drop-over')
+    })
+
+    document.addEventListener('dragleave', (event) => {
+      const target = event.target.closest('.field-slot, #fieldPalette')
+      if (target && !target.contains(event.relatedTarget)) target.classList.remove('drop-over')
+    })
+
+    document.addEventListener('drop', (event) => {
+      if (event.dataTransfer?.types?.includes('application/x-dataflow-sort') && draggedSort) {
+        const fieldSlot = event.target.closest('.field-slot')
+        if (draggedSort.type === 'slot' && fieldSlot) {
+          event.preventDefault()
+          const slot = fieldSlot.querySelector('[data-config-slot]')?.dataset.configSlot
+          const targetSlot = event.target.closest('.slot-value')
+          const toIndex = targetSlot ? Array.from(fieldSlot.querySelectorAll('.slot-value')).indexOf(targetSlot) : fieldSlot.querySelectorAll('.slot-value').length - 1
+          if (slot === draggedSort.slot) reorderSlot(slot, draggedSort.index, toIndex)
+        }
+        document.querySelectorAll('.field-slot.drop-over, .field-palette-list.drop-over').forEach((item) => item.classList.remove('drop-over'))
+        draggedSort = null
+        return
+      }
+      const fieldKeyValue = event.dataTransfer?.getData('application/x-dataflow-field')
+      if (!fieldKeyValue) return
+      const target = event.target.closest('.field-slot, #fieldPalette')
+      if (!target) return
+      event.preventDefault()
+      target.classList.remove('drop-over')
+      if (target.id === 'fieldPalette') {
+        const targetToken = event.target.closest('.field-token')
+        const toIndex = targetToken
+          ? Array.from(target.querySelectorAll('.field-token')).indexOf(targetToken)
+          : target.querySelectorAll('.field-token').length - 1
+        if (draggedFieldIndex >= 0) reorderSelectedFields(draggedFieldIndex, toIndex)
+        return
+      }
+      const slot = target.querySelector('[data-config-slot]')?.dataset.configSlot
+      if (slot) addFieldToArea(fieldKeyValue, slot)
+    })
+
+    navButtons.forEach((button) => {
+      button.addEventListener('click', () => showPage(button.dataset.page))
+    })
+
+    document.addEventListener('click', (event) => {
+      const target = event.target.closest('button, [data-chart-type], [data-insert-source], [data-source-table], .chip button, .slot-remove, [data-remove-field]')
+      if (!target) return
+
+      if (target.dataset.removeField) {
+        event.preventDefault()
+        event.stopPropagation()
+        removeSelectedField(target.dataset.removeField)
+        renderDataset()
+        showToast('字段已从筛选准则区移除')
+        return
+      }
+
+      if (target.dataset.fieldPalettePlus !== undefined) {
+        openFieldPaletteMenu(target)
+        return
+      }
+
+      if (target.matches('.chip button') && !target.matches('.inline-plus')) {
+        const chip = target.closest('.chip')
+        const type = chip.dataset.chipType
+        const container = chip.closest('.chips')
+        const index = Array.from(container.querySelectorAll('.chip')).indexOf(chip)
+        if (type === 'filter') datasetState.filters.splice(index, 1)
+        if (type === 'dimension') datasetState.dimensions.splice(index, 1)
+        if (type === 'metric') datasetState.metrics.splice(index, 1)
+        renderDataset()
+        showToast('已移除配置项，SQL、表格和图表已同步刷新')
+        return
+      }
+
+      if (target.matches('.slot-remove')) {
+        const slot = target.dataset.slot
+        const index = Array.from(target.closest('.field-slot').querySelectorAll('.slot-value')).indexOf(target.closest('.slot-value'))
+        if (slot && datasetState.slots[slot]) datasetState.slots[slot].splice(index, 1)
+        renderDataset()
+        showToast('图表字段已移除，保存校验已刷新')
+        return
+      }
+
+      if (target.dataset.sourceTable) {
+        document.querySelectorAll('[data-source-table]').forEach((item) => {
+          item.classList.toggle('active', item === target)
+        })
+        datasetState.title = target.dataset.sourceTable === 'dws_case_month_stat'
+          ? '案件月度汇总趋势'
+          : target.dataset.sourceTable === 'dim_org_area'
+            ? '辖区单位分布'
+            : target.dataset.sourceTable === 'dim_case_type'
+              ? '案件类型占比'
+              : '案件类型月度趋势'
+        applyDefaultTableConfig(target.dataset.sourceTable)
+        renderDataset()
+        showToast(`已切换主表：${target.dataset.sourceTable}`)
+        return
+      }
+
+      if (target.dataset.jump) {
+        showPage(target.dataset.jump)
+        return
+      }
+
+      if (target.dataset.addChip) {
+        openConfigPopover(target.dataset.addChip, target)
+        return
+      }
+
+      if (target.dataset.configSlot) {
+        addSlotValue(target.dataset.configSlot)
+        return
+      }
+
+      if (target.dataset.chartType) {
+        renderChart(target.dataset.chartType)
+        return
+      }
+
+      if (target.dataset.previewTab) {
+        document.querySelectorAll('[data-preview-tab]').forEach((item) => {
+          item.classList.toggle('active', item.dataset.previewTab === target.dataset.previewTab)
+        })
+        syncPreviewMode()
+        showToast(target.dataset.previewTab === 'sql' ? '已展示后端生成的只读 SQL 示例' : '已切换预览内容')
+        return
+      }
+
+      if (target.dataset.insertSource) {
+        if (target.dataset.insertSource === '整改闭环率') {
+          showToast('该数据集缺少统计周期参数，暂不能插入')
+        } else {
+          insertReportBlock(target.dataset.insertSource)
+        }
+        return
+      }
+
+      if (target.dataset.action === 'close-modal') {
+        closeModal()
+        return
+      }
+
+      if (target.dataset.action === 'close-popover') {
+        closePopover()
+        return
+      }
+
+      if (target.dataset.applyPopover) {
+        applyConfigForm(target.dataset.applyPopover)
+        closePopover()
+        return
+      }
+
+      if (target.dataset.action === 'confirm-modal') {
+        if (modalConfirm) modalConfirm()
+        closeModal()
+        return
+      }
+
+      if (target.dataset.action === 'save-dataset') {
+        const issues = getDatasetIssues()
+        if (issues.length) {
+          openModal('无法保存报表数据集', `
+            ${issues.map((item) => `<div class="tag red">${escapeHtml(item)}</div>`).join('')}
+            <p class="meta">请补齐字段槽、指标或图表兼容配置后再保存。</p>
+          `, '知道了', () => showToast('请先处理保存校验问题'))
+          return
+        }
+        openModal('保存报表数据集', `
+          <div class="field"><label>数据集名称</label><input class="input" value="${escapeHtml(datasetState.title)}"></div>
+          <div class="field"><label>所属目录</label><select class="select"><option>白皮书 / 公安专题</option><option>数据中台运行月报</option></select></div>
+          <div class="field"><label>共享范围</label><select class="select"><option>维护人员可编辑，只读用户可查看</option><option>仅本人可见</option></select></div>
+          <div class="field"><label>口径说明</label><textarea class="textarea">${escapeHtml(buildNarrative())}</textarea></div>
+        `, '保存', () => showToast('报表数据集已保存，可在模板编辑器中插入'))
+        return
+      }
+
+      if (target.dataset.action === 'run-preview') {
+        runPreview()
+        return
+      }
+
+      if (target.dataset.action === 'validate-query') {
+        validateQuery()
+        return
+      }
+
+      if (target.dataset.action === 'generate-report') {
+        openModal('生成白皮书', `
+          <div class="field"><label>统计周期</label><input class="input" value="2026-01 至 2026-06"></div>
+          <div class="field"><label>辖区范围</label><input class="input" value="市局辖区"></div>
+          <div class="field"><label>生成格式</label><select class="select"><option>Word + 在线草稿</option><option>仅在线草稿</option><option>Word + PDF</option></select></div>
+          <div class="tag green">11 个报表块可刷新，预计生成 18 页</div>
+        `, '开始生成', () => showToast('白皮书生成任务已创建，报表块正在刷新'))
+        return
+      }
+
+      if (target.dataset.action === 'validate-template') {
+        openModal('模板校验结果', `
+          <div class="tag green">通过：章节结构、正文占位、可用报表块 10 项</div>
+          <div class="tag amber">提醒：整改闭环率缺少统计周期参数</div>
+          <div class="tag red">阻断：无</div>
+          <p class="meta">发布前会再次校验数据集权限、参数绑定、导出格式和报表刷新结果。</p>
+        `, '知道了', () => showToast('已完成模板校验'))
+        return
+      }
+
+      if (target.dataset.action === 'insert-report-block') {
+        insertReportBlock('涉案人员地区分布')
+        return
+      }
+
+      if (target.dataset.action === 'refresh-doc-data') {
+        showToast('文档内 2 个报表块已刷新，统计周期保持 2026-01 至 2026-06')
+        return
+      }
+
+      if (target.dataset.action === 'preview-doc') {
+        showToast('已进入预览语义：正文锁定，报表块按导出宽度展示')
+        return
+      }
+
+      if (target.dataset.action === 'export-word') {
+        openModal('导出 Word', `
+          <div class="field"><label>文件名</label><input class="input" value="涉案人员专题白皮书-2026上半年.docx"></div>
+          <div class="field"><label>导出选项</label><select class="select"><option>保留可编辑正文和图表图片</option><option>正文可编辑，图表转表格附录</option></select></div>
+          <div class="tag blue">导出时会记录模板版本、数据集版本和生成参数。</div>
+        `, '导出', () => showToast('Word 导出任务已创建'))
+        return
+      }
+
+      if (target.dataset.action === 'insert-heading') {
+        insertEditorContent('<h2>新增章节标题</h2><p>这里输入章节正文。</p>')
+        showToast('已插入章节标题')
+        return
+      }
+
+      if (target.dataset.action === 'insert-note') {
+        insertEditorContent('<p><strong>统计口径：</strong>本章节数据按已归档案件统计，去除测试数据和重复回传记录。</p>')
+        showToast('已插入口径说明')
+        return
+      }
+
+      if (target.dataset.action === 'import-template') {
+        openModal('导入模板', `
+          <div class="field"><label>模板文件</label><input class="input" value="选择 .docx 模板文件"></div>
+          <div class="field"><label>导入方式</label><select class="select"><option>识别标题层级和占位符</option><option>仅导入正文</option></select></div>
+          <div class="tag amber">原型阶段展示流程，正式实现需解析 Word 样式、段落和报表占位符。</div>
+        `, '导入', () => showToast('模板导入流程已模拟完成'))
+      }
+    })
+
+    document.addEventListener('input', (event) => {
+      const input = event.target.closest('[data-action-input]')
+      if (!input) return
+      if (input.dataset.actionInput === 'chart-title') {
+        datasetState.title = input.value || '未命名图表'
+        document.getElementById('chartPreviewTitle').textContent = datasetState.title
+      }
+      if (input.dataset.actionInput === 'table-search') {
+        const keyword = input.value.trim().toLowerCase()
+        document.querySelectorAll('[data-source-table]').forEach((item) => {
+          const hit = item.dataset.sourceTable.toLowerCase().includes(keyword)
+          item.style.display = hit || !keyword ? '' : 'none'
+        })
+      }
+    })
+
+    document.addEventListener('pointerdown', (event) => {
+      if (!configPopover.classList.contains('open')) return
+      if (event.target.closest('#configPopover')) return
+      if (event.target.closest('[data-add-chip], [data-field-palette-plus]')) return
+      closePopover()
+    })
+
+    document.querySelectorAll('.chart-pane select').forEach((select) => {
+      select.addEventListener('change', () => {
+        showToast('图表展示设置已更新，预览已刷新')
+      })
+    })
+
+    renderDataset()
+
+    function initRichTextEditor() {
+      if (!window.tinymce) return
+      tinymce.init({
+          selector: '#paper',
+          height: '100%',
+          menubar: 'file edit view insert format table tools help',
+          plugins: 'advlist autolink lists link image charmap preview anchor searchreplace visualblocks code fullscreen insertdatetime media table help wordcount quickbars autoresize',
+          toolbar_mode: 'sliding',
+          toolbar: [
+            'undo redo | styles fontfamily fontsize | bold italic underline strikethrough superscript subscript | forecolor backcolor removeformat',
+            'alignleft aligncenter alignright alignjustify | bullist numlist outdent indent lineheight | table image link media charmap insertReportBlock searchreplace | visualblocks code preview fullscreen'
+          ].join(' | '),
+          font_family_formats: '微软雅黑=Microsoft YaHei;宋体=SimSun;黑体=SimHei;仿宋=FangSong;楷体=KaiTi;Arial=arial,helvetica,sans-serif;Times New Roman=times new roman,times,serif',
+          font_size_formats: '10pt 11pt 12pt 14pt 16pt 18pt 22pt 26pt 36pt',
+          line_height_formats: '1 1.15 1.5 1.75 2 2.5 3',
+          content_style: `
+          body {
+            max-width: 794px;
+            min-height: 1123px;
+            margin: 24px auto;
+            padding: 58px 64px;
+            border: 1px solid #cfd8e3;
+            background: #fff;
+            box-shadow: 0 12px 32px rgba(16, 24, 40, .16);
+            color: #1f2937;
+            font-family: "Microsoft YaHei", "PingFang SC", Arial, sans-serif;
+            font-size: 14px;
+            line-height: 1.8;
+          }
+          h1 { margin: 0 0 22px; text-align: center; font-size: 25px; }
+          h2 { margin: 24px 0 10px; font-size: 18px; }
+          p { margin: 8px 0; }
+          .report-block { margin: 16px 0; border: 1px solid #b9c7d8; border-radius: 6px; overflow: hidden; background: #fff; }
+          .report-block-head { display: flex; align-items: center; justify-content: space-between; min-height: 36px; padding: 0 10px; border-bottom: 1px solid #d9e2ec; background: #f5f8fc; font-weight: 800; }
+          .tag { display: inline-flex; align-items: center; min-height: 22px; padding: 0 7px; border-radius: 5px; background: #eaf3ff; color: #1f5fbf; font-size: 12px; }
+          .mini-chart { display: grid; grid-template-columns: 1.1fr .9fr; gap: 12px; padding: 12px; }
+          .line-chart { position: relative; min-height: 150px; background: linear-gradient(#edf2f7 1px, transparent 1px) 0 0 / 100% 38px, linear-gradient(90deg, #edf2f7 1px, transparent 1px) 0 0 / 92px 100%, #fff; }
+          .line-chart svg { position: absolute; inset: 8px; width: calc(100% - 16px); height: calc(100% - 16px); }
+          .kpis { display: grid; gap: 8px; align-content: start; }
+          .kpi { display: grid; gap: 3px; padding: 9px; border: 1px solid #d9e2ec; border-radius: 6px; background: #f7f9fc; }
+          .kpi strong { font-size: 18px; line-height: 22px; }
+          .kpi span { color: #617083; font-size: 12px; }
+        `,
+          setup(editor) {
+            editor.ui.registry.addButton('insertReportBlock', {
+              text: '报表块',
+              tooltip: '插入报表数据集占位块',
+              onAction: () => insertReportBlock('涉案人员地区分布')
+            })
+          }
+      })
+    }
+
+    window.addEventListener('load', () => {
+      loadScript('https://cdn.jsdelivr.net/npm/tinymce@7/tinymce.min.js')
+        .then(() => initRichTextEditor())
+        .catch((error) => console.warn('TinyMCE 加载失败，已保留基础模板内容。', error))
+    })
+  </script>
+</body>
+</html>

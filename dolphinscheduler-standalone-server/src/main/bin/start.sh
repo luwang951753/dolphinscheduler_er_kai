@@ -23,6 +23,8 @@ DOLPHINSCHEDULER_HOME=${DOLPHINSCHEDULER_HOME:-${STANDALONE_HOME}}
 PID_FILE=${DOLPHINSCHEDULER_PID_FILE:-${STANDALONE_HOME}/logs/dolphinscheduler-standalone.pid}
 STARTUP_LOG=${DOLPHINSCHEDULER_STARTUP_LOG:-${STANDALONE_HOME}/logs/dolphinscheduler-startup.log}
 
+cd "$STANDALONE_HOME"
+
 export DATABASE=${DATABASE:-h2}
 source "$STANDALONE_HOME/conf/dolphinscheduler_env.sh"
 

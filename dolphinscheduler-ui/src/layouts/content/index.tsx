@@ -101,7 +101,14 @@ const Content = defineComponent({
     }
   },
   render() {
-    const fullScreenPages = ['/data-preview', '/theme-library']
+    const fullScreenPages = [
+      '/home',
+      '/data-preview',
+      '/theme-library',
+      '/data-return',
+      '/data-issue',
+      '/security/magic-api'
+    ]
     const contentPadding = fullScreenPages.some((path) =>
       this.currentRoute.path.startsWith(path)
     )

@@ -99,7 +99,7 @@ export const UserModal = defineComponent({
             : 'security.user.create_user'
         )}`}
         onCancel={this.onCancel}
-        confirmLoading={this.loading}
+        confirmLoading={this.loading || this.saving}
         onConfirm={this.onConfirm}
         confirmClassName='btn-submit'
         cancelClassName='btn-cancel'

@@ -47,12 +47,17 @@ import {
   CloudServerOutlined,
   ClusterOutlined,
   TableOutlined,
-  ApartmentOutlined
+  ApartmentOutlined,
+  SwapOutlined
 } from '@vicons/antd'
 import { useRoute } from 'vue-router'
 import { useUserStore } from '@/store/user/user'
 import { timezoneList } from '@/common/timezone'
 import type { UserInfoRes } from '@/service/modules/users/types'
+import {
+  hasModulePermission,
+  type ModulePermissionKey
+} from '@/common/module-permissions'
 
 export function useDataList() {
   const { t } = useI18n()
@@ -76,6 +81,21 @@ export function useDataList() {
 
   const timezoneOptions = () =>
     timezoneList.map((item) => ({ label: item, value: item }))
+
+  const canShowModule = (permission: ModulePermissionKey) =>
+    hasModulePermission(
+      userStore.getUserInfo,
+      permission,
+      userStore.getModulePermissions
+    )
+
+  const filterVisibleMenus = (menus: any[]): any[] =>
+    menus
+      .filter((menu) => !menu.modulePermission || canShowModule(menu.modulePermission))
+      .map((menu) => ({
+        ...menu,
+        children: menu.children ? filterVisibleMenus(menu.children) : menu.children
+      }))
 
   const state = reactive({
     isShowSide: false,
@@ -169,6 +189,7 @@ export function useDataList() {
         label: () => h(NEllipsis, null, { default: () => t('menu.resources') }),
         key: 'resource',
         icon: renderIcon(FolderOutlined),
+        modulePermission: 'resources:view',
         children: [
           {
             label: t('menu.file_manage'),
@@ -204,6 +225,7 @@ export function useDataList() {
           h(NEllipsis, null, { default: () => t('menu.sync_task') }),
         key: 'sync-task',
         icon: renderIcon(DeploymentUnitOutlined),
+        modulePermission: 'sync-task:view',
         children: []
       },
       {
@@ -211,6 +233,7 @@ export function useDataList() {
           h(NEllipsis, null, { default: () => t('menu.data_preview') }),
         key: 'data-preview',
         icon: renderIcon(TableOutlined),
+        modulePermission: 'data-preview:view',
         children: []
       },
       {
@@ -218,6 +241,7 @@ export function useDataList() {
           h(NEllipsis, null, { default: () => t('menu.theme_library') }),
         key: 'theme-library',
         icon: renderIcon(ClusterOutlined),
+        modulePermission: 'theme-library:view',
         children: []
       },
       {
@@ -225,13 +249,34 @@ export function useDataList() {
           h(NEllipsis, null, { default: () => t('menu.data_governance') }),
         key: 'data-governance',
         icon: renderIcon(ApartmentOutlined),
+        modulePermission: 'data-governance:view',
+        children: []
+      },
+      {
+        label: () =>
+          h(NEllipsis, null, { default: () => t('menu.data_return') }),
+        key: 'data-return',
+        icon: renderIcon(SwapOutlined),
+        children: []
+      },
+      {
+        label: () =>
+          h(NEllipsis, null, { default: () => t('menu.data_issue') }),
+        key: 'data-issue',
+        icon: renderIcon(SelectOutlined),
         children: []
       },
       {
         label: () => h(NEllipsis, null, { default: () => t('menu.monitor') }),
         key: 'monitor',
         icon: renderIcon(DesktopOutlined),
+        modulePermission: 'monitor:view',
         children: [
+          {
+            label: t('menu.instance_statistics'),
+            key: '/monitor/instance-statistics',
+            icon: renderIcon(FundProjectionScreenOutlined)
+          },
           {
             label: t('menu.service_manage'),
             key: 'service-manage',
@@ -328,6 +373,11 @@ export function useDataList() {
                   label: t('menu.token_manage'),
                   key: '/security/token-manage',
                   icon: renderIcon(SafetyOutlined)
+                },
+                {
+                  label: t('menu.magic_api'),
+                  key: '/security/magic-api',
+                  icon: renderIcon(ApartmentOutlined)
                 }
               ]
             : [
@@ -339,6 +389,7 @@ export function useDataList() {
               ]
       }
     ]
+    state.menuOptions = filterVisibleMenus(state.menuOptions)
   }
 
   const changeHeaderMenuOptions = (state: any) => {
@@ -350,6 +401,8 @@ export function useDataList() {
       'data-preview',
       'theme-library',
       'data-governance',
+      'data-return',
+      'data-issue',
       'monitor',
       'resource',
       'security'
@@ -363,6 +416,8 @@ export function useDataList() {
       'data-preview': '预览',
       'theme-library': '主题库',
       'data-governance': '治理',
+      'data-return': '回传',
+      'data-issue': '下发',
       monitor: '监控',
       security: '安全'
     }

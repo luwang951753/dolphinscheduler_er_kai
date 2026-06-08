@@ -49,6 +49,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -56,6 +57,8 @@ import lombok.extern.slf4j.Slf4j;
 public class SeatunnelTask extends AbstractRemoteTask {
 
     private static final String SEATUNNEL_BIN_DIR = "${SEATUNNEL_HOME}/bin/";
+    private static final Pattern PASSWORD_CONFIG_PATTERN =
+            Pattern.compile("(?m)^(\\s*password\\s*=\\s*)\"(?:\\\\.|[^\"])*\"");
 
     private SeatunnelParameters seatunnelParameters;
 
@@ -129,6 +132,7 @@ public class SeatunnelTask extends AbstractRemoteTask {
     private String buildCommand() throws Exception {
 
         List<String> args = new ArrayList<>();
+        args.add("JAVA_OPTS=\"${JAVA_OPTS:-} -DSEATUNNEL_HOME=${SEATUNNEL_HOME}\"");
         args.add(SEATUNNEL_BIN_DIR + seatunnelParameters.getStartupScript());
         args.addAll(buildOptions());
 
@@ -192,15 +196,25 @@ public class SeatunnelTask extends AbstractRemoteTask {
     }
 
     private String buildCustomConfigContent() {
-        log.info("raw custom config content : {}", seatunnelParameters.getRawScript());
+        log.info("raw custom config content : {}", maskPassword(seatunnelParameters.getRawScript()));
         String script = seatunnelParameters.getRawScript().replaceAll("\\r\\n", System.lineSeparator());
         script = parseScript(script);
         return script;
     }
 
+    private static String maskPassword(String script) {
+        if (script == null) {
+            return null;
+        }
+        return PASSWORD_CONFIG_PATTERN.matcher(script).replaceAll("$1\"******\"");
+    }
+
     private String buildConfigFilePath() {
-        return String.format("%s/seatunnel_%s.%s", taskRequest.getExecutePath(),
-                taskRequest.getTaskAppId(), formatDetector());
+        return Paths.get(taskRequest.getExecutePath(),
+                String.format("seatunnel_%s.%s", taskRequest.getTaskAppId(), formatDetector()))
+                .toAbsolutePath()
+                .normalize()
+                .toString();
     }
 
     private String formatDetector() {

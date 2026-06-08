@@ -1,34 +1,30 @@
 /*
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
  *
- *   http://www.apache.org/licenses/LICENSE-2.0
+ *    http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
 package org.apache.dolphinscheduler.installer.service;
 
 import org.apache.dolphinscheduler.installer.core.InstallContext;
 
-import org.springframework.stereotype.Service;
-
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.InetSocketAddress;
-import java.net.URL;
 import java.net.Socket;
-import java.io.InputStream;
+import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -38,20 +34,23 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
+import org.springframework.stereotype.Service;
+
 @Service
 public class DolphinProcessService {
 
-    private static final Duration STARTUP_TIMEOUT = Duration.ofSeconds(180);
+    private static final String DOLPHIN_CONTEXT_PATH = "/dolphinscheduler";
+
+    private static final Duration STARTUP_TIMEOUT = Duration.ofSeconds(300);
 
     private static final Duration STABLE_AFTER_PORT_OPEN = Duration.ofSeconds(12);
 
-    public ProcessResult start(InstallContext context) throws IOException, InterruptedException {
+    public ProcessResult start(InstallContext context, int dolphinPort) throws IOException, InterruptedException {
         Path startScript = context.getStandaloneHome().resolve("bin").resolve("start.sh");
         if (!Files.exists(startScript)) {
             return new ProcessResult(false, "start.sh 不存在: " + startScript);
         }
 
-        int dolphinPort = readDolphinPort(context);
         if (isPortOpen(dolphinPort)) {
             return new ProcessResult(false, "DolphinScheduler 端口已被占用: " + dolphinPort);
         }
@@ -94,6 +93,17 @@ public class DolphinProcessService {
                 + readStartupFailure(context, startupLog));
     }
 
+    public void stop(InstallContext context) throws IOException, InterruptedException {
+        Path stopScript = context.getStandaloneHome().resolve("bin").resolve("stop.sh");
+        if (Files.exists(stopScript)) {
+            ProcessBuilder processBuilder = new ProcessBuilder(stopScript.toAbsolutePath().toString());
+            processBuilder.directory(context.getStandaloneHome().toFile());
+            processBuilder.redirectErrorStream(true);
+            Process process = processBuilder.start();
+            process.waitFor(30, TimeUnit.SECONDS);
+        }
+    }
+
     private String readStartupFailure(InstallContext context, Path startupLog) throws IOException {
         Path standaloneLog = context.getStandaloneHome().resolve("logs").resolve("dolphinscheduler-standalone.log");
         StringBuilder builder = new StringBuilder();
@@ -110,7 +120,7 @@ public class DolphinProcessService {
         }
         try {
             HttpURLConnection connection = (HttpURLConnection) new URL(
-                    "http://127.0.0.1:" + port + "/ui/").openConnection();
+                    "http://127.0.0.1:" + port + DOLPHIN_CONTEXT_PATH + "/ui/").openConnection();
             connection.setConnectTimeout(500);
             connection.setReadTimeout(2000);
             connection.setRequestMethod("GET");
@@ -171,7 +181,7 @@ public class DolphinProcessService {
     private boolean isAssetAvailable(int port, String assetPath) {
         try {
             HttpURLConnection connection = (HttpURLConnection) new URL(
-                    "http://127.0.0.1:" + port + assetPath).openConnection();
+                    "http://127.0.0.1:" + port + normalizeAssetPath(assetPath)).openConnection();
             connection.setConnectTimeout(500);
             connection.setReadTimeout(2000);
             connection.setRequestMethod("GET");
@@ -192,6 +202,13 @@ public class DolphinProcessService {
         }
     }
 
+    private String normalizeAssetPath(String assetPath) {
+        if (assetPath.startsWith(DOLPHIN_CONTEXT_PATH + "/")) {
+            return assetPath;
+        }
+        return DOLPHIN_CONTEXT_PATH + assetPath;
+    }
+
     private byte[] readFirstBytes(InputStream inputStream, int maxBytes) throws IOException {
         byte[] buffer = new byte[maxBytes];
         int offset = 0;
@@ -205,25 +222,6 @@ public class DolphinProcessService {
         byte[] result = new byte[offset];
         System.arraycopy(buffer, 0, result, 0, offset);
         return result;
-    }
-
-    private int readDolphinPort(InstallContext context) throws IOException {
-        List<String> lines = Files.readAllLines(context.getConfDir().resolve("application.yaml"), StandardCharsets.UTF_8);
-        for (int index = 0; index < lines.size(); index++) {
-            if ("server:".equals(lines.get(index).trim())) {
-                for (int nested = index + 1; nested < lines.size(); nested++) {
-                    String line = lines.get(nested);
-                    if (!line.startsWith("  ")) {
-                        break;
-                    }
-                    String trimmed = line.trim();
-                    if (trimmed.startsWith("port:")) {
-                        return Integer.parseInt(trimmed.substring("port:".length()).trim());
-                    }
-                }
-            }
-        }
-        return 12345;
     }
 
     private boolean isPortOpen(int port) {

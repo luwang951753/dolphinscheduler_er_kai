@@ -24,6 +24,8 @@ import org.apache.dolphinscheduler.api.dto.datagovernance.DataGovernanceDtos.Iss
 import org.apache.dolphinscheduler.api.dto.datagovernance.DataGovernanceDtos.IssueStatusRequest;
 import org.apache.dolphinscheduler.api.dto.datagovernance.DataGovernanceDtos.Lineage;
 import org.apache.dolphinscheduler.api.dto.datagovernance.DataGovernanceDtos.LineageNode;
+import org.apache.dolphinscheduler.api.dto.datagovernance.DataGovernanceDtos.LineageRepairRequest;
+import org.apache.dolphinscheduler.api.dto.datagovernance.DataGovernanceDtos.LineageRepairResult;
 import org.apache.dolphinscheduler.api.dto.datagovernance.DataGovernanceDtos.MetadataRequest;
 import org.apache.dolphinscheduler.api.dto.datagovernance.DataGovernanceDtos.QualityRule;
 import org.apache.dolphinscheduler.api.dto.datagovernance.DataGovernanceDtos.QualityRuleRequest;
@@ -34,10 +36,15 @@ import org.apache.dolphinscheduler.api.enums.Status;
 import org.apache.dolphinscheduler.api.exceptions.ServiceException;
 import org.apache.dolphinscheduler.api.service.DataGovernanceService;
 import org.apache.dolphinscheduler.api.service.DataGovernanceStore;
+import org.apache.dolphinscheduler.common.enums.WorkflowExecutionStatus;
 import org.apache.dolphinscheduler.common.enums.AuthorizationType;
 import org.apache.dolphinscheduler.dao.entity.DataSource;
 import org.apache.dolphinscheduler.dao.entity.User;
+import org.apache.dolphinscheduler.dao.entity.WorkflowDefinition;
+import org.apache.dolphinscheduler.dao.entity.WorkflowInstance;
 import org.apache.dolphinscheduler.dao.mapper.DataSourceMapper;
+import org.apache.dolphinscheduler.dao.mapper.WorkflowDefinitionMapper;
+import org.apache.dolphinscheduler.dao.mapper.WorkflowInstanceMapper;
 import org.apache.dolphinscheduler.plugin.datasource.api.utils.DataSourceUtils;
 import org.apache.dolphinscheduler.spi.datasource.BaseConnectionParam;
 import org.apache.dolphinscheduler.spi.enums.DbType;
@@ -68,6 +75,8 @@ import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+
 @Slf4j
 @Service
 public class DataGovernanceServiceImpl extends BaseServiceImpl implements DataGovernanceService {
@@ -83,6 +92,12 @@ public class DataGovernanceServiceImpl extends BaseServiceImpl implements DataGo
 
     @Autowired
     private DataGovernanceStore dataGovernanceStore;
+
+    @Autowired
+    private WorkflowDefinitionMapper workflowDefinitionMapper;
+
+    @Autowired
+    private WorkflowInstanceMapper workflowInstanceMapper;
 
     @Override
     public List<Asset> queryAssets(
@@ -156,6 +171,15 @@ public class DataGovernanceServiceImpl extends BaseServiceImpl implements DataGo
         if (rule.getEnabled() == null) {
             rule.setEnabled(Boolean.TRUE);
         }
+        if (rule.getCreateIssue() == null) {
+            rule.setCreateIssue(Boolean.TRUE);
+        }
+        if (rule.getEscalateIssue() == null) {
+            rule.setEscalateIssue(Boolean.TRUE);
+        }
+        if (rule.getAutoCloseIssue() == null) {
+            rule.setAutoCloseIssue(Boolean.FALSE);
+        }
         if (StringUtils.isBlank(rule.getSql())) {
             rule.setSql(generateRuleSql(loginUser, assetId, request));
             rule.setManualSql(Boolean.FALSE);
@@ -175,6 +199,9 @@ public class DataGovernanceServiceImpl extends BaseServiceImpl implements DataGo
             sql = generateRuleSql(loginUser, assetId, ruleRequest);
         }
         validateReadonlySql(sql);
+        if (ruleRequest != null && Boolean.FALSE.equals(ruleRequest.getEnabled())) {
+            throw new ServiceException(Status.REQUEST_PARAMS_NOT_VALID_ERROR);
+        }
         TrialRunResult result = executeTrialSql(dataSource, assetRef, sql);
         if (ruleRequest != null && StringUtils.isNotBlank(ruleRequest.getId())) {
             QualityRule savedRule = saveRule(loginUser, assetId, ruleRequest);
@@ -184,8 +211,10 @@ public class DataGovernanceServiceImpl extends BaseServiceImpl implements DataGo
             savedRule.setAbnormalRate(result.getAbnormalRate());
             savedRule.setStatus(Boolean.TRUE.equals(result.getPassed()) ? "PASS" : "FAILED");
             dataGovernanceStore.saveRule(assetId, savedRule);
-            if (!Boolean.TRUE.equals(result.getPassed())) {
+            if (!Boolean.TRUE.equals(result.getPassed()) && savedRule.getCreateIssue() != Boolean.FALSE) {
                 createOrUpdateIssue(assetId, savedRule, result);
+            } else if (Boolean.TRUE.equals(result.getPassed()) && Boolean.TRUE.equals(savedRule.getAutoCloseIssue())) {
+                closeRuleIssues(assetId, savedRule, result.getExecutedAt());
             }
         }
         return result;
@@ -213,8 +242,8 @@ public class DataGovernanceServiceImpl extends BaseServiceImpl implements DataGo
         }
         DataSource sourceDataSource = getDatasource(loginUser, request.getSourceDatasourceId());
         DataSource targetDataSource = getDatasource(loginUser, request.getTargetDatasourceId());
-        String sourceSchema = normalizeSchema(sourceDataSource.getType(), request.getSourceSchema());
-        String targetSchema = normalizeSchema(targetDataSource.getType(), request.getTargetSchema());
+        String sourceSchema = normalizeSchema(sourceDataSource, request.getSourceSchema());
+        String targetSchema = normalizeSchema(targetDataSource, request.getTargetSchema());
         String sourceAssetId =
                 buildAssetId(sourceDataSource.getId(), request.getSourceDatabase(), sourceSchema, request.getSourceTable());
         String targetAssetId =
@@ -245,10 +274,98 @@ public class DataGovernanceServiceImpl extends BaseServiceImpl implements DataGo
         downstream.setFieldMappings(normalizeFieldMappings(request));
 
         dataGovernanceStore.replaceLineage(targetAssetId, upstream, downstream);
+        if (shouldRunAfterSyncRules(lastRunStatus)) {
+            runAfterSyncRules(loginUser, targetAssetId);
+        }
         Lineage lineage = new Lineage();
         lineage.setUpstream(dataGovernanceStore.getUpstream(targetAssetId));
         lineage.setDownstream(dataGovernanceStore.getDownstream(targetAssetId));
         return lineage;
+    }
+
+    @Override
+    public LineageRepairResult repairSyncTaskLineage(User loginUser, LineageRepairRequest request) {
+        if (!isAdmin(loginUser)) {
+            throw new ServiceException(Status.USER_NO_OPERATION_PERM);
+        }
+        String syncTaskName = StringUtils.trimToEmpty(request == null ? null : request.getSyncTaskName());
+        if (StringUtils.isBlank(syncTaskName)) {
+            throw new ServiceException(Status.REQUEST_PARAMS_NOT_VALID_ERROR);
+        }
+        WorkflowInstance workflowInstance = findLatestWorkflowInstance(syncTaskName);
+        LineageRepairResult result = new LineageRepairResult();
+        result.setSyncTaskName(syncTaskName);
+        if (workflowInstance == null) {
+            result.setRepairedRows(0);
+            result.setMessage("未找到对应工作流实例，未修改血缘状态。");
+            return result;
+        }
+        result.setWorkflowInstanceId(workflowInstance.getId());
+        String lineageStatus = toLineageRunStatus(workflowInstance.getState());
+        if (StringUtils.isBlank(lineageStatus)) {
+            result.setRepairedRows(0);
+            result.setMessage("工作流实例尚未终态，未修改血缘状态。");
+            return result;
+        }
+        String repairedAt = workflowInstance.getEndTime() == null ? now() : TIME_FORMATTER.format(
+                workflowInstance.getEndTime().toInstant().atZone(java.time.ZoneId.systemDefault()).toLocalDateTime());
+        int repairedRows = dataGovernanceStore.repairRunningLineageStatus(syncTaskName, lineageStatus, repairedAt);
+        result.setRepairedStatus(lineageStatus);
+        result.setRepairedAt(repairedAt);
+        result.setRepairedRows(repairedRows);
+        result.setMessage(repairedRows > 0 ? "已回补同步任务血缘终态。" : "未发现需要回补的 RUNNING 血缘记录。");
+        return result;
+    }
+
+    @Override
+    public List<TrialRunResult> runAfterSyncRules(User loginUser, String assetId) {
+        parseAndCheckAsset(loginUser, assetId);
+        List<TrialRunResult> results = new ArrayList<>();
+        for (QualityRule rule : dataGovernanceStore.getRules(assetId)) {
+            if (!Boolean.TRUE.equals(rule.getEnabled()) || !StringUtils.equals(rule.getFrequency(), "AFTER_SYNC")) {
+                continue;
+            }
+            TrialRunRequest request = new TrialRunRequest();
+            QualityRuleRequest ruleRequest = new QualityRuleRequest();
+            BeanUtils.copyProperties(rule, ruleRequest);
+            request.setRule(ruleRequest);
+            request.setSql(rule.getSql());
+            try {
+                results.add(trialRun(loginUser, assetId, request));
+            } catch (Exception ex) {
+                log.warn("Run after-sync data governance rule failed, assetId:{}, ruleId:{}.", assetId, rule.getId(), ex);
+            }
+        }
+        return results;
+    }
+
+    static boolean shouldRunAfterSyncRules(String lastRunStatus) {
+        return StringUtils.equalsIgnoreCase(StringUtils.trimToEmpty(lastRunStatus), "SUCCESS");
+    }
+
+    static String toLineageRunStatus(WorkflowExecutionStatus workflowStatus) {
+        if (workflowStatus == null || !workflowStatus.isFinalState()) {
+            return null;
+        }
+        return workflowStatus.isSuccess() ? "SUCCESS" : "FAILED";
+    }
+
+    private WorkflowInstance findLatestWorkflowInstance(String syncTaskName) {
+        WorkflowDefinition definition = workflowDefinitionMapper.selectOne(new QueryWrapper<WorkflowDefinition>().lambda()
+                .eq(WorkflowDefinition::getName, syncTaskName)
+                .orderByDesc(WorkflowDefinition::getUpdateTime)
+                .last("limit 1"));
+        if (definition != null) {
+            List<WorkflowInstance> instances = workflowInstanceMapper.queryByWorkflowDefinitionCode(definition.getCode(), 1);
+            if (!instances.isEmpty()) {
+                return instances.get(0);
+            }
+        }
+        return workflowInstanceMapper.selectOne(new QueryWrapper<WorkflowInstance>().lambda()
+                .likeRight(WorkflowInstance::getName, syncTaskName + "-")
+                .orderByDesc(WorkflowInstance::getStartTime)
+                .orderByDesc(WorkflowInstance::getId)
+                .last("limit 1"));
     }
 
     @Override
@@ -326,8 +443,9 @@ public class DataGovernanceServiceImpl extends BaseServiceImpl implements DataGo
                     continue;
                 }
                 validateIdentifier(database);
-                String schema = dataSource.getType() == DbType.POSTGRESQL ? DEFAULT_SCHEMA : null;
-                tableRs = metaData.getTables(database, schema, tableNamePattern, TABLE_TYPES);
+                String catalog = getCatalog(dataSource.getType(), database);
+                String schema = getSchemaPattern(dataSource.getType(), null, connectionParam);
+                tableRs = metaData.getTables(catalog, schema, tableNamePattern, TABLE_TYPES);
                 while (tableRs != null && tableRs.next()) {
                     Asset asset = new Asset();
                     asset.setDatasourceId(dataSource.getId());
@@ -421,12 +539,14 @@ public class DataGovernanceServiceImpl extends BaseServiceImpl implements DataGo
         try {
             DatabaseMetaData metaData = connection.getMetaData();
             Set<String> primaryKeys = new LinkedHashSet<>();
-            primaryKeyRs = metaData.getPrimaryKeys(database, getSchemaPattern(dataSource.getType(), schema), tableName);
+            String catalog = getCatalog(dataSource.getType(), database);
+            String schemaPattern = getSchemaPattern(dataSource.getType(), schema, connectionParam);
+            primaryKeyRs = metaData.getPrimaryKeys(catalog, schemaPattern, tableName);
             while (primaryKeyRs != null && primaryKeyRs.next()) {
                 primaryKeys.add(primaryKeyRs.getString("COLUMN_NAME"));
             }
             List<Field> fields = new ArrayList<>();
-            columnRs = metaData.getColumns(database, getSchemaPattern(dataSource.getType(), schema), tableName, "%");
+            columnRs = metaData.getColumns(catalog, schemaPattern, tableName, "%");
             while (columnRs != null && columnRs.next()) {
                 Field field = new Field();
                 field.setName(columnRs.getString("COLUMN_NAME"));
@@ -501,12 +621,41 @@ public class DataGovernanceServiceImpl extends BaseServiceImpl implements DataGo
         issue.setAssetId(assetId);
         issue.setRuleId(rule.getId());
         issue.setTitle(rule.getName() + " 检测失败");
-        issue.setSeverity(rule.getSeverity());
+        issue.setSeverity(resolveIssueSeverity(assetId, rule));
         issue.setStatus("OPEN");
         issue.setAbnormalCount(result.getAbnormalCount());
         issue.setDiscoveredAt(result.getExecutedAt());
         issue.setUpdatedAt(result.getExecutedAt());
         dataGovernanceStore.saveIssue(assetId, issue);
+    }
+
+    private void closeRuleIssues(String assetId, QualityRule rule, String updatedAt) {
+        for (Issue issue : dataGovernanceStore.getIssues(assetId)) {
+            if (StringUtils.equals(issue.getRuleId(), rule.getId()) && !StringUtils.equals(issue.getStatus(), "RESOLVED")) {
+                issue.setStatus("RESOLVED");
+                issue.setUpdatedAt(updatedAt);
+                dataGovernanceStore.saveIssue(assetId, issue);
+            }
+        }
+    }
+
+    private String resolveIssueSeverity(String assetId, QualityRule rule) {
+        if (!Boolean.TRUE.equals(rule.getEscalateIssue())) {
+            return rule.getSeverity();
+        }
+        boolean hasOpenIssue = dataGovernanceStore.getIssues(assetId).stream()
+                .anyMatch(issue -> StringUtils.equals(issue.getRuleId(), rule.getId())
+                        && !StringUtils.equals(issue.getStatus(), "RESOLVED"));
+        if (!hasOpenIssue) {
+            return rule.getSeverity();
+        }
+        if (StringUtils.equals(rule.getSeverity(), "LOW")) {
+            return "MEDIUM";
+        }
+        if (StringUtils.equals(rule.getSeverity(), "MEDIUM")) {
+            return "HIGH";
+        }
+        return rule.getSeverity();
     }
 
     private String buildRuleWhere(QualityRuleRequest request, DbType dbType, String table) {
@@ -524,6 +673,9 @@ public class DataGovernanceServiceImpl extends BaseServiceImpl implements DataGo
                 : "TRIM(CAST(" + field + " AS VARCHAR))";
         switch (type) {
             case "NOT_NULL":
+                if (dbType == DbType.ORACLE) {
+                    return field + " IS NULL";
+                }
                 return field + " IS NULL OR " + castAsText + " = ''";
             case "UNIQUE":
                 return field + " IN (SELECT " + field + " FROM " + table + " GROUP BY " + field + " HAVING COUNT(1) > 1)";
@@ -622,7 +774,9 @@ public class DataGovernanceServiceImpl extends BaseServiceImpl implements DataGo
     }
 
     private boolean isSupported(DataSource dataSource) {
-        return dataSource != null && (dataSource.getType() == DbType.MYSQL || dataSource.getType() == DbType.POSTGRESQL);
+        return dataSource != null && (dataSource.getType() == DbType.MYSQL
+                || dataSource.getType() == DbType.POSTGRESQL
+                || dataSource.getType() == DbType.ORACLE);
     }
 
     private boolean matchesKeyword(Asset asset, String keyword) {
@@ -645,9 +799,19 @@ public class DataGovernanceServiceImpl extends BaseServiceImpl implements DataGo
         return connectionParam;
     }
 
-    private String getSchemaPattern(DbType dbType, String schema) {
+    private String getCatalog(DbType dbType, String database) {
+        if (dbType == DbType.ORACLE) {
+            return null;
+        }
+        return database;
+    }
+
+    private String getSchemaPattern(DbType dbType, String schema, BaseConnectionParam connectionParam) {
         if (dbType == DbType.POSTGRESQL) {
             return StringUtils.defaultIfBlank(schema, DEFAULT_SCHEMA);
+        }
+        if (dbType == DbType.ORACLE) {
+            return StringUtils.upperCase(StringUtils.defaultIfBlank(schema, connectionParam.getUser()));
         }
         return null;
     }
@@ -656,7 +820,14 @@ public class DataGovernanceServiceImpl extends BaseServiceImpl implements DataGo
         if (dbType == DbType.MYSQL) {
             return quote(dbType, assetRef.database) + "." + quote(dbType, assetRef.tableName);
         }
-        return quote(dbType, StringUtils.defaultIfBlank(assetRef.schema, DEFAULT_SCHEMA)) + "." + quote(dbType, assetRef.tableName);
+        return quote(dbType, getQualifiedSchema(dbType, assetRef.schema)) + "." + quote(dbType, assetRef.tableName);
+    }
+
+    private String getQualifiedSchema(DbType dbType, String schema) {
+        if (dbType == DbType.POSTGRESQL) {
+            return StringUtils.defaultIfBlank(schema, DEFAULT_SCHEMA);
+        }
+        return StringUtils.trimToEmpty(schema);
     }
 
     private String quote(DbType dbType, String identifier) {
@@ -704,9 +875,13 @@ public class DataGovernanceServiceImpl extends BaseServiceImpl implements DataGo
                 .collect(Collectors.toList());
     }
 
-    private String normalizeSchema(DbType dbType, String schema) {
-        if (dbType == DbType.POSTGRESQL) {
+    private String normalizeSchema(DataSource dataSource, String schema) {
+        if (dataSource.getType() == DbType.POSTGRESQL) {
             return StringUtils.defaultIfBlank(schema, DEFAULT_SCHEMA);
+        }
+        if (dataSource.getType() == DbType.ORACLE) {
+            BaseConnectionParam connectionParam = buildConnectionParam(dataSource);
+            return StringUtils.upperCase(StringUtils.defaultIfBlank(schema, connectionParam.getUser()));
         }
         return StringUtils.trimToEmpty(schema);
     }

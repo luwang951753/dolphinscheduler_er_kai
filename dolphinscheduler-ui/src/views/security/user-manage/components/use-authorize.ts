@@ -29,8 +29,12 @@ import {
   grantNamespaceFunc,
   grantProject,
   grantProjectWithReadPerm,
-  revokeProjectById
+  queryUserModulePermissions,
+  revokeProjectById,
+  saveUserModulePermissions
 } from '@/service/modules/users'
+import { MODULE_PERMISSION_OPTIONS } from '@/common/module-permissions'
+import type { ModulePermissionKey } from '@/common/module-permissions'
 import type { IOption, IRecord, IResourceOption, TAuthType } from '../types'
 
 export function useAuthorize() {
@@ -46,6 +50,8 @@ export function useAuthorize() {
     unauthorizedDatasources: [] as IOption[],
     authorizedNamespaces: [] as number[],
     unauthorizedNamespaces: [] as IOption[],
+    authorizedModules: [] as ModulePermissionKey[],
+    modulePermissionOptions: MODULE_PERMISSION_OPTIONS,
     resourceType: 'file',
     fileResources: [] as IResourceOption[],
     pagination: {
@@ -156,6 +162,16 @@ export function useAuthorize() {
     )
   }
 
+  const getModulePermissions = async (userId: number) => {
+    if (state.loading) return
+    state.loading = true
+    try {
+      state.authorizedModules = await queryUserModulePermissions(userId)
+    } finally {
+      state.loading = false
+    }
+  }
+
   const onInit = (type: TAuthType, userId: number) => {
     if (type === 'authorize_project') {
       getProjects(userId)
@@ -166,6 +182,9 @@ export function useAuthorize() {
     if (type === 'authorize_namespace') {
       getNamespaces(userId)
     }
+    if (type === 'authorize_module') {
+      getModulePermissions(userId)
+    }
   }
 
   /*
@@ -174,20 +193,29 @@ export function useAuthorize() {
   const onSave = async (type: TAuthType, userId: number) => {
     if (state.saving) return false
     state.saving = true
-    if (type === 'authorize_datasource') {
-      await grantDataSource({
-        userId,
-        datasourceIds: state.authorizedDatasources.join(',')
-      })
+    try {
+      if (type === 'authorize_datasource') {
+        await grantDataSource({
+          userId,
+          datasourceIds: state.authorizedDatasources.join(',')
+        })
+      }
+      if (type === 'authorize_namespace') {
+        await grantNamespaceFunc({
+          userId,
+          namespaceIds: state.authorizedNamespaces.join(',')
+        })
+      }
+      if (type === 'authorize_module') {
+        state.authorizedModules = await saveUserModulePermissions(
+          userId,
+          state.authorizedModules
+        )
+      }
+      return true
+    } finally {
+      state.saving = false
     }
-    if (type === 'authorize_namespace') {
-      await grantNamespaceFunc({
-        userId,
-        namespaceIds: state.authorizedNamespaces.join(',')
-      })
-    }
-    state.saving = false
-    return true
   }
 
   return {

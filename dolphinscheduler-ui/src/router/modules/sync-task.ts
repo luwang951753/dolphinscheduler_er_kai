@@ -35,7 +35,8 @@ export default {
         title: '同步任务',
         activeMenu: 'sync-task',
         showSide: false,
-        auth: []
+        auth: [],
+        modulePermission: 'sync-task:view'
       }
     }
   ]

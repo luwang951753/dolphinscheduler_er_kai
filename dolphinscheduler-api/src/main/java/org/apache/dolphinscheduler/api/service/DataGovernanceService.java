@@ -22,6 +22,8 @@ import org.apache.dolphinscheduler.api.dto.datagovernance.DataGovernanceDtos.Fie
 import org.apache.dolphinscheduler.api.dto.datagovernance.DataGovernanceDtos.Issue;
 import org.apache.dolphinscheduler.api.dto.datagovernance.DataGovernanceDtos.IssueStatusRequest;
 import org.apache.dolphinscheduler.api.dto.datagovernance.DataGovernanceDtos.Lineage;
+import org.apache.dolphinscheduler.api.dto.datagovernance.DataGovernanceDtos.LineageRepairRequest;
+import org.apache.dolphinscheduler.api.dto.datagovernance.DataGovernanceDtos.LineageRepairResult;
 import org.apache.dolphinscheduler.api.dto.datagovernance.DataGovernanceDtos.MetadataRequest;
 import org.apache.dolphinscheduler.api.dto.datagovernance.DataGovernanceDtos.QualityRule;
 import org.apache.dolphinscheduler.api.dto.datagovernance.DataGovernanceDtos.QualityRuleRequest;
@@ -55,6 +57,10 @@ public interface DataGovernanceService {
     Lineage queryLineage(User loginUser, String assetId);
 
     Lineage registerSyncTaskLineage(User loginUser, SyncTaskLineageRequest request);
+
+    LineageRepairResult repairSyncTaskLineage(User loginUser, LineageRepairRequest request);
+
+    List<TrialRunResult> runAfterSyncRules(User loginUser, String assetId);
 
     List<Issue> queryIssues(User loginUser, String assetId);
 

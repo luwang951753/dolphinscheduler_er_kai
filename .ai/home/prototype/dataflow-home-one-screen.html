@@ -1,0 +1,453 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>DataFlow 首页一屏原型</title>
+  <style>
+    * { box-sizing: border-box; }
+    html {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+    }
+    body {
+      margin: 0;
+      min-width: 1180px;
+      height: 100vh;
+      overflow: hidden;
+      color: #101828;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
+      background: #eef3f8;
+    }
+    .shell {
+      display: grid;
+      grid-template-rows: 48px 1fr;
+      width: 100%;
+      height: 100vh;
+      overflow: hidden;
+    }
+    .appbar {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 0 16px;
+      border-bottom: 1px solid #d9e3f0;
+      background: #fff;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex: 0 0 auto;
+      color: #101828;
+      font-size: 17px;
+      font-weight: 700;
+    }
+    .brand i {
+      display: grid;
+      place-items: center;
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      background: #2b78d6;
+      color: #fff;
+      font-style: normal;
+      font-size: 13px;
+    }
+    .nav {
+      display: flex;
+      align-items: center;
+      gap: 2px;
+      min-width: 0;
+      height: 100%;
+    }
+    .nav span {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 32px;
+      padding: 0 11px;
+      border-radius: 7px;
+      font-size: 13px;
+      color: #475467;
+      white-space: nowrap;
+    }
+    .nav span.active {
+      background: #eef6ff;
+      color: #1f5fbf;
+      font-weight: 700;
+    }
+    .user {
+      margin-left: auto;
+      color: #667085;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+    .main {
+      display: grid;
+      grid-template-rows: 1fr;
+      min-width: 0;
+      height: calc(100vh - 48px);
+    }
+    .page {
+      display: grid;
+      grid-template-rows: 60px minmax(0, 1fr);
+      gap: 8px;
+      min-height: 0;
+      padding: 8px;
+    }
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 8px;
+    }
+    .metric,
+    .panel {
+      border: 1px solid #d9e3f0;
+      border-radius: 8px;
+      background: #fff;
+      box-shadow: 0 6px 18px rgba(16,24,40,.05);
+    }
+    .metric {
+      position: relative;
+      display: grid;
+      gap: 3px;
+      min-width: 0;
+      align-content: center;
+      padding: 8px 10px 8px 14px;
+      overflow: visible;
+    }
+    .metric::before {
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: 4px;
+      content: "";
+      background: #1f5fbf;
+    }
+    .metric:nth-child(2)::before { background: #0d91a5; }
+    .metric:nth-child(3)::before { background: #16a36a; }
+    .metric:nth-child(4)::before { background: #7755d9; }
+    .metric:nth-child(5)::before { background: #d98a08; }
+    .metric:nth-child(6)::before { background: #0f9f8f; }
+    .metric span { color: #667085; font-size: 12px; }
+    .metric strong { font-size: 19px; line-height: 1; }
+    .grid {
+      display: grid;
+      grid-template-columns: 296px minmax(430px, 1fr) 314px;
+      gap: 8px;
+      min-height: 0;
+    }
+    .col {
+      display: grid;
+      gap: 8px;
+      min-height: 0;
+    }
+    .left { grid-template-rows: minmax(0, 1fr) 202px; }
+    .center { grid-template-rows: 176px minmax(0, 1fr); }
+    .right { grid-template-rows: 1fr 1fr; }
+    .panel {
+      min-height: 0;
+      padding: 10px;
+      overflow: hidden;
+    }
+    .head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      height: 25px;
+      margin-bottom: 5px;
+    }
+    .head span { display: block; color: #667085; font-size: 11px; }
+    .head strong { display: block; margin-top: 1px; font-size: 13px; }
+    .head b {
+      flex: 0 0 auto;
+      padding: 2px 7px;
+      border-radius: 999px;
+      background: #eef6ff;
+      color: #1f5fbf;
+      font-size: 11px;
+    }
+    .summary {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      margin-bottom: 6px;
+    }
+    .summary div {
+      padding: 7px 8px;
+      border-radius: 7px;
+      background: #f5f9ff;
+    }
+    .summary strong { display: block; font-size: 19px; }
+    .summary span { color: #667085; font-size: 11px; }
+    .rows { display: grid; gap: 4px; }
+    .row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto auto;
+      gap: 8px;
+      align-items: center;
+      min-width: 0;
+      min-height: 24px;
+      padding: 4px 7px;
+      border: 1px solid #e7edf5;
+      border-radius: 7px;
+      background: #fbfdff;
+      font-size: 11px;
+    }
+    .row strong {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 11px;
+    }
+    .row span,
+    .row em {
+      overflow: hidden;
+      color: #667085;
+      font-size: 11px;
+      font-style: normal;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .issue .row { grid-template-columns: 22px minmax(0, 1fr) 42px; }
+    .issue b {
+      display: grid;
+      place-items: center;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: #fff1f0;
+      color: #d92d20;
+      font-size: 11px;
+    }
+    .flow {
+      position: relative;
+      height: calc(100% - 34px);
+      min-height: 150px;
+      border: 1px solid #d9e3f0;
+      border-radius: 8px;
+      background:
+        linear-gradient(90deg, rgba(31,95,191,.06) 1px, transparent 1px),
+        linear-gradient(0deg, rgba(31,95,191,.06) 1px, transparent 1px),
+        linear-gradient(135deg, #f8fbff, #eef6fb);
+      background-size: 38px 38px;
+    }
+    .flow svg {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+    }
+    .flow path {
+      fill: none;
+      stroke: rgba(31,95,191,.34);
+      stroke-width: 1.4;
+    }
+    .node {
+      position: absolute;
+      display: grid;
+      gap: 3px;
+      min-width: 92px;
+      padding: 6px 7px;
+      border: 1px solid #b9d5f7;
+      border-radius: 8px;
+      background: #fff;
+      box-shadow: 0 8px 16px rgba(16,24,40,.08);
+      transform: translate(-50%, -50%);
+    }
+    .node strong { font-size: 11px; }
+    .node span { color: #1f5fbf; font-size: 11px; font-weight: 700; }
+    .domains {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0,1fr));
+      gap: 6px;
+    }
+    .domain {
+      padding: 6px 7px;
+      border: 1px solid #e7edf5;
+      border-radius: 7px;
+      background: #fbfdff;
+    }
+    .domainTop {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      font-size: 11px;
+    }
+    .bar {
+      height: 5px;
+      margin: 5px 0;
+      overflow: hidden;
+      border-radius: 999px;
+      background: #edf2f7;
+    }
+    .bar i {
+      display: block;
+      height: 100%;
+      border-radius: inherit;
+      background: linear-gradient(90deg,#1f5fbf,#18a0b8);
+    }
+    .domainMeta {
+      display: flex;
+      gap: 7px;
+      color: #667085;
+      font-size: 10px;
+    }
+    .shareHero {
+      padding: 8px 10px;
+      margin-bottom: 6px;
+      border-radius: 7px;
+      background: #f5f9ff;
+    }
+    .shareHero strong { display: block; font-size: 18px; }
+    .shareHero span { color: #667085; font-size: 11px; }
+    .trend {
+      display: grid;
+      grid-template-columns: repeat(7, minmax(0,1fr));
+      align-items: end;
+      height: calc(100% - 34px);
+      min-height: 126px;
+      gap: 7px;
+      padding-top: 4px;
+    }
+    .trend div {
+      display: grid;
+      grid-template-rows: 1fr auto;
+      gap: 4px;
+      align-items: end;
+      justify-items: center;
+      height: 100%;
+    }
+    .trend i {
+      width: 23px;
+      border-radius: 6px 6px 0 0;
+      background: linear-gradient(180deg,#1f5fbf,#18a0b8);
+    }
+    .trend span { color: #667085; font-size: 11px; }
+    .ok { color: #067647 !important; font-weight: 700; }
+    .warn { color: #b54708 !important; font-weight: 700; }
+    .returnPanel .row {
+      grid-template-columns: minmax(0, 1fr) auto;
+    }
+    .returnPanel .row em {
+      color: #1f5fbf;
+      font-weight: 700;
+    }
+    @media (max-height: 760px) {
+      .page { grid-template-rows: 58px minmax(0, 1fr); gap: 7px; padding: 8px; }
+      .metric { min-height: 58px; padding: 8px 10px 7px 14px; }
+      .metric strong { font-size: 18px; }
+      .panel { padding: 8px; }
+      .flow { min-height: 150px; }
+      .row { min-height: 23px; padding: 3px 6px; }
+      .center { grid-template-rows: 176px minmax(0, 1fr); }
+      .left { grid-template-rows: minmax(0, 1fr) 202px; }
+      .returnPanel .row { min-height: 22px; padding: 3px 6px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header class="appbar">
+      <div class="brand"><i>DF</i><span>DataFlow</span></div>
+      <nav class="nav">
+        <span class="active">首页</span>
+        <span>数据源</span>
+        <span>同步任务</span>
+        <span>数据预览</span>
+        <span>主题库</span>
+        <span>数据治理</span>
+        <span>监控</span>
+        <span>资源</span>
+        <span>安全</span>
+      </nav>
+      <span class="user">admin / 2026-05-29 09:48</span>
+    </header>
+    <main class="main">
+      <section class="page">
+        <section class="metrics">
+          <div class="metric"><span>接入数据源</span><strong>38</strong></div>
+          <div class="metric"><span>资产表总量</span><strong>12,846</strong></div>
+          <div class="metric"><span>主题库覆盖</span><strong>27</strong></div>
+          <div class="metric"><span>共享服务</span><strong>156</strong></div>
+          <div class="metric"><span>治理规则</span><strong>428</strong></div>
+          <div class="metric"><span>质量评分</span><strong>96.8</strong></div>
+        </section>
+        <section class="grid">
+          <div class="col left">
+            <section class="panel">
+              <div class="head"><div><span>数据汇聚</span><strong>来源系统接入状态</strong></div><b>99.21%</b></div>
+              <div class="summary"><div><strong>8.72TB</strong><span>本月入湖</span></div><div><strong>430</strong><span>库表接入</span></div></div>
+              <div class="rows">
+                <div class="row"><strong>Oracle 警情库</strong><span>126 表</span><em>稳定</em></div>
+                <div class="row"><strong>MySQL 业务库</strong><span>18 源</span><em>稳定</em></div>
+                <div class="row"><strong>Hive 离线数仓</strong><span>9 源</span><em>同步中</em></div>
+                <div class="row"><strong>SFTP 文件交换</strong><span>11 源</span><em>待治理</em></div>
+              </div>
+            </section>
+            <section class="panel returnPanel">
+              <div class="head"><div><span>数据回传</span><strong>外部系统回传状态</strong></div><b>5 类</b></div>
+              <div class="rows">
+                <div class="row"><strong>市局C3回传</strong><em>运行中</em></div>
+                <div class="row"><strong>APP预约回传</strong><em>正常</em></div>
+                <div class="row"><strong>涉案财务回传</strong><em>待复核</em></div>
+                <div class="row"><strong>回传到警综库</strong><em>稳定</em></div>
+                <div class="row"><strong>回传到海淀数据中心</strong><em>同步中</em></div>
+              </div>
+            </section>
+          </div>
+          <div class="col center">
+            <section class="panel">
+              <div class="head"><div><span>主题库建设</span><strong>重点主题域进度</strong></div><b>27 个主题</b></div>
+              <div class="domains">
+                <div class="domain"><div class="domainTop"><strong>警情主题库</strong><span>92%</span></div><div class="bar"><i style="width:92%"></i></div><div class="domainMeta"><span>资产 2,418</span><span>服务 35</span><span>质量 98.1</span></div></div>
+                <div class="domain"><div class="domainTop"><strong>人口主题库</strong><span>86%</span></div><div class="bar"><i style="width:86%"></i></div><div class="domainMeta"><span>资产 1,906</span><span>服务 28</span><span>质量 96.7</span></div></div>
+                <div class="domain"><div class="domainTop"><strong>案件主题库</strong><span>78%</span></div><div class="bar"><i style="width:78%"></i></div><div class="domainMeta"><span>资产 1,324</span><span>服务 21</span><span>质量 94.9</span></div></div>
+                <div class="domain"><div class="domainTop"><strong>车辆主题库</strong><span>71%</span></div><div class="bar"><i style="width:71%"></i></div><div class="domainMeta"><span>资产 968</span><span>服务 17</span><span>质量 92.6</span></div></div>
+              </div>
+            </section>
+            <section class="panel">
+              <div class="head"><div><span>资产地图</span><strong>从汇聚到共享的主链路</strong></div><b>运营中</b></div>
+              <div class="flow">
+                <svg viewBox="0 0 100 70" preserveAspectRatio="none">
+                  <path d="M12 50 C 24 18, 38 18, 50 46 S 76 76, 88 32"></path>
+                  <path d="M12 50 C 32 62, 48 12, 68 24 S 82 38, 88 32"></path>
+                </svg>
+                <div class="node" style="left:8%;top:50%"><strong>数据汇聚</strong><span>38 源</span></div>
+                <div class="node" style="left:30%;top:24%"><strong>标准建模</strong><span>214 模型</span></div>
+                <div class="node" style="left:52%;top:50%"><strong>主题沉淀</strong><span>27 主题</span></div>
+                <div class="node" style="left:74%;top:24%"><strong>共享服务</strong><span>156 API</span></div>
+                <div class="node" style="left:88%;top:58%"><strong>治理闭环</strong><span>96.8 分</span></div>
+              </div>
+            </section>
+          </div>
+          <div class="col right">
+            <section class="panel issue">
+              <div class="head"><div><span>治理闭环</span><strong>质量问题处理</strong></div><b>97.4%</b></div>
+              <div class="summary"><div><strong>37</strong><span>待处理</span></div><div><strong>18</strong><span>今日修复</span></div></div>
+              <div class="rows">
+                <div class="row"><b>高</b><strong>人口主题库手机号空值异常</strong><em>处理中</em></div>
+                <div class="row"><b>中</b><strong>案件明细表枚举值超出标准</strong><em>待复核</em></div>
+                <div class="row"><b>中</b><strong>共享接口缺少调用方授权</strong><em>处理中</em></div>
+              </div>
+            </section>
+            <section class="panel">
+              <div class="head"><div><span>数据共享</span><strong>服务调用与性能</strong></div><b>82ms</b></div>
+              <div class="shareHero"><strong>186.4万</strong><span>本月服务调用</span></div>
+              <div class="rows">
+                <div class="row"><strong>警情态势服务</strong><span>42.8万</span><em>+18%</em></div>
+                <div class="row"><strong>重点人员画像</strong><span>31.6万</span><em>+9%</em></div>
+                <div class="row"><strong>案件协同查询</strong><span>25.1万</span><em>+12%</em></div>
+                <div class="row"><strong>区域风险评估</strong><span>18.7万</span><em>+6%</em></div>
+              </div>
+            </section>
+          </div>
+        </section>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

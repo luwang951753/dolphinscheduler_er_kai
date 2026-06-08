@@ -71,8 +71,17 @@ const qualityOptions: SelectOption[] = [
   { label: '失败', value: 'FAILED' }
 ]
 
-const SUPPORTED_DATASOURCE_TYPES = ['MYSQL', 'POSTGRESQL'] as const
+const SUPPORTED_DATASOURCE_TYPES = ['MYSQL', 'POSTGRESQL', 'ORACLE'] as const
 const ASSET_QUERY_LIMIT = 80
+const SYSTEM_DATABASE_NAMES = new Set([
+  'information_schema',
+  'mysql',
+  'performance_schema',
+  'sys',
+  'postgres',
+  'template0',
+  'template1'
+])
 const normalizeList = (payload: any): any[] => {
   if (!payload) return []
   if (Array.isArray(payload)) return payload
@@ -395,6 +404,17 @@ export default defineComponent({
       }
     }
 
+    const getDefaultDatabase = () => {
+      const databaseValues = databaseOptions.value
+        .map((item) => String(item.value || ''))
+        .filter(Boolean)
+      return (
+        databaseValues.find((database) => !SYSTEM_DATABASE_NAMES.has(database.toLowerCase())) ||
+        databaseValues[0] ||
+        ''
+      )
+    }
+
     const loadDatabaseOptions = async () => {
       if (!datasourceId.value) {
         databaseOptions.value = []
@@ -412,6 +432,20 @@ export default defineComponent({
         window.$message.error('读取数据库列表失败，请检查当前数据源是否可连接。')
       } finally {
         databaseLoading.value = false
+      }
+    }
+
+    const initializeDefaultAssetScope = async () => {
+      await loadDatasourceOptions()
+      if (!datasourceOptions.value.length || datasourceId.value) {
+        return
+      }
+      datasourceId.value = datasourceOptions.value[0].value as number
+      await loadDatabaseOptions()
+      const defaultDatabase = getDefaultDatabase()
+      if (defaultDatabase) {
+        databaseFilter.value = defaultDatabase
+        await loadAssets()
       }
     }
 
@@ -666,6 +700,9 @@ export default defineComponent({
       ruleOptions.uniqueFields = String(rule.conditions?.uniqueFields || rule.fieldName || ruleOptions.uniqueFields)
       ruleOptions.scopeType = rule.rangeCondition ? 'WHERE' : 'FULL'
       ruleOptions.scopeWhere = rule.rangeCondition || ''
+      ruleOptions.createIssue = rule.createIssue !== false
+      ruleOptions.escalateIssue = rule.escalateIssue !== false
+      ruleOptions.autoCloseIssue = rule.autoCloseIssue === true
       trialResult.value = null
       ruleSqlMode.value = 'sql'
       ruleModalVisible.value = true
@@ -736,6 +773,9 @@ export default defineComponent({
       ruleForm.samplePolicy = ruleForm.samplePolicy || 'TOP_50'
       ruleForm.failureThreshold = ruleForm.failureThreshold || 'COUNT_GT_0'
       ruleForm.frequency = ruleForm.frequency || 'AFTER_SYNC'
+      ruleForm.createIssue = ruleOptions.createIssue
+      ruleForm.escalateIssue = ruleOptions.escalateIssue
+      ruleForm.autoCloseIssue = ruleOptions.autoCloseIssue
       if (ruleForm.type === 'CUSTOM_SQL' && ruleOptions.customSql.trim() && !ruleForm.manualSql) {
         ruleForm.sql = ruleOptions.customSql
       }
@@ -981,7 +1021,7 @@ export default defineComponent({
       if (Number.isFinite(savedWidth) && savedWidth >= 0) {
         sidebarWidth.value = savedWidth
       }
-      loadDatasourceOptions()
+      initializeDefaultAssetScope()
     })
 
     const renderFieldTable = () => {

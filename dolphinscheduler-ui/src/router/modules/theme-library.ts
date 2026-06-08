@@ -35,7 +35,8 @@ export default {
         title: '主题库',
         activeMenu: 'theme-library',
         showSide: false,
-        auth: []
+        auth: [],
+        modulePermission: 'theme-library:view'
       }
     }
   ]

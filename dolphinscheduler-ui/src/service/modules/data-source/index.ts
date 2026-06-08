@@ -174,7 +174,8 @@ export function getDatasourceTableColumnsById(
 export function getDatasourceTableColumnMetasById(
   datasourceId: number,
   database: string,
-  tableName: string
+  tableName: string,
+  schema?: string
 ): any {
   return axios({
     url: '/datasources/tableColumnMetas',
@@ -182,6 +183,7 @@ export function getDatasourceTableColumnMetasById(
     params: {
       datasourceId,
       database,
+      schema,
       tableName
     }
   })

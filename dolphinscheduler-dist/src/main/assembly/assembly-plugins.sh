@@ -26,6 +26,7 @@ if [ ! -f $BIN_TAR_FILE ]; then
   exit 1
 fi
 
+rm -rf "$DIST_DIR"/apache-dolphinscheduler-*-bin
 cd $DIST_DIR && tar -zxf apache-dolphinscheduler-*-bin.tar.gz
 cd $DIST_DIR/apache-dolphinscheduler-*-bin
 BIN_DIR=$(pwd)
@@ -75,7 +76,11 @@ do
 done
 
 # create symbolic link for standalone-server
-cd $BIN_DIR/standalone-server && ln -s ../tools/sql/sql sql
+cd $BIN_DIR/standalone-server
+if [ -e sql ] || [ -L sql ]; then
+  rm -rf sql
+fi
+ln -s ../tools/sql/sql sql
 
 # repack bin tar
 BIN_TAR_FILE_NAME=$(basename $BIN_TAR_FILE)

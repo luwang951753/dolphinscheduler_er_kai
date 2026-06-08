@@ -70,6 +70,7 @@ import org.apache.dolphinscheduler.common.utils.DateUtils;
 import org.apache.dolphinscheduler.common.utils.JSONUtils;
 import org.apache.dolphinscheduler.dao.entity.DagData;
 import org.apache.dolphinscheduler.dao.entity.DependentSimplifyDefinition;
+import org.apache.dolphinscheduler.dao.entity.DataSource;
 import org.apache.dolphinscheduler.dao.entity.Project;
 import org.apache.dolphinscheduler.dao.entity.Schedule;
 import org.apache.dolphinscheduler.dao.entity.TaskDefinition;
@@ -104,8 +105,12 @@ import org.apache.dolphinscheduler.plugin.task.api.model.Property;
 import org.apache.dolphinscheduler.plugin.task.api.parameters.DependentParameters;
 import org.apache.dolphinscheduler.plugin.task.api.parameters.SwitchParameters;
 import org.apache.dolphinscheduler.plugin.task.api.utils.TaskTypeUtils;
+import org.apache.dolphinscheduler.plugin.datasource.api.utils.DataSourceUtils;
+import org.apache.dolphinscheduler.plugin.datasource.api.utils.PasswordUtils;
 import org.apache.dolphinscheduler.service.model.TaskNode;
 import org.apache.dolphinscheduler.service.process.ProcessService;
+import org.apache.dolphinscheduler.spi.datasource.BaseConnectionParam;
+import org.apache.dolphinscheduler.spi.datasource.ConnectionParam;
 
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -126,6 +131,8 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -149,6 +156,12 @@ import com.google.common.collect.Lists;
 public class WorkflowDefinitionServiceImpl extends BaseServiceImpl implements WorkflowDefinitionService {
 
     private static final String RELEASESTATE = "releaseState";
+    private static final Pattern SEATUNNEL_JDBC_BLOCK_PATTERN =
+            Pattern.compile("(?s)Jdbc\\s*\\{.*?\\n\\s*\\}");
+    private static final Pattern SEATUNNEL_CONFIG_VALUE_PATTERN =
+            Pattern.compile("(?m)^\\s*%s\\s*=\\s*\"((?:\\\\.|[^\"])*)\"");
+    private static final Pattern SEATUNNEL_MASKED_PASSWORD_PATTERN =
+            Pattern.compile("(?m)^(\\s*password\\s*=\\s*)\"" + Pattern.quote(Constants.XXXXXX) + "\"");
 
     @Autowired
     private ProjectMapper projectMapper;
@@ -265,6 +278,7 @@ public class WorkflowDefinitionServiceImpl extends BaseServiceImpl implements Wo
             throw new ServiceException(Status.WORKFLOW_DEFINITION_NAME_EXIST, name);
         }
         List<TaskDefinitionLog> taskDefinitionLogs = generateTaskDefinitionList(taskDefinitionJson);
+        fillMaskedSeatunnelJdbcPasswords(taskDefinitionLogs);
         List<WorkflowTaskRelationLog> taskRelationList = generateTaskRelationList(taskRelationJson, taskDefinitionLogs);
 
         long workflowDefinitionCode = CodeGenerateUtils.genCode();
@@ -449,6 +463,121 @@ public class WorkflowDefinitionServiceImpl extends BaseServiceImpl implements Wo
             log.error("Generate task definition list failed, meet an unknown exception", e);
             throw new ServiceException(Status.REQUEST_PARAMS_NOT_VALID_ERROR);
         }
+    }
+
+    private void fillMaskedSeatunnelJdbcPasswords(List<TaskDefinitionLog> taskDefinitionLogs) {
+        if (CollectionUtils.isEmpty(taskDefinitionLogs)) {
+            return;
+        }
+        for (TaskDefinitionLog taskDefinitionLog : taskDefinitionLogs) {
+            if (!"SEATUNNEL".equalsIgnoreCase(taskDefinitionLog.getTaskType())) {
+                continue;
+            }
+            ObjectNode taskParams = JSONUtils.parseObject(taskDefinitionLog.getTaskParams());
+            if (taskParams == null || !taskParams.has("rawScript")) {
+                continue;
+            }
+            String rawScript = taskParams.path("rawScript").asText();
+            String resolvedRawScript = resolveMaskedSeatunnelJdbcPasswords(rawScript);
+            if (!StringUtils.equals(rawScript, resolvedRawScript)) {
+                taskParams.put("rawScript", resolvedRawScript);
+                taskDefinitionLog.setTaskParams(JSONUtils.toJsonString(taskParams));
+            }
+        }
+    }
+
+    private String resolveMaskedSeatunnelJdbcPasswords(String rawScript) {
+        if (StringUtils.isBlank(rawScript) || !rawScript.contains(Constants.XXXXXX)) {
+            return rawScript;
+        }
+        Matcher blockMatcher = SEATUNNEL_JDBC_BLOCK_PATTERN.matcher(rawScript);
+        StringBuffer result = new StringBuffer();
+        while (blockMatcher.find()) {
+            String jdbcBlock = blockMatcher.group();
+            String resolvedBlock = resolveMaskedSeatunnelJdbcBlockPassword(jdbcBlock);
+            blockMatcher.appendReplacement(result, Matcher.quoteReplacement(resolvedBlock));
+        }
+        blockMatcher.appendTail(result);
+        return result.toString();
+    }
+
+    private String resolveMaskedSeatunnelJdbcBlockPassword(String jdbcBlock) {
+        String currentPassword = extractSeatunnelConfigValue(jdbcBlock, Constants.PASSWORD);
+        if (!Constants.XXXXXX.equals(currentPassword)) {
+            return jdbcBlock;
+        }
+        String jdbcUrl = extractSeatunnelConfigValue(jdbcBlock, "url");
+        String user = extractSeatunnelConfigValue(jdbcBlock, "user");
+        String password = findDatasourcePassword(jdbcUrl, user);
+        if (StringUtils.isBlank(password)) {
+            log.warn("Cannot resolve masked SeaTunnel JDBC password, url: {}, user: {}", jdbcUrl, user);
+            return jdbcBlock;
+        }
+        return SEATUNNEL_MASKED_PASSWORD_PATTERN.matcher(jdbcBlock)
+                .replaceFirst("$1\"" + Matcher.quoteReplacement(escapeSeatunnelConfigValue(password)) + "\"");
+    }
+
+    private String findDatasourcePassword(String jdbcUrl, String user) {
+        if (StringUtils.isBlank(jdbcUrl)) {
+            return null;
+        }
+        String normalizedJdbcUrl = normalizeJdbcUrl(jdbcUrl);
+        List<DataSource> dataSources = dataSourceMapper.selectList(null);
+        for (DataSource dataSource : dataSources) {
+            ConnectionParam connectionParam = DataSourceUtils.buildConnectionParams(
+                    dataSource.getType(), dataSource.getConnectionParams());
+            if (!(connectionParam instanceof BaseConnectionParam)) {
+                continue;
+            }
+            BaseConnectionParam baseConnectionParam = (BaseConnectionParam) connectionParam;
+            if (StringUtils.isNotBlank(user) && !StringUtils.equals(user, baseConnectionParam.getUser())) {
+                continue;
+            }
+            if (StringUtils.equals(normalizedJdbcUrl, normalizeJdbcUrl(baseConnectionParam.getJdbcUrl()))) {
+                return PasswordUtils.decodePassword(baseConnectionParam.getPassword());
+            }
+        }
+        return null;
+    }
+
+    private String extractSeatunnelConfigValue(String block, String key) {
+        Pattern pattern = Pattern.compile(String.format(SEATUNNEL_CONFIG_VALUE_PATTERN.pattern(), Pattern.quote(key)));
+        Matcher matcher = pattern.matcher(block);
+        if (!matcher.find()) {
+            return "";
+        }
+        return unescapeSeatunnelConfigValue(matcher.group(1));
+    }
+
+    private String normalizeJdbcUrl(String jdbcUrl) {
+        if (jdbcUrl == null) {
+            return "";
+        }
+        return StringUtils.substringBefore(jdbcUrl.trim(), "?").replace("localhost", "127.0.0.1");
+    }
+
+    private String escapeSeatunnelConfigValue(String value) {
+        return value.replace("\\", "\\\\").replace("\"", "\\\"");
+    }
+
+    private String unescapeSeatunnelConfigValue(String value) {
+        StringBuilder builder = new StringBuilder();
+        boolean escaped = false;
+        for (int i = 0; i < value.length(); i++) {
+            char current = value.charAt(i);
+            if (escaped) {
+                builder.append(current);
+                escaped = false;
+            } else if (current == '\\') {
+                escaped = true;
+            } else {
+                builder.append(current);
+            }
+        }
+        if (escaped) {
+            builder.append('\\');
+        }
+        return builder.toString();
     }
 
     private List<WorkflowTaskRelationLog> generateTaskRelationList(String taskRelationJson,
@@ -785,6 +914,7 @@ public class WorkflowDefinitionServiceImpl extends BaseServiceImpl implements Wo
             return result;
         }
         List<TaskDefinitionLog> taskDefinitionLogs = generateTaskDefinitionList(taskDefinitionJson);
+        fillMaskedSeatunnelJdbcPasswords(taskDefinitionLogs);
         List<WorkflowTaskRelationLog> taskRelationList = generateTaskRelationList(taskRelationJson, taskDefinitionLogs);
 
         WorkflowDefinition workflowDefinition = workflowDefinitionMapper.queryByCode(code);

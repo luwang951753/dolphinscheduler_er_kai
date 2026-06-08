@@ -157,6 +157,8 @@ export default {
     authorize_project: '项目授权',
     authorize_namespace: '命名空间授权',
     authorize_datasource: '数据源授权',
+    authorize_module: '模块授权',
+    module_permission: '模块权限',
     username: '用户名',
     username_exists: '用户名已存在',
     username_tips: '请输入用户名',

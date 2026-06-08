@@ -37,7 +37,8 @@ export default {
         title: '文件管理',
         activeMenu: 'resource',
         showSide: true,
-        auth: []
+        auth: [],
+        modulePermission: 'resources:view'
       }
     },
     {
@@ -49,7 +50,8 @@ export default {
         activeMenu: 'resource',
         activeSide: '/resource/file-manage',
         showSide: true,
-        auth: []
+        auth: [],
+        modulePermission: 'resources:view'
       }
     },
     {
@@ -61,7 +63,8 @@ export default {
         activeMenu: 'resource',
         activeSide: '/resource/file-manage',
         showSide: true,
-        auth: []
+        auth: [],
+        modulePermission: 'resources:view'
       }
     },
     {
@@ -73,7 +76,8 @@ export default {
         activeMenu: 'resource',
         activeSide: '/resource/file-manage',
         showSide: true,
-        auth: []
+        auth: [],
+        modulePermission: 'resources:view'
       }
     },
     {
@@ -85,7 +89,8 @@ export default {
         activeMenu: 'resource',
         activeSide: '/resource/file-manage',
         showSide: true,
-        auth: []
+        auth: [],
+        modulePermission: 'resources:view'
       }
     },
     {
@@ -97,7 +102,8 @@ export default {
         activeMenu: 'resource',
         activeSide: '/resource/file-manage',
         showSide: true,
-        auth: []
+        auth: [],
+        modulePermission: 'resources:view'
       }
     },
     {
@@ -108,7 +114,8 @@ export default {
         title: '任务组配置',
         activeMenu: 'resource',
         showSide: true,
-        auth: []
+        auth: [],
+        modulePermission: 'resources:view'
       }
     },
     {
@@ -119,7 +126,8 @@ export default {
         title: '任务组队列',
         activeMenu: 'resource',
         showSide: true,
-        auth: []
+        auth: [],
+        modulePermission: 'resources:view'
       }
     }
   ]

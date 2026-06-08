@@ -35,6 +35,7 @@ import org.apache.dolphinscheduler.api.audit.OperatorLog;
 import org.apache.dolphinscheduler.api.audit.enums.AuditType;
 import org.apache.dolphinscheduler.api.enums.Status;
 import org.apache.dolphinscheduler.api.exceptions.ApiException;
+import org.apache.dolphinscheduler.api.service.UserModulePermissionService;
 import org.apache.dolphinscheduler.api.service.UsersService;
 import org.apache.dolphinscheduler.api.utils.Result;
 import org.apache.dolphinscheduler.common.constants.Constants;
@@ -50,7 +51,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -75,6 +78,9 @@ public class UsersController extends BaseController {
 
     @Autowired
     private UsersService usersService;
+
+    @Autowired
+    private UserModulePermissionService userModulePermissionService;
 
     @Operation(summary = "createUser", description = "CREATE_USER_NOTES")
     @Parameters({
@@ -132,6 +138,25 @@ public class UsersController extends BaseController {
         checkPageParams(pageNo, pageSize);
         searchVal = ParameterUtils.handleEscapes(searchVal);
         return usersService.queryUserList(loginUser, searchVal, pageNo, pageSize);
+    }
+
+    @Operation(summary = "queryUserModulePermissions", description = "QUERY_USER_MODULE_PERMISSIONS_NOTES")
+    @GetMapping(value = {"/module-permissions", "/{userId}/module-permissions"})
+    @ResponseStatus(HttpStatus.OK)
+    public Result<List<String>> queryModulePermissions(
+            @Parameter(hidden = true) @RequestAttribute(value = Constants.SESSION_USER) User loginUser,
+            @PathVariable(value = "userId", required = false) Integer userId) {
+        return Result.success(userModulePermissionService.queryModulePermissions(loginUser, userId));
+    }
+
+    @Operation(summary = "saveUserModulePermissions", description = "SAVE_USER_MODULE_PERMISSIONS_NOTES")
+    @PutMapping(value = "/{userId}/module-permissions")
+    @ResponseStatus(HttpStatus.OK)
+    public Result<List<String>> saveModulePermissions(
+            @Parameter(hidden = true) @RequestAttribute(value = Constants.SESSION_USER) User loginUser,
+            @PathVariable("userId") Integer userId,
+            @RequestBody List<String> moduleKeys) {
+        return Result.success(userModulePermissionService.saveModulePermissions(loginUser, userId, moduleKeys));
     }
 
     /**

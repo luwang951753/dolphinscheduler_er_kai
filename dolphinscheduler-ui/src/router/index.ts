@@ -24,6 +24,11 @@ import {
 import routes from './routes'
 import { useUserStore } from '@/store/user/user'
 import type { UserInfoRes } from '@/service/modules/users/types'
+import cookies from 'js-cookie'
+import {
+  hasModulePermission,
+  type ModulePermissionKey
+} from '@/common/module-permissions'
 
 // NProgress
 import NProgress from 'nprogress'
@@ -41,6 +46,18 @@ interface metaData {
   activeMenu?: string
   showSide?: boolean
   auth?: Array<string>
+  modulePermission?: ModulePermissionKey
+}
+
+const clearUserSession = () => {
+  const userStore = useUserStore()
+  userStore.setSessionId('')
+  userStore.setSecurityConfigType('')
+  userStore.setUserInfo({})
+  userStore.setBaseResDir('')
+  userStore.setModulePermissions(null)
+  cookies.remove('sessionId', { path: '/' })
+  cookies.remove('sessionId')
 }
 
 /**
@@ -55,7 +72,22 @@ router.beforeEach(
     NProgress.start()
     const userStore = useUserStore()
     const metaData: metaData = to.meta
-    if (
+    const isLoginPage = to.name === 'login'
+    const sessionId = userStore.getSessionId || cookies.get('sessionId')
+    if (!isLoginPage && !sessionId) {
+      clearUserSession()
+      next({ name: 'login', query: { redirect: to.fullPath } })
+    } else if (isLoginPage && sessionId) {
+      next({ name: 'home' })
+    } else if (
+      !hasModulePermission(
+        userStore.getUserInfo,
+        metaData.modulePermission,
+        userStore.getModulePermissions
+      )
+    ) {
+      next({ name: 'home' })
+    } else if (
       metaData.auth?.includes('ADMIN_USER') &&
       (userStore.getUserInfo as UserInfoRes).userType !== 'ADMIN_USER' &&
       metaData.activeMenu === 'security'

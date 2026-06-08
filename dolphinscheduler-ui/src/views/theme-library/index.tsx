@@ -18,7 +18,10 @@
 import { defineComponent } from 'vue'
 import styles from './index.module.scss'
 
-const prototypeUrl = '/prototypes/theme-library/theme-library-prototype.html'
+const baseUrl = import.meta.env.BASE_URL.endsWith('/')
+  ? import.meta.env.BASE_URL
+  : `${import.meta.env.BASE_URL}/`
+const prototypeUrl = `${baseUrl}prototypes/theme-library/theme-library-prototype.html`
 
 export default defineComponent({
   name: 'theme-library',

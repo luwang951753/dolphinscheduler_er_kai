@@ -23,3 +23,57 @@
   display: flex;
   justify-content: center;
 }
+
+.authHint {
+  padding: 8px 10px;
+  border: 1px solid #d8dde6;
+  border-radius: 6px;
+  background: #f7f9fc;
+  color: #596579;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.moduleAuthGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.moduleAuthItem {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-height: 72px;
+  padding: 10px;
+  border: 1px solid #d8dde6;
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
+}
+
+.moduleAuthItem:hover {
+  border-color: #2563eb;
+  background: #f8fbff;
+}
+
+.moduleAuthItem input {
+  margin-top: 3px;
+}
+
+.moduleAuthItem span {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.moduleAuthItem strong {
+  color: #1f2937;
+  font-size: 13px;
+}
+
+.moduleAuthItem small {
+  color: #667085;
+  font-size: 12px;
+  line-height: 1.45;
+}

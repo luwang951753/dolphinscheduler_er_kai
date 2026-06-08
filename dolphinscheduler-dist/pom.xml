@@ -28,6 +28,7 @@
 
     <properties>
         <assembly.skipAssembly>${build.assembly.skip}</assembly.skipAssembly>
+        <build.src.assembly.skip>false</build.src.assembly.skip>
     </properties>
 
     <dependencies>
@@ -85,6 +86,7 @@
                         </goals>
                         <phase>package</phase>
                         <configuration>
+                            <skipAssembly>${build.src.assembly.skip}</skipAssembly>
                             <descriptors>
                                 <descriptor>src/main/assembly/dolphinscheduler-src.xml</descriptor>
                             </descriptors>

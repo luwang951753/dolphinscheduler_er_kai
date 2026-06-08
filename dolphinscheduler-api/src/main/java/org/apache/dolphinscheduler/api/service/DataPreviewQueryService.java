@@ -37,8 +37,10 @@ import org.apache.commons.lang3.StringUtils;
 
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.sql.Clob;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
@@ -77,6 +79,11 @@ public class DataPreviewQueryService extends BaseServiceImpl {
     private static final DateTimeFormatter DATA_PREVIEW_TIME_FORMATTER =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
+    @FunctionalInterface
+    private interface DdlFallback {
+        String build();
+    }
+
     @Autowired
     private DataSourceMapper dataSourceMapper;
 
@@ -99,16 +106,18 @@ public class DataPreviewQueryService extends BaseServiceImpl {
         ResultSet indexRs = null;
         try {
             DatabaseMetaData metaData = connection.getMetaData();
-            String schemaPattern = getDbSchemaPattern(dataSource.getType(), schema);
+            String catalog = dataSource.getType() == DbType.ORACLE ? null : database;
+            String schemaPattern = getDbSchemaPattern(dataSource.getType(), schema, connectionParam);
+            String normalizedTableName = normalizeMetadataTableName(dataSource.getType(), tableName);
             Set<String> primaryKeys = new LinkedHashSet<>();
-            primaryKeyRs = metaData.getPrimaryKeys(database, schemaPattern, tableName);
+            primaryKeyRs = metaData.getPrimaryKeys(catalog, schemaPattern, normalizedTableName);
             while (primaryKeyRs != null && primaryKeyRs.next()) {
                 primaryKeys.add(primaryKeyRs.getString(COLUMN_NAME));
             }
 
             Map<String, DataPreviewTableStructureResult.Index> indexByNameAndColumn = new LinkedHashMap<>();
             Map<String, String> firstIndexByColumn = new LinkedHashMap<>();
-            indexRs = metaData.getIndexInfo(database, schemaPattern, tableName, false, false);
+            indexRs = metaData.getIndexInfo(catalog, schemaPattern, normalizedTableName, false, false);
             while (indexRs != null && indexRs.next()) {
                 String indexName = indexRs.getString("INDEX_NAME");
                 String columnName = indexRs.getString(COLUMN_NAME);
@@ -125,7 +134,7 @@ public class DataPreviewQueryService extends BaseServiceImpl {
             }
 
             List<DataPreviewTableStructureResult.Column> columns = new ArrayList<>();
-            columnRs = metaData.getColumns(database, schemaPattern, tableName, "%");
+            columnRs = metaData.getColumns(catalog, schemaPattern, normalizedTableName, "%");
             while (columnRs != null && columnRs.next()) {
                 DataPreviewTableStructureResult.Column column = new DataPreviewTableStructureResult.Column();
                 String columnName = columnRs.getString(COLUMN_NAME);
@@ -135,22 +144,23 @@ public class DataPreviewQueryService extends BaseServiceImpl {
                 column.setScale(columnRs.getInt("DECIMAL_DIGITS"));
                 column.setNullable(columnRs.getInt("NULLABLE") == DatabaseMetaData.columnNullable);
                 column.setPrimaryKey(primaryKeys.contains(columnName));
-                column.setDefaultValue(columnRs.getString("COLUMN_DEF"));
-                column.setComment(normalizeMetadataText(columnRs.getString("REMARKS")));
+                column.setDefaultValue(safeGetMetadataString(columnRs, "COLUMN_DEF"));
+                column.setComment(normalizeMetadataText(safeGetMetadataString(columnRs, "REMARKS")));
                 column.setIndexName(firstIndexByColumn.get(columnName));
                 columns.add(column);
             }
 
             DataPreviewTableStructureResult.TableSummary summary = new DataPreviewTableStructureResult.TableSummary();
-            summary.setTableName(tableName);
+            summary.setTableName(normalizedTableName);
             summary.setDatabase(database);
             summary.setSchema(StringUtils.trimToEmpty(schema));
             summary.setDatasourceType(dataSource.getType().name());
             summary.setFieldCount(columns.size());
-            tableRs = metaData.getTables(database, schemaPattern, tableName, TABLE_TYPES);
+            tableRs = metaData.getTables(catalog, schemaPattern, normalizedTableName, TABLE_TYPES);
             if (tableRs != null && tableRs.next()) {
                 summary.setTableType(tableRs.getString("TABLE_TYPE"));
-                summary.setTableComment(normalizeMetadataText(tableRs.getString("REMARKS")));
+                summary.setTableComment(resolveTableComment(connection, dataSource.getType(), catalog, schemaPattern,
+                        normalizedTableName, safeGetMetadataString(tableRs, "REMARKS")));
             }
             if (StringUtils.isBlank(summary.getTableComment())) {
                 summary.setTableComment("");
@@ -164,7 +174,9 @@ public class DataPreviewQueryService extends BaseServiceImpl {
             result.setConstraints(primaryKeys.isEmpty()
                     ? Collections.emptyList()
                     : Collections.singletonList("PRIMARY KEY (" + String.join(", ", primaryKeys) + ")"));
-            result.setDdl(buildPreviewDdl(dataSource.getType(), tableName, summary.getTableComment(), columns, primaryKeys));
+            result.setDdl(resolveRealTableDdl(connection, dataSource.getType(), catalog, schemaPattern,
+                    normalizedTableName, summary.getTableType(),
+                    () -> buildPreviewDdl(dataSource.getType(), normalizedTableName, summary.getTableComment(), columns, primaryKeys)));
             return result;
         } catch (Exception ex) {
             log.error("Query data preview table structure error, datasourceId:{} table:{}.", datasourceId, tableName, ex);
@@ -274,7 +286,8 @@ public class DataPreviewQueryService extends BaseServiceImpl {
         if (dataSource == null) {
             throw new ServiceException(Status.RESOURCE_NOT_EXIST);
         }
-        if (dataSource.getType() != DbType.MYSQL && dataSource.getType() != DbType.POSTGRESQL) {
+        if (dataSource.getType() != DbType.MYSQL && dataSource.getType() != DbType.POSTGRESQL
+                && dataSource.getType() != DbType.ORACLE) {
             throw new ServiceException(Status.DATA_PREVIEW_QUERY_ERROR);
         }
         if (!canOperatorPermissions(loginUser, new Object[]{datasourceId}, AuthorizationType.DATASOURCE,
@@ -332,39 +345,182 @@ public class DataPreviewQueryService extends BaseServiceImpl {
     }
 
     private List<String> splitPreviewSqlStatements(String sql) {
-        String withoutComments = sql.replaceAll("(?m)--.*$", "");
         List<String> statements = new ArrayList<>();
-        for (String statement : withoutComments.split(";")) {
-            String trimmed = StringUtils.trimToEmpty(statement);
-            if (StringUtils.isNotBlank(trimmed)) {
-                statements.add(trimmed);
+        StringBuilder statement = new StringBuilder();
+        SqlScanState state = new SqlScanState();
+        for (int i = 0; i < sql.length(); i++) {
+            char current = sql.charAt(i);
+            char next = i + 1 < sql.length() ? sql.charAt(i + 1) : '\0';
+            if (!state.isInsideQuotedOrComment() && current == ';') {
+                addPreviewSqlStatement(statements, statement.toString());
+                statement.setLength(0);
+                continue;
+            }
+            statement.append(current);
+            if (state.accept(current, next, true)) {
+                statement.append(next);
+                i++;
             }
         }
+        addPreviewSqlStatement(statements, statement.toString());
         if (statements.isEmpty()) {
             throw new ServiceException(Status.DATA_PREVIEW_QUERY_ERROR);
         }
         return statements;
     }
 
+    private void addPreviewSqlStatement(List<String> statements, String statement) {
+        String trimmed = StringUtils.trimToEmpty(statement);
+        if (StringUtils.isBlank(maskSqlCommentsAndLiterals(trimmed))) {
+            return;
+        }
+        statements.add(trimmed);
+    }
+
+    private String maskSqlCommentsAndLiterals(String sql) {
+        StringBuilder masked = new StringBuilder(sql.length());
+        SqlScanState state = new SqlScanState();
+        for (int i = 0; i < sql.length(); i++) {
+            char current = sql.charAt(i);
+            char next = i + 1 < sql.length() ? sql.charAt(i + 1) : '\0';
+            boolean consumeNext = state.accept(current, next, false);
+            masked.append(state.shouldMask(current) ? ' ' : current);
+            if (consumeNext) {
+                masked.append(' ');
+                i++;
+            }
+        }
+        return masked.toString();
+    }
+
+    private boolean containsReadonlySqlLimit(String sql) {
+        String masked = maskSqlCommentsAndLiterals(sql).toLowerCase(Locale.ROOT);
+        return masked.matches("[\\s\\S]*\\blimit\\s+\\d+[\\s\\S]*");
+    }
+
+    private boolean containsOracleReadonlySqlLimit(String sql) {
+        String masked = maskSqlCommentsAndLiterals(sql).toLowerCase(Locale.ROOT);
+        return masked.matches("[\\s\\S]*\\b(fetch\\s+next|rownum)\\b[\\s\\S]*");
+    }
+
+    private boolean containsForbiddenReadonlySqlKeyword(String sql) {
+        String masked = maskSqlCommentsAndLiterals(sql).toLowerCase(Locale.ROOT);
+        return masked.matches("[\\s\\S]*\\b(insert|update|delete|drop|truncate|alter|create|grant|revoke|merge|replace|call)\\b[\\s\\S]*");
+    }
+
+    private String firstSqlTokenText(String sql) {
+        String masked = StringUtils.trimToEmpty(maskSqlCommentsAndLiterals(sql));
+        if (StringUtils.isBlank(masked)) {
+            return "";
+        }
+        int index = 0;
+        while (index < masked.length() && Character.isLetter(masked.charAt(index))) {
+            index++;
+        }
+        return masked.substring(0, index).toLowerCase(Locale.ROOT);
+    }
+
+    private static final class SqlScanState {
+
+        private boolean singleQuote;
+        private boolean doubleQuote;
+        private boolean backtickQuote;
+        private boolean lineComment;
+        private boolean blockComment;
+
+        private boolean isInsideQuotedOrComment() {
+            return singleQuote || doubleQuote || backtickQuote || lineComment || blockComment;
+        }
+
+        private boolean shouldMask(char current) {
+            return singleQuote || doubleQuote || backtickQuote || lineComment || blockComment
+                    || current == '\'' || current == '"' || current == '`';
+        }
+
+        private boolean accept(char current, char next, boolean keepEscapedPair) {
+            if (lineComment) {
+                if (current == '\n' || current == '\r') {
+                    lineComment = false;
+                }
+                return false;
+            }
+            if (blockComment) {
+                if (current == '*' && next == '/') {
+                    blockComment = false;
+                    return true;
+                }
+                return false;
+            }
+            if (singleQuote) {
+                if (current == '\'' && next == '\'') {
+                    return keepEscapedPair;
+                }
+                if (current == '\'') {
+                    singleQuote = false;
+                }
+                return false;
+            }
+            if (doubleQuote) {
+                if (current == '"' && next == '"') {
+                    return keepEscapedPair;
+                }
+                if (current == '"') {
+                    doubleQuote = false;
+                }
+                return false;
+            }
+            if (backtickQuote) {
+                if (current == '`' && next == '`') {
+                    return keepEscapedPair;
+                }
+                if (current == '`') {
+                    backtickQuote = false;
+                }
+                return false;
+            }
+            if (current == '-' && next == '-') {
+                lineComment = true;
+                return true;
+            }
+            if (current == '/' && next == '*') {
+                blockComment = true;
+                return true;
+            }
+            if (current == '\'') {
+                singleQuote = true;
+            } else if (current == '"') {
+                doubleQuote = true;
+            } else if (current == '`') {
+                backtickQuote = true;
+            }
+            return false;
+        }
+    }
+
     private String normalizePreviewReadonlySql(String sql) {
         String normalized = StringUtils.trimToEmpty(sql);
-        String lower = normalized.toLowerCase(Locale.ROOT);
-        if (!lower.matches("^(select|with|explain)\\b[\\s\\S]*")) {
+        String firstToken = firstSqlTokenText(normalized);
+        if (!"select".equals(firstToken) && !"with".equals(firstToken) && !"explain".equals(firstToken)) {
             throw new ServiceException(Status.DATA_PREVIEW_QUERY_ERROR);
         }
-        if (lower.matches("[\\s\\S]*\\b(insert|update|delete|drop|truncate|alter|create|grant|revoke|merge|replace|call)\\b[\\s\\S]*")) {
+        if (containsForbiddenReadonlySqlKeyword(normalized)) {
             throw new ServiceException(Status.DATA_PREVIEW_QUERY_ERROR);
         }
         return normalized;
     }
 
     private String appendReadonlySqlLimit(DbType dbType, String sql, int pageSize) {
-        String lower = sql.toLowerCase(Locale.ROOT);
-        if (StringUtils.startsWithIgnoreCase(sql, "EXPLAIN")) {
+        if ("explain".equals(firstSqlTokenText(sql))) {
             return sql;
         }
-        if (lower.matches("[\\s\\S]*\\blimit\\s+\\d+[\\s\\S]*")) {
+        if (containsReadonlySqlLimit(sql)) {
             return sql;
+        }
+        if (dbType == DbType.ORACLE) {
+            if (containsOracleReadonlySqlLimit(sql)) {
+                return sql;
+            }
+            return "SELECT * FROM (" + sql + ") WHERE ROWNUM <= " + pageSize;
         }
         if (dbType == DbType.MYSQL || dbType == DbType.POSTGRESQL) {
             return sql + " LIMIT " + pageSize;
@@ -410,12 +566,98 @@ public class DataPreviewQueryService extends BaseServiceImpl {
         result.setWarnings(Collections.emptyList());
         return result;
     }
-
-    private String getDbSchemaPattern(DbType dbType, String schema) {
+    private String getDbSchemaPattern(DbType dbType, String schema, BaseConnectionParam connectionParam) {
         if (dbType == DbType.POSTGRESQL && StringUtils.isNotBlank(schema)) {
             return schema;
         }
+        if (dbType == DbType.ORACLE) {
+            return upperCaseOracleIdentifier(StringUtils.defaultIfBlank(schema, connectionParam.getUser()));
+        }
         return null;
+    }
+
+    private String normalizeMetadataTableName(DbType dbType, String tableName) {
+        if (dbType == DbType.ORACLE) {
+            return upperCaseOracleIdentifier(tableName);
+        }
+        return tableName;
+    }
+
+    private String upperCaseOracleIdentifier(String identifier) {
+        if (StringUtils.isBlank(identifier)) {
+            return identifier;
+        }
+        return StringUtils.upperCase(StringUtils.trim(identifier), Locale.ROOT);
+    }
+
+    private String resolveTableComment(Connection connection,
+                                       DbType dbType,
+                                       String catalog,
+                                       String schema,
+                                       String tableName,
+                                       String jdbcRemark) {
+        String normalizedJdbcRemark = normalizeMetadataText(jdbcRemark);
+        if (StringUtils.isNotBlank(normalizedJdbcRemark)) {
+            return normalizedJdbcRemark;
+        }
+        try {
+            if (dbType == DbType.MYSQL) {
+                return queryMysqlTableComment(connection, catalog, tableName);
+            }
+            if (dbType == DbType.ORACLE) {
+                return queryOracleTableComment(connection, schema, tableName);
+            }
+        } catch (Exception ex) {
+            log.warn("Resolve data preview table comment failed, dbType:{} catalog:{} schema:{} table:{}, error:{}.",
+                    dbType, catalog, schema, tableName, ex.toString());
+        }
+        return "";
+    }
+
+    private String safeGetMetadataString(ResultSet resultSet, String columnLabel) {
+        try {
+            return resultSet.getString(columnLabel);
+        } catch (SQLException | RuntimeException ex) {
+            log.warn("Read data preview metadata column failed, columnLabel:{}, error:{}.",
+                    columnLabel, ex.toString());
+            return "";
+        }
+    }
+
+    private String queryMysqlTableComment(Connection connection, String database, String tableName) throws SQLException {
+        if (StringUtils.isBlank(database)) {
+            return "";
+        }
+        String sql = "SELECT TABLE_COMMENT FROM information_schema.TABLES WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?";
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, database);
+            statement.setString(2, tableName);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                if (resultSet.next()) {
+                    return normalizeMetadataText(resultSet.getString("TABLE_COMMENT"));
+                }
+            }
+        }
+        return "";
+    }
+
+    private String queryOracleTableComment(Connection connection, String schema, String tableName) throws SQLException {
+        String sql = StringUtils.isBlank(schema)
+                ? "SELECT COMMENTS FROM USER_TAB_COMMENTS WHERE TABLE_NAME = ?"
+                : "SELECT COMMENTS FROM ALL_TAB_COMMENTS WHERE OWNER = ? AND TABLE_NAME = ?";
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            int index = 1;
+            if (StringUtils.isNotBlank(schema)) {
+                statement.setString(index++, upperCaseOracleIdentifier(schema));
+            }
+            statement.setString(index, upperCaseOracleIdentifier(tableName));
+            try (ResultSet resultSet = statement.executeQuery()) {
+                if (resultSet.next()) {
+                    return normalizeMetadataText(resultSet.getString("COMMENTS"));
+                }
+            }
+        }
+        return "";
     }
 
     private void validateIdentifier(String identifier) {
@@ -428,6 +670,10 @@ public class DataPreviewQueryService extends BaseServiceImpl {
         validateIdentifier(identifier);
         if (dbType == DbType.MYSQL) {
             return "`" + identifier.replace("`", "``") + "`";
+        }
+        if (dbType == DbType.ORACLE) {
+            String normalizedIdentifier = StringUtils.upperCase(StringUtils.trim(identifier), Locale.ROOT);
+            return "\"" + normalizedIdentifier.replace("\"", "\"\"") + "\"";
         }
         return "\"" + identifier.replace("\"", "\"\"") + "\"";
     }
@@ -477,9 +723,96 @@ public class DataPreviewQueryService extends BaseServiceImpl {
         return ddl.toString();
     }
 
+    private String resolveRealTableDdl(Connection connection,
+                                       DbType dbType,
+                                       String catalog,
+                                       String schema,
+                                       String tableName,
+                                       String tableType,
+                                       DdlFallback fallback) {
+        try {
+            String ddl = "";
+            if (dbType == DbType.MYSQL) {
+                ddl = queryMysqlTableDdl(connection, catalog, tableName);
+            } else if (dbType == DbType.ORACLE) {
+                ddl = queryOracleTableDdl(connection, schema, tableName, tableType);
+            } else if (dbType == DbType.POSTGRESQL) {
+                ddl = fallback.build();
+            }
+            if (StringUtils.isNotBlank(ddl)) {
+                return ddl.trim();
+            }
+        } catch (Exception ex) {
+            log.warn("Resolve data preview real table DDL failed, dbType:{} catalog:{} schema:{} table:{}, error:{}.",
+                    dbType, catalog, schema, tableName, ex.toString());
+        }
+        return fallback.build();
+    }
+
+    private String queryMysqlTableDdl(Connection connection, String database, String tableName) throws SQLException {
+        String tableReference = StringUtils.isBlank(database)
+                ? "`" + escapeMysqlIdentifier(tableName) + "`"
+                : "`" + escapeMysqlIdentifier(database) + "`.`" + escapeMysqlIdentifier(tableName) + "`";
+        try (Statement statement = connection.createStatement();
+             ResultSet resultSet = statement.executeQuery("SHOW CREATE TABLE " + tableReference)) {
+            if (resultSet.next()) {
+                return resultSet.getString(2);
+            }
+        }
+        return "";
+    }
+
+    private String queryOracleTableDdl(Connection connection,
+                                      String schema,
+                                      String tableName,
+                                      String tableType) throws SQLException {
+        String metadataType = StringUtils.equalsIgnoreCase(tableType, VIEW) ? "VIEW" : "TABLE";
+        try (PreparedStatement transform = connection.prepareStatement(
+                "BEGIN DBMS_METADATA.SET_TRANSFORM_PARAM(DBMS_METADATA.SESSION_TRANSFORM, 'SQLTERMINATOR', TRUE); "
+                        + "DBMS_METADATA.SET_TRANSFORM_PARAM(DBMS_METADATA.SESSION_TRANSFORM, 'PRETTY', TRUE); END;")) {
+            transform.execute();
+        }
+        String sql = StringUtils.isBlank(schema)
+                ? "SELECT DBMS_METADATA.GET_DDL(?, ?) AS DDL FROM DUAL"
+                : "SELECT DBMS_METADATA.GET_DDL(?, ?, ?) AS DDL FROM DUAL";
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, metadataType);
+            statement.setString(2, upperCaseOracleIdentifier(tableName));
+            if (StringUtils.isNotBlank(schema)) {
+                statement.setString(3, upperCaseOracleIdentifier(schema));
+            }
+            try (ResultSet resultSet = statement.executeQuery()) {
+                if (resultSet.next()) {
+                    return readClobOrString(resultSet.getObject("DDL"));
+                }
+            }
+        }
+        return "";
+    }
+
+    private String readClobOrString(Object value) throws SQLException {
+        if (value == null) {
+            return "";
+        }
+        if (value instanceof Clob) {
+            Clob clob = (Clob) value;
+            long length = clob.length();
+            if (length <= 0) {
+                return "";
+            }
+            return clob.getSubString(1, (int) Math.min(length, Integer.MAX_VALUE));
+        }
+        return String.valueOf(value);
+    }
+
+    private String escapeMysqlIdentifier(String identifier) {
+        validateIdentifier(identifier);
+        return identifier.replace("`", "``");
+    }
+
     private Object normalizePreviewCellValue(Object value) {
         if (!(value instanceof String)) {
-            return value;
+            return DataPreviewCellValueNormalizer.normalize(value);
         }
         return normalizeMetadataText((String) value);
     }

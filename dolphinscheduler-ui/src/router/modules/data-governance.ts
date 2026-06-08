@@ -35,7 +35,8 @@ export default {
         title: '数据治理',
         activeMenu: 'data-governance',
         showSide: false,
-        auth: []
+        auth: [],
+        modulePermission: 'data-governance:view'
       }
     }
   ]

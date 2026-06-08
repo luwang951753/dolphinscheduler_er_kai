@@ -147,6 +147,16 @@ public interface DataSourceService {
     List<ParamsOptions> getTables(Integer datasourceId, String database);
 
     /**
+     * get tables after datasource permission check
+     *
+     * @param loginUser login user
+     * @param datasourceId datasource id
+     * @param database database
+     * @return table options
+     */
+    List<ParamsOptions> getTables(User loginUser, Integer datasourceId, String database);
+
+    /**
      * get table columns
      * @param datasourceId
      * @param database
@@ -154,6 +164,17 @@ public interface DataSourceService {
      * @return
      */
     List<ParamsOptions> getTableColumns(Integer datasourceId, String database, String tableName);
+
+    /**
+     * get table columns after datasource permission check
+     *
+     * @param loginUser login user
+     * @param datasourceId datasource id
+     * @param database database name
+     * @param tableName table name
+     * @return column options
+     */
+    List<ParamsOptions> getTableColumns(User loginUser, Integer datasourceId, String database, String tableName);
 
     /**
      * get table columns with type metadata
@@ -164,6 +185,30 @@ public interface DataSourceService {
      * @return column metadata list
      */
     List<DatasourceColumnDto> getTableColumnMetas(Integer datasourceId, String database, String tableName);
+
+    /**
+     * get table columns with type metadata
+     *
+     * @param datasourceId datasource id
+     * @param database database name
+     * @param schema schema name
+     * @param tableName table name
+     * @return column metadata list
+     */
+    List<DatasourceColumnDto> getTableColumnMetas(Integer datasourceId, String database, String schema, String tableName);
+
+    /**
+     * get table columns with type metadata after datasource permission check
+     *
+     * @param loginUser login user
+     * @param datasourceId datasource id
+     * @param database database name
+     * @param schema schema name
+     * @param tableName table name
+     * @return column metadata list
+     */
+    List<DatasourceColumnDto> getTableColumnMetas(User loginUser, Integer datasourceId, String database, String schema,
+                                                  String tableName);
 
     /**
      * preview table data with readonly structured filters and sorts
@@ -254,26 +299,29 @@ public interface DataSourceService {
     /**
      * create target table by column definitions
      *
+     * @param loginUser login user
      * @param request create table request
      * @return create table ddl
      */
-    String createTableByColumns(DatasourceTableCreateRequest request);
+    String createTableByColumns(User loginUser, DatasourceTableCreateRequest request);
 
     /**
      * preview target table ddl by column definitions
      *
+     * @param loginUser login user
      * @param request create table request
      * @return preview ddl
      */
-    String previewCreateTableSql(DatasourceTableCreateRequest request);
+    String previewCreateTableSql(User loginUser, DatasourceTableCreateRequest request);
 
     /**
      * execute custom ddl on target datasource
      *
+     * @param loginUser login user
      * @param request create table request with ddl
      * @return executed ddl
      */
-    String executeTableDdl(DatasourceTableCreateRequest request);
+    String executeTableDdl(User loginUser, DatasourceTableCreateRequest request);
 
     /**
      * get databases
@@ -281,4 +329,13 @@ public interface DataSourceService {
      * @return
      */
     List<ParamsOptions> getDatabases(Integer datasourceId);
+
+    /**
+     * get databases after datasource permission check
+     *
+     * @param loginUser login user
+     * @param datasourceId datasource id
+     * @return database options
+     */
+    List<ParamsOptions> getDatabases(User loginUser, Integer datasourceId);
 }

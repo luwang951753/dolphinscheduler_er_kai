@@ -42,6 +42,7 @@ import org.mockito.Mockito;
 public class SeatunnelTaskTest {
 
     private static final String EXECUTE_PATH = "/tmp";
+    private static final String RELATIVE_EXECUTE_PATH = "./data/exec/process/9";
     private static final String RESOURCE_SCRIPT_PATH = "/tmp/demo.conf";
 
     private MockedStatic<FileUtils> mockedStaticFileUtils;
@@ -135,11 +136,74 @@ public class SeatunnelTaskTest {
     }
 
     @Test
+    public void testConfigFilePathUsesAbsolutePath() throws Exception {
+        String taskId = "4567";
+        SeatunnelParameters seatunnelParameters = new SeatunnelParameters();
+        seatunnelParameters.setUseCustom(true);
+        seatunnelParameters.setRawScript(RAW_SCRIPT);
+
+        TaskExecutionContext taskExecutionContext = new TaskExecutionContext();
+        taskExecutionContext.setExecutePath(RELATIVE_EXECUTE_PATH);
+        taskExecutionContext.setTaskAppId(taskId);
+        taskExecutionContext.setTaskParams(JSONUtils.toJsonString(seatunnelParameters));
+
+        SeatunnelTask seatunnelTask = new SeatunnelTask(taskExecutionContext);
+        seatunnelTask.setSeatunnelParameters(seatunnelParameters);
+        String command = String.join(" ", seatunnelTask.buildOptions());
+        String expectedCommand = String.format("--config %s/data/exec/process/9/seatunnel_%s.conf",
+                System.getProperty("user.dir"), taskId);
+        Assertions.assertEquals(expectedCommand, command);
+    }
+
+    @Test
     public void testQuoteForBash() throws Exception {
         Assertions.assertEquals("'value'", invokeQuoteForBash("value"));
         Assertions.assertEquals("'abc'\"'\"'def'", invokeQuoteForBash("abc'def"));
         Assertions.assertEquals("''", invokeQuoteForBash(null));
         Assertions.assertEquals("'$(rm -rf /)'", invokeQuoteForBash("$(rm -rf /)"));
+    }
+
+    @Test
+    public void testMaskPasswordInRawScriptLog() throws Exception {
+        String script = "source {\n" +
+                "  Jdbc {\n" +
+                "    user = \"root\"\n" +
+                "    password = \"secret\\\"value\"\n" +
+                "  }\n" +
+                "}";
+
+        Method maskPassword = SeatunnelTask.class.getDeclaredMethod("maskPassword", String.class);
+        maskPassword.setAccessible(true);
+        String masked = (String) maskPassword.invoke(null, script);
+
+        Assertions.assertFalse(masked.contains("secret"));
+        Assertions.assertTrue(masked.contains("password = \"******\""));
+        Assertions.assertTrue(masked.contains("user = \"root\""));
+    }
+
+    @Test
+    public void testCommandSetsSeatunnelHomeForPluginDiscovery() throws Exception {
+        String taskId = "5678";
+        SeatunnelParameters seatunnelParameters = new SeatunnelParameters();
+        seatunnelParameters.setUseCustom(true);
+        seatunnelParameters.setStartupScript("seatunnel.sh");
+        seatunnelParameters.setRawScript(RAW_SCRIPT);
+
+        TaskExecutionContext taskExecutionContext = new TaskExecutionContext();
+        taskExecutionContext.setExecutePath(EXECUTE_PATH);
+        taskExecutionContext.setTaskAppId(taskId);
+        taskExecutionContext.setTaskParams(JSONUtils.toJsonString(seatunnelParameters));
+
+        SeatunnelTask seatunnelTask = new SeatunnelTask(taskExecutionContext);
+        seatunnelTask.setSeatunnelParameters(seatunnelParameters);
+
+        Method buildCommand = SeatunnelTask.class.getDeclaredMethod("buildCommand");
+        buildCommand.setAccessible(true);
+        String command = (String) buildCommand.invoke(seatunnelTask);
+
+        Assertions.assertTrue(command.contains("-DSEATUNNEL_HOME=${SEATUNNEL_HOME}"));
+        Assertions.assertTrue(command.contains("${SEATUNNEL_HOME}/bin/seatunnel.sh"));
+        Assertions.assertTrue(command.contains(String.format("--config %s/seatunnel_%s.conf", EXECUTE_PATH, taskId)));
     }
 
     private String invokeQuoteForBash(String value) throws Exception {

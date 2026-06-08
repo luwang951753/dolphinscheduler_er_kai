@@ -114,7 +114,7 @@ export default defineComponent({
     const ensureProjectCode = () => {
       const projectCode = resolveProjectCode()
       if (!projectCode) {
-        window.$message.error('请先选择要落入的 DolphinScheduler 项目。')
+        window.$message.error('请先选择要落入的 DataFlow 项目。')
         return null
       }
       return projectCode

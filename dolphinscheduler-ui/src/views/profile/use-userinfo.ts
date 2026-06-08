@@ -16,7 +16,10 @@
  */
 
 import { useUserStore } from '@/store/user/user'
-import { getUserInfo as getUserInfoApi } from '@/service/modules/users'
+import {
+  getUserInfo as getUserInfoApi,
+  queryCurrentUserModulePermissions
+} from '@/service/modules/users'
 import type { UserInfoRes } from '@/service/modules/users/types'
 
 export function useUserinfo() {
@@ -25,6 +28,12 @@ export function useUserinfo() {
   const getUserInfo = async () => {
     const userInfoRes: UserInfoRes = await getUserInfoApi()
     await userStore.setUserInfo(userInfoRes)
+    try {
+      const modulePermissions = await queryCurrentUserModulePermissions()
+      await userStore.setModulePermissions(modulePermissions)
+    } catch {
+      await userStore.setModulePermissions(null)
+    }
   }
 
   return { getUserInfo }

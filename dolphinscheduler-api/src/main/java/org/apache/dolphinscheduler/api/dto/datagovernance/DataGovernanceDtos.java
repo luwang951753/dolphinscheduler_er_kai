@@ -305,6 +305,9 @@ public final class DataGovernanceDtos {
         private String severity;
         private String frequency;
         private Boolean enabled;
+        private Boolean createIssue;
+        private Boolean escalateIssue;
+        private Boolean autoCloseIssue;
         private Boolean manualSql;
         private String sql;
         private String status;
@@ -414,6 +417,30 @@ public final class DataGovernanceDtos {
 
         public void setEnabled(Boolean enabled) {
             this.enabled = enabled;
+        }
+
+        public Boolean getCreateIssue() {
+            return createIssue;
+        }
+
+        public void setCreateIssue(Boolean createIssue) {
+            this.createIssue = createIssue;
+        }
+
+        public Boolean getEscalateIssue() {
+            return escalateIssue;
+        }
+
+        public void setEscalateIssue(Boolean escalateIssue) {
+            this.escalateIssue = escalateIssue;
+        }
+
+        public Boolean getAutoCloseIssue() {
+            return autoCloseIssue;
+        }
+
+        public void setAutoCloseIssue(Boolean autoCloseIssue) {
+            this.autoCloseIssue = autoCloseIssue;
         }
 
         public Boolean getManualSql() {
@@ -719,6 +746,77 @@ public final class DataGovernanceDtos {
 
         public void setDownstream(List<LineageNode> downstream) {
             this.downstream = downstream;
+        }
+    }
+
+    public static class LineageRepairRequest {
+
+        private String syncTaskName;
+
+        public String getSyncTaskName() {
+            return syncTaskName;
+        }
+
+        public void setSyncTaskName(String syncTaskName) {
+            this.syncTaskName = syncTaskName;
+        }
+    }
+
+    public static class LineageRepairResult {
+
+        private String syncTaskName;
+        private String repairedStatus;
+        private String repairedAt;
+        private Integer workflowInstanceId;
+        private Integer repairedRows;
+        private String message;
+
+        public String getSyncTaskName() {
+            return syncTaskName;
+        }
+
+        public void setSyncTaskName(String syncTaskName) {
+            this.syncTaskName = syncTaskName;
+        }
+
+        public String getRepairedStatus() {
+            return repairedStatus;
+        }
+
+        public void setRepairedStatus(String repairedStatus) {
+            this.repairedStatus = repairedStatus;
+        }
+
+        public String getRepairedAt() {
+            return repairedAt;
+        }
+
+        public void setRepairedAt(String repairedAt) {
+            this.repairedAt = repairedAt;
+        }
+
+        public Integer getWorkflowInstanceId() {
+            return workflowInstanceId;
+        }
+
+        public void setWorkflowInstanceId(Integer workflowInstanceId) {
+            this.workflowInstanceId = workflowInstanceId;
+        }
+
+        public Integer getRepairedRows() {
+            return repairedRows;
+        }
+
+        public void setRepairedRows(Integer repairedRows) {
+            this.repairedRows = repairedRows;
+        }
+
+        public String getMessage() {
+            return message;
+        }
+
+        public void setMessage(String message) {
+            this.message = message;
         }
     }
 

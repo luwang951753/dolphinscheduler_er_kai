@@ -363,9 +363,10 @@ public class DataSourceController extends BaseController {
     @GetMapping(value = "/tables")
     @ResponseStatus(HttpStatus.OK)
     @ApiException(GET_DATASOURCE_TABLES_ERROR)
-    public Result<Object> getTables(@RequestParam("datasourceId") Integer datasourceId,
+    public Result<Object> getTables(@Parameter(hidden = true) @RequestAttribute(value = Constants.SESSION_USER) User loginUser,
+                                    @RequestParam("datasourceId") Integer datasourceId,
                                     @RequestParam(value = "database") String database) {
-        List<ParamsOptions> options = dataSourceService.getTables(datasourceId, database);
+        List<ParamsOptions> options = dataSourceService.getTables(loginUser, datasourceId, database);
         return Result.success(options);
     }
 
@@ -378,10 +379,11 @@ public class DataSourceController extends BaseController {
     @GetMapping(value = "/tableColumns")
     @ResponseStatus(HttpStatus.OK)
     @ApiException(GET_DATASOURCE_TABLE_COLUMNS_ERROR)
-    public Result<Object> getTableColumns(@RequestParam("datasourceId") Integer datasourceId,
+    public Result<Object> getTableColumns(@Parameter(hidden = true) @RequestAttribute(value = Constants.SESSION_USER) User loginUser,
+                                          @RequestParam("datasourceId") Integer datasourceId,
                                           @RequestParam("tableName") String tableName,
                                           @RequestParam(value = "database") String database) {
-        List<ParamsOptions> options = dataSourceService.getTableColumns(datasourceId, database, tableName);
+        List<ParamsOptions> options = dataSourceService.getTableColumns(loginUser, datasourceId, database, tableName);
         return Result.success(options);
     }
 
@@ -394,10 +396,13 @@ public class DataSourceController extends BaseController {
     @GetMapping(value = "/tableColumnMetas")
     @ResponseStatus(HttpStatus.OK)
     @ApiException(GET_DATASOURCE_TABLE_COLUMNS_ERROR)
-    public Result<List<DatasourceColumnDto>> getTableColumnMetas(@RequestParam("datasourceId") Integer datasourceId,
+    public Result<List<DatasourceColumnDto>> getTableColumnMetas(@Parameter(hidden = true) @RequestAttribute(value = Constants.SESSION_USER) User loginUser,
+                                                                 @RequestParam("datasourceId") Integer datasourceId,
                                                                  @RequestParam("tableName") String tableName,
-                                                                 @RequestParam(value = "database") String database) {
-        List<DatasourceColumnDto> columns = dataSourceService.getTableColumnMetas(datasourceId, database, tableName);
+                                                                 @RequestParam(value = "database") String database,
+                                                                 @RequestParam(value = "schema", required = false) String schema) {
+        List<DatasourceColumnDto> columns =
+                dataSourceService.getTableColumnMetas(loginUser, datasourceId, database, schema, tableName);
         return Result.success(columns);
     }
 
@@ -502,7 +507,7 @@ public class DataSourceController extends BaseController {
     @ApiException(CONNECT_DATASOURCE_FAILURE)
     public Result<String> previewTargetTable(@Parameter(hidden = true) @RequestAttribute(value = Constants.SESSION_USER) User loginUser,
                                              @RequestBody DatasourceTableCreateRequest request) {
-        String ddl = dataSourceService.previewCreateTableSql(request);
+        String ddl = dataSourceService.previewCreateTableSql(loginUser, request);
         return Result.success(ddl);
     }
 
@@ -512,7 +517,7 @@ public class DataSourceController extends BaseController {
     @ApiException(CONNECT_DATASOURCE_FAILURE)
     public Result<String> createTargetTable(@Parameter(hidden = true) @RequestAttribute(value = Constants.SESSION_USER) User loginUser,
                                             @RequestBody DatasourceTableCreateRequest request) {
-        String ddl = dataSourceService.executeTableDdl(request);
+        String ddl = dataSourceService.executeTableDdl(loginUser, request);
         return Result.success(ddl);
     }
 
@@ -523,8 +528,9 @@ public class DataSourceController extends BaseController {
     @GetMapping(value = "/databases")
     @ResponseStatus(HttpStatus.OK)
     @ApiException(GET_DATASOURCE_DATABASES_ERROR)
-    public Result<Object> getDatabases(@RequestParam("datasourceId") Integer datasourceId) {
-        List<ParamsOptions> options = dataSourceService.getDatabases(datasourceId);
+    public Result<Object> getDatabases(@Parameter(hidden = true) @RequestAttribute(value = Constants.SESSION_USER) User loginUser,
+                                       @RequestParam("datasourceId") Integer datasourceId) {
+        List<ParamsOptions> options = dataSourceService.getDatabases(loginUser, datasourceId);
         return Result.success(options);
     }
 }

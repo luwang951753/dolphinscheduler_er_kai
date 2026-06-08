@@ -98,8 +98,6 @@ type SyncTaskViewMode = 'LIST' | 'WIZARD'
 type SyncTaskAssetStatus = 'SUCCESS' | 'FAILED' | 'RUNNING' | 'DRAFT' | 'OFFLINE'
 type SyncTaskDetailTab = 'OVERVIEW' | 'CONFIG' | 'HISTORY' | 'LOGS' | 'CHANGES'
 type SyncTaskAssetSource = 'REAL' | 'LOCAL'
-type SyncAgentStageKey = 'PARSE' | 'MATCH' | 'METADATA' | 'MAPPING' | 'PLAN'
-type SyncAgentStageStatus = 'WAITING' | 'RUNNING' | 'SUCCESS' | 'ERROR'
 
 interface DatasourceOption extends SelectOption {
   value: number
@@ -249,40 +247,6 @@ interface SyncTaskAsset {
   logText?: string
 }
 
-interface SyncAgentParsedIntent {
-  command: string
-  sourceType: SyncDatasourceType | null
-  targetType: SyncDatasourceType | null
-  sourceDatabase: string
-  sourceTable: string
-  targetDatabase: string
-  targetSchema: string
-  targetTable: string
-  limit: number | null
-  autoExecute: boolean
-  confidence: number
-  warnings: string[]
-  missing: string[]
-}
-
-interface SyncAgentPlan extends SyncAgentParsedIntent {
-  projectCode: number | null
-  projectName: string
-  sourceDatasourceId: number | null
-  sourceDatasourceName: string
-  targetDatasourceId: number | null
-  targetDatasourceName: string
-  sourceColumnCount: number
-  mappedColumnCount: number
-}
-
-interface SyncAgentStage {
-  key: SyncAgentStageKey
-  label: string
-  status: SyncAgentStageStatus
-  message: string
-}
-
 const SOURCE_FILTER_OPERATOR_LABELS: Record<SourceFilterOperator, string> = {
   EQ: '=',
   NE: '!=',
@@ -347,6 +311,12 @@ const cloneFieldRows = (rows: FieldDesignRow[]): FieldDesignRow[] =>
 
 const cloneColumns = (columns: ColumnItem[]): ColumnItem[] =>
   columns.map((item) => ({ ...item }))
+
+const formatQualifiedPath = (...parts: Array<string | null | undefined>) =>
+  parts
+    .map((part) => String(part || '').trim())
+    .filter((part) => part && part !== '-')
+    .join('.') || '-'
 
 const SYNC_TASK_ASSET_STORAGE_KEY = 'dolphinscheduler.sync-task.assets.v1'
 
@@ -617,6 +587,9 @@ const createDemoAssets = (): SyncTaskAsset[] => {
 const escapeSeatunnelString = (value: string): string =>
   value.replaceAll('\\', '\\\\').replaceAll('"', '\\"')
 
+const seatunnelQuotedString = (value: string): string =>
+  `"${escapeSeatunnelString(value)}"`
+
 interface WorkflowTaskProgressRow {
   key: string
   taskInstanceId: number | null
@@ -640,10 +613,6 @@ interface EndpointState {
 }
 
 const SUPPORT_TYPES: SyncDatasourceType[] = ['MYSQL', 'POSTGRESQL', 'ORACLE', 'DORIS']
-const SYNC_AGENT_EXAMPLES = [
-  '把 mysql case_workbench.ajxx_tab 同步到 pg public.agent_ajxx_tab，只同步5条',
-  '将 MySQL case_workbench.ajxx_tab 同步到 PostgreSQL public.agent_sync_test，字段自动映射并立即执行'
-]
 const DEFAULT_PORTS: Record<SyncDatasourceType, number> = {
   MYSQL: 3306,
   POSTGRESQL: 5432,
@@ -746,6 +715,7 @@ const TARGET_TYPE_OPTIONS: Record<SyncDatasourceType, string[]> = {
     'NUMBER(10)',
     'NUMBER(5)',
     'NUMBER(3)',
+    'NUMBER(1)',
     'NUMBER(10,2)',
     'BINARY_DOUBLE',
     'BINARY_FLOAT',
@@ -831,6 +801,40 @@ const extractErrorMessage = (error: any, fallback: string): string => {
     error?.message ||
     fallback
   )
+}
+
+const isTaskLogMissingMessage = (message: string): boolean =>
+  /file path: .* not exists/i.test(message)
+
+const formatTaskLogMissingMessage = (): string =>
+  '最近实例日志文件不存在，可能是历史实例或服务运行目录迁移导致。请重新运行同步任务后再查看最新日志。'
+
+const formatTaskLogReadError = (error: any): string => {
+  const message = extractErrorMessage(error, '')
+  if (isTaskLogMissingMessage(message)) {
+    return formatTaskLogMissingMessage()
+  }
+  return message || '读取任务日志失败，请稍后重试。'
+}
+
+const isUsefulTaskErrorLine = (line: string): boolean => {
+  const normalized = line.trim()
+  return (
+    normalized.length > 0 &&
+    !/^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}/.test(normalized) &&
+    !/^\[.*\]\s*$/.test(normalized) &&
+    /(exception|error|failed|failure|caused by|cannot|not found|denied|refused|timeout|syntax|permission|ora-\d+)/i.test(normalized)
+  )
+}
+
+const extractTaskFailureSummaryFromLog = (logText: string): string => {
+  const lines = logText
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+  const usefulLine = lines.find(isUsefulTaskErrorLine)
+  if (!usefulLine) return ''
+  return usefulLine.replace(/\s+/g, ' ').slice(0, 260)
 }
 
 const isWorkflowNameExistsError = (error: any): boolean => {
@@ -961,6 +965,17 @@ const quoteQueryIdentifier = (type: SyncDatasourceType, name: string): string =>
   return `"${name.replaceAll('"', '""')}"`
 }
 
+const quoteQueryTableIdentifier = (
+  type: SyncDatasourceType,
+  tableName: string
+): string =>
+  tableName
+    .split('.')
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map((part) => quoteQueryIdentifier(type, part))
+    .join('.')
+
 const quoteSeatunnelSqlIdentifier = (name: string): string => {
   const normalized = name.trim()
   return /^[A-Za-z_][A-Za-z0-9_]*$/.test(normalized)
@@ -996,8 +1011,12 @@ const buildSourceSelectSql = (
   const selectClause = buildSourceSelectByType(rows, sourceType)
   const fromClause = buildSourceFromClause(sourceType, sourceTable)
   const whereClause = buildSourceWhereClause(sourceFilters, sourceType, sourceColumns)
+  const baseSql = `${selectClause} from ${fromClause}${whereClause}`
+  if (sourceType === 'ORACLE' && sampleLimit && sampleLimit > 0) {
+    return `select * from (${baseSql}) WHERE ROWNUM <= ${Math.floor(sampleLimit)}`
+  }
   const limitClause = buildSourceLimitClause(sourceType, sampleLimit)
-  return `${selectClause} from ${fromClause}${whereClause}${limitClause}`
+  return `${baseSql}${limitClause}`
 }
 
 const buildSourceLimitClause = (
@@ -1005,20 +1024,25 @@ const buildSourceLimitClause = (
   sampleLimit: number | null
 ): string => {
   if (!sampleLimit || sampleLimit <= 0) return ''
-  if (sourceType === 'ORACLE') {
-    return ` FETCH FIRST ${sampleLimit} ROWS ONLY`
-  }
-  return ` LIMIT ${sampleLimit}`
+  if (sourceType === 'ORACLE') return ''
+  return ` LIMIT ${Math.floor(sampleLimit)}`
 }
 
 const buildSourceFromClause = (
   sourceType: SyncDatasourceType,
   sourceTable: string
 ): string => {
-  return sourceTable.includes('.')
-    ? sourceTable
-    : quoteQueryIdentifier(sourceType, sourceTable)
+  return quoteQueryTableIdentifier(sourceType, sourceTable)
 }
+
+const escapeSqlStringLiteral = (value: string): string =>
+  value.replaceAll("'", "''")
+
+const escapeSqlLikeLiteral = (value: string): string =>
+  escapeSqlStringLiteral(value)
+    .replaceAll('#', '##')
+    .replaceAll('%', '#%')
+    .replaceAll('_', '#_')
 
 const getSourceFilterOperatorClause = (
   rule: SourceFilterRule,
@@ -1042,9 +1066,9 @@ const getSourceFilterOperatorClause = (
     case 'LTE':
       return `${field} <= ${buildSourceFilterLiteral(value, fieldType)}`
     case 'CONTAINS':
-      return `${field} LIKE '%${value.replaceAll("'", "''")}%'`
+      return `${field} LIKE '%${escapeSqlLikeLiteral(value)}%' ESCAPE '#'`
     case 'PREFIX':
-      return `${field} LIKE '${value.replaceAll("'", "''")}%'`
+      return `${field} LIKE '${escapeSqlLikeLiteral(value)}%' ESCAPE '#'`
     case 'IN': {
       const values = value
         .split(',')
@@ -1149,119 +1173,20 @@ const buildSourceFilterLiteral = (value: string, fieldType: string): string => {
   const trimmed = value.trim()
   if (!trimmed) return "''"
   if (family === 'int32' || family === 'int64' || family === 'decimal' || family === 'float') {
-    return Number.isFinite(Number(trimmed)) ? trimmed : `'${trimmed.replaceAll("'", "''")}'`
+    return Number.isFinite(Number(trimmed)) ? trimmed : `'${escapeSqlStringLiteral(trimmed)}'`
   }
   if (family === 'boolean') {
     const normalized = trimmed.toLowerCase()
     if (['true', '1', 'yes', 'y'].includes(normalized)) return 'TRUE'
     if (['false', '0', 'no', 'n'].includes(normalized)) return 'FALSE'
-    return `'${trimmed.replaceAll("'", "''")}'`
+    return `'${escapeSqlStringLiteral(trimmed)}'`
   }
-  return `'${trimmed.replaceAll("'", "''")}'`
+  return `'${escapeSqlStringLiteral(trimmed)}'`
 }
 
 const describeSourceFilters = (filters: SourceFilterRule[]): string => {
   const activeCount = filters.filter((item) => item.enabled && item.field.trim()).length
   return activeCount ? `源端过滤 ${activeCount} 条` : '源端过滤未启用'
-}
-
-const normalizeAgentCommand = (command: string): string =>
-  command
-    .replaceAll('，', ',')
-    .replaceAll('。', '.')
-    .replaceAll('：', ':')
-    .replaceAll('；', ';')
-    .replace(/\s+/g, ' ')
-    .trim()
-
-const detectAgentDatasourceTypes = (
-  command: string
-): { sourceType: SyncDatasourceType | null; targetType: SyncDatasourceType | null } => {
-  const normalized = command.toLowerCase()
-  const typeMatches = Array.from(
-    normalized.matchAll(/\b(mysql|postgresql|postgres|pgsql|pg|oracle|doris)\b/g)
-  ).map((item) => {
-    const token = item[1]
-    if (token === 'mysql') return 'MYSQL'
-    if (token === 'oracle') return 'ORACLE'
-    if (token === 'doris') return 'DORIS'
-    return 'POSTGRESQL'
-  }) as SyncDatasourceType[]
-  return {
-    sourceType: typeMatches[0] || null,
-    targetType: typeMatches[1] || null
-  }
-}
-
-const extractAgentTableRefs = (command: string): string[] => {
-  return Array.from(
-    command.matchAll(/([A-Za-z_][\w$-]*)\.([A-Za-z_][\w$-]*)/g)
-  )
-    .map((item) => `${item[1]}.${item[2]}`)
-    .filter((item, index, array) => array.indexOf(item) === index)
-}
-
-const parseAgentLimit = (command: string): number | null => {
-  const matched =
-    command.match(/(?:只同步|同步前|前)\s*(\d+)\s*条/i) ||
-    command.match(/\blimit\s+(\d+)\b/i)
-  const limit = Number(matched?.[1] || 0)
-  return Number.isFinite(limit) && limit > 0 ? Math.min(limit, 100000) : null
-}
-
-const parseSyncAgentIntent = (rawCommand: string): SyncAgentParsedIntent => {
-  const command = normalizeAgentCommand(rawCommand)
-  const { sourceType, targetType } = detectAgentDatasourceTypes(command)
-  const tableRefs = extractAgentTableRefs(command)
-  const sourceRef = tableRefs[0] || ''
-  const targetRef = tableRefs[1] || ''
-  const [sourceDatabase = '', sourceTable = ''] = sourceRef.split('.')
-  const [targetFirst = '', targetSecond = ''] = targetRef.split('.')
-  const isSchemaLikeTarget =
-    !!targetType &&
-    ['POSTGRESQL', 'ORACLE'].includes(targetType) &&
-    ['public', 'dbo', 'app', 'ods', 'dwd', 'dws'].includes(targetFirst.toLowerCase())
-  const targetSchema = isSchemaLikeTarget
-    ? targetFirst
-    : targetType === 'POSTGRESQL'
-      ? 'public'
-      : getDefaultSchemaName(targetType || undefined)
-  const targetDatabase = isSchemaLikeTarget ? '' : targetFirst
-  const targetTable = targetSecond || targetFirst
-  const autoExecute = /立即执行|执行|跑起来|启动|运行/.test(command)
-  const limit = parseAgentLimit(command)
-  const missing: string[] = []
-  if (!sourceType) missing.push('源端类型')
-  if (!targetType) missing.push('目标端类型')
-  if (!sourceDatabase) missing.push('源库')
-  if (!sourceTable) missing.push('源表')
-  if (!targetTable) missing.push('目标表')
-  const warnings: string[] = []
-  if (!targetDatabase && !isSchemaLikeTarget) {
-    warnings.push('命令中没有明确目标库，将优先使用目标数据源默认库或第一个可用库。')
-  }
-  if (limit) {
-    warnings.push(`识别到只同步 ${limit} 条，本期会作为抽样条件写入 Agent 方案，适合验证链路。`)
-  }
-  if (missing.length) {
-    warnings.push(`命令信息不完整：缺少 ${missing.join('、')}。`)
-  }
-  const confidenceBase = 100 - missing.length * 16 - (!targetDatabase ? 8 : 0)
-  return {
-    command,
-    sourceType,
-    targetType,
-    sourceDatabase,
-    sourceTable,
-    targetDatabase,
-    targetSchema,
-    targetTable,
-    limit,
-    autoExecute,
-    confidence: Math.max(20, Math.min(96, confidenceBase)),
-    warnings,
-    missing
-  }
 }
 
 const buildSeatunnelTransformQuery = (rows: MappingRow[]): string => {
@@ -1325,13 +1250,34 @@ const buildSinkTable = (
 }
 
 const getDefaultSchemaName = (targetType?: SyncDatasourceType): string => {
-  if (targetType === 'ORACLE') return 'APP'
   if (targetType === 'POSTGRESQL') return 'public'
   return ''
 }
 
+const getDefaultSchemaNameByDetail = (
+  targetType?: SyncDatasourceType,
+  detail?: DatasourceDetail | null
+): string => {
+  if (targetType === 'ORACLE') {
+    return (detail?.userName || '').trim().toUpperCase()
+  }
+  return getDefaultSchemaName(targetType)
+}
+
+const getDatasourceDefaultSchema = (
+  datasourceId: number | null,
+  datasourceType: SyncDatasourceType | undefined,
+  details: Record<number, DatasourceDetail>
+): string => getDefaultSchemaNameByDetail(
+  datasourceType,
+  datasourceId ? details[datasourceId] : null
+)
+
+const isScheduleOnline = (summary?: string): boolean =>
+  String(summary || '').trim().toUpperCase().startsWith('ONLINE')
+
 const getSchemaPlaceholder = (targetType?: SyncDatasourceType): string => {
-  if (targetType === 'ORACLE') return 'APP'
+  if (targetType === 'ORACLE') return '默认使用数据源用户名'
   if (targetType === 'POSTGRESQL') return 'public'
   return '可选'
 }
@@ -1350,6 +1296,22 @@ const buildPrimaryKeys = (rows: MappingRow[]): string[] => {
     .map((item) => item.targetColumn)
     .filter((name) => candidates.includes(name))
   return matched.length ? [matched[0]] : []
+}
+
+const getUnmappedRequiredTargetColumns = (
+  targetMode: TargetTableMode,
+  rows: FieldDesignRow[]
+): string[] => {
+  if (targetMode !== 'EXISTING_TABLE') {
+    return []
+  }
+  return rows
+    .filter((item) =>
+      (item.targetPrimaryKey || item.targetNullable === false) &&
+      (!item.sync || !item.sourceColumn.trim() || !item.mappedTargetKey)
+    )
+    .map((item) => item.targetColumn || item.key)
+    .filter(Boolean)
 }
 
 const buildWorkflowName = (
@@ -1971,6 +1933,8 @@ const inferTargetColumnType = (
 ): string => {
   const normalized = sourceType.toLowerCase()
   const targetType = targetDatasourceType || 'MYSQL'
+  const sourceTypeArgs = extractTypeArgs(sourceType)
+  const [sourcePrecision = 0, sourceScale = 0] = sourceTypeArgs
 
   if (normalized.includes('json')) {
     if (targetType === 'POSTGRESQL') return 'JSONB'
@@ -1983,6 +1947,7 @@ const inferTargetColumnType = (
     normalized.includes('bit') ||
     normalized.includes('tinyint(1)')
   ) {
+    if (targetType === 'ORACLE') return 'NUMBER(1)'
     return 'BOOLEAN'
   }
   if (normalized.includes('bigint')) {
@@ -1997,17 +1962,30 @@ const inferTargetColumnType = (
     if (targetType === 'ORACLE') return 'NUMBER(3)'
     return targetType === 'POSTGRESQL' ? 'SMALLINT' : 'TINYINT'
   }
+  if (normalized.includes('decimal') || normalized.includes('numeric') || normalized.includes('number')) {
+    if (sourceScale > 0) {
+      if (targetType === 'ORACLE') return 'NUMBER(10,2)'
+      return targetType === 'POSTGRESQL' ? 'NUMERIC(10,2)' : 'DECIMAL(10,2)'
+    }
+    if (normalized.includes('number') && sourcePrecision > 10) {
+      if (targetType === 'ORACLE') return 'NUMBER(19)'
+      return 'BIGINT'
+    }
+    if (normalized.includes('decimal') || normalized.includes('numeric')) {
+      if (targetType === 'ORACLE') return 'NUMBER(10,2)'
+      return targetType === 'POSTGRESQL' ? 'NUMERIC(10,2)' : 'DECIMAL(10,2)'
+    }
+    if (normalized.includes('number')) {
+      if (targetType === 'ORACLE') return 'NUMBER(38,10)'
+      return targetType === 'POSTGRESQL' ? 'NUMERIC(38,10)' : 'DECIMAL(38,10)'
+    }
+  }
   if (
     normalized.includes('int') ||
-    normalized.includes('serial') ||
-    normalized.includes('number')
+    normalized.includes('serial')
   ) {
     if (targetType === 'ORACLE') return 'NUMBER(10)'
     return targetType === 'POSTGRESQL' ? 'INTEGER' : 'INT'
-  }
-  if (normalized.includes('decimal') || normalized.includes('numeric')) {
-    if (targetType === 'ORACLE') return 'NUMBER(10,2)'
-    return targetType === 'POSTGRESQL' ? 'NUMERIC(10,2)' : 'DECIMAL(10,2)'
   }
   if (normalized.includes('double')) {
     if (targetType === 'ORACLE') return 'BINARY_DOUBLE'
@@ -2027,8 +2005,11 @@ const inferTargetColumnType = (
     normalized.includes('varchar') ||
     normalized.includes('string')
   ) {
-    if (targetType === 'ORACLE') return 'VARCHAR2(255)'
-    return 'VARCHAR(255)'
+    const sourceLength = sourceTypeArgs[0]
+    const normalizedLength =
+      Number.isFinite(sourceLength) && sourceLength > 0 ? sourceLength : 255
+    if (targetType === 'ORACLE') return `VARCHAR2(${Math.min(normalizedLength, 4000)})`
+    return `VARCHAR(${Math.min(normalizedLength, 65535)})`
   }
   if (normalized.includes('text') || normalized.includes('clob')) {
     if (targetType === 'ORACLE') return 'CLOB'
@@ -2062,19 +2043,23 @@ const extractTypeArgs = (type: string): number[] => {
 const getNormalizedTypeFamily = (type: string): string => {
   const normalized = type.trim().toLowerCase()
   if (!normalized) return 'unknown'
-  if (normalized.includes('bigint') || normalized.includes('number(19)')) return 'int64'
+  if (normalized.includes('number(')) {
+    const [, scale = 0] = extractTypeArgs(type)
+    if (scale > 0) return 'decimal'
+    if (normalized.includes('number(19)')) return 'int64'
+    return 'int32'
+  }
+  if (normalized.includes('bigint')) return 'int64'
   if (
     normalized.includes('int') ||
-    normalized.includes('serial') ||
-    normalized.includes('number(10)') ||
-    normalized === 'number'
+    normalized.includes('serial')
   ) {
     return 'int32'
   }
+  if (normalized === 'number') return 'decimal'
   if (
     normalized.includes('decimal') ||
-    normalized.includes('numeric') ||
-    normalized.includes('number(')
+    normalized.includes('numeric')
   ) {
     return 'decimal'
   }
@@ -2120,7 +2105,7 @@ const getStringLength = (type: string): number => {
   if (normalized.includes('text') || normalized.includes('clob') || normalized.includes('string')) {
     return Number.MAX_SAFE_INTEGER
   }
-  return extractTypeArgs(type)[0] || Number.MAX_SAFE_INTEGER
+  return extractTypeArgs(type)[0] || 0
 }
 
 const canMapFieldType = (
@@ -2139,7 +2124,7 @@ const canMapFieldType = (
     if (sourceFamily === 'string') {
       const sourceLength = getStringLength(sourceType)
       const targetLength = getStringLength(targetType)
-      if (targetLength < sourceLength) {
+      if (sourceLength > 0 && targetLength > 0 && targetLength < sourceLength) {
         return {
           ok: false,
           reason: '目标字符长度小于源字段长度'
@@ -2148,7 +2133,11 @@ const canMapFieldType = (
     }
     if (sourceFamily === 'decimal') {
       const [sourcePrecision = 10, sourceScale = 0] = extractTypeArgs(sourceType)
-      const [targetPrecision = 10, targetScale = 0] = extractTypeArgs(targetType)
+      const targetArgs = extractTypeArgs(targetType)
+      if (!targetArgs.length && targetType.trim().toLowerCase() === 'number') {
+        return { ok: true }
+      }
+      const [targetPrecision = 10, targetScale = 0] = targetArgs
       if (targetPrecision < sourcePrecision || targetScale < sourceScale) {
         return {
           ok: false,
@@ -2161,6 +2150,9 @@ const canMapFieldType = (
   const sourceRank = getNumericRank(sourceFamily)
   const targetRank = getNumericRank(targetFamily)
   if (sourceRank >= 0 && targetRank >= 0) {
+    if (sourceType.trim().toLowerCase() === 'number') {
+      return { ok: true }
+    }
     return targetRank >= sourceRank
       ? { ok: true }
       : {
@@ -2228,20 +2220,6 @@ const syncTask = defineComponent({
       assetDetailVisible: false,
       assetDetailTab: 'OVERVIEW' as SyncTaskDetailTab,
       assetLogFullscreenVisible: false,
-      agentDrawerVisible: false,
-      agentCommand: SYNC_AGENT_EXAMPLES[0],
-      agentRunning: false,
-      agentAutoExecute: false,
-      agentSampleLimit: null as number | null,
-      agentPlan: null as SyncAgentPlan | null,
-      agentError: '',
-      agentStages: [
-        { key: 'PARSE', label: '解析自然语言', status: 'WAITING', message: '等待输入命令' },
-        { key: 'MATCH', label: '匹配项目和数据源', status: 'WAITING', message: '等待解析结果' },
-        { key: 'METADATA', label: '加载库表元数据', status: 'WAITING', message: '等待数据源匹配' },
-        { key: 'MAPPING', label: '生成字段映射', status: 'WAITING', message: '等待字段加载' },
-        { key: 'PLAN', label: '生成同步方案', status: 'WAITING', message: '等待映射结果' }
-      ] as SyncAgentStage[],
       selectedAsset: null as SyncTaskAsset | null,
       editingAssetId: '' as string,
       latestPublishedAssetId: '' as string,
@@ -2273,7 +2251,7 @@ const syncTask = defineComponent({
         loading: false
       } as EndpointState,
       targetTableName: '',
-      targetSchemaName: 'public',
+      targetSchemaName: '',
       taskName: '',
       sourceFilters: [createSourceFilterRule()] as SourceFilterRule[],
       activeSolutionModule: 'MAPPING' as SyncSolutionModule,
@@ -2329,6 +2307,7 @@ const syncTask = defineComponent({
     } | null>(null)
     const mappingDraftPoint = ref<{ x: number; y: number } | null>(null)
     let latestInstancePollingTimer: number | null = null
+    let latestInstancePollingErrorCount = 0
 
     const sourceDatasourceOption = computed(() =>
       state.datasourceOptions.find(
@@ -2369,6 +2348,11 @@ const syncTask = defineComponent({
       }
       if (!state.targetTableName.trim()) {
         warnings.push('目标表名称未确认，建议使用已有表或明确新表名。')
+      }
+      if (unmappedRequiredTargetColumns.value.length) {
+        warnings.push(
+          `已有目标表存在未映射的必填字段：${unmappedRequiredTargetColumns.value.slice(0, 5).join('、')}。`
+        )
       }
       if (state.executionMode === 'SCHEDULE' && !state.latestScheduleId) {
         warnings.push('当前还没有配置周期调度，请先点击“配置周期调度”。')
@@ -2548,6 +2532,7 @@ const syncTask = defineComponent({
       let latestInstance: any = null
       let latestReadRows: number | null = null
       let latestWriteRows: number | null = null
+      let latestFailureMessage = ''
       if (workflowCode) {
         try {
           const instanceResult = await queryWorkflowInstanceListPaging(
@@ -2564,7 +2549,7 @@ const syncTask = defineComponent({
           latestInstance = null
         }
       }
-      if (latestInstance?.id && latestInstance?.state === 'SUCCESS') {
+      if (latestInstance?.id && latestInstance?.state && TERMINAL_WORKFLOW_STATES.has(latestInstance.state)) {
         try {
           const taskResult = await queryTaskListByWorkflowId(
             Number(latestInstance.id),
@@ -2576,7 +2561,7 @@ const syncTask = defineComponent({
           let hasWriteRows = false
           for (const task of normalizeList(taskResult?.taskList || taskResult)) {
             const taskInstanceId = Number(task?.id)
-            if (task?.state !== 'SUCCESS' || !Number.isFinite(taskInstanceId)) {
+            if (!Number.isFinite(taskInstanceId)) {
               continue
             }
             let skipLineNum = 0
@@ -2587,9 +2572,10 @@ const syncTask = defineComponent({
                 taskInstanceId,
                 skipLineNum,
                 limit: 1000
-              })
+              }, true)
               const message = logChunk?.message || ''
               const lineNum = Number(logChunk?.lineNum || 0)
+              if (isTaskLogMissingMessage(message)) break
               if (!message || message === previousMessage) break
               taskLogText += message
               previousMessage = message
@@ -2604,6 +2590,15 @@ const syncTask = defineComponent({
             if (counts.writeRows !== null) {
               totalWriteRows += counts.writeRows
               hasWriteRows = true
+            }
+            if (
+              !latestFailureMessage &&
+              ['FAILURE', 'STOP', 'PAUSE'].includes(task?.state)
+            ) {
+              const summary = extractTaskFailureSummaryFromLog(taskLogText)
+              if (summary) {
+                latestFailureMessage = `${task?.name || task?.taskName || '同步任务'}: ${summary}`
+              }
             }
           }
           latestReadRows = hasReadRows ? totalReadRows : null
@@ -2620,7 +2615,7 @@ const syncTask = defineComponent({
         instanceState === 'SUBMITTED_SUCCESS' ||
         instanceState === 'SERIAL_WAIT'
           ? 'RUNNING'
-          : instanceState === 'FAILURE' || instanceState === 'STOP'
+          : instanceState === 'FAILURE' || instanceState === 'STOP' || instanceState === 'PAUSE'
             ? 'FAILED'
             : instanceState === 'SUCCESS'
               ? 'SUCCESS'
@@ -2658,7 +2653,9 @@ const syncTask = defineComponent({
         duration: '-',
         updatedAt,
         owner: workflow?.userName || workflow?.modifyBy || 'admin',
-        errorMessage: status === 'FAILED' ? '最近一次实例执行失败，请进入详情查看日志诊断。' : '',
+        errorMessage: status === 'FAILED'
+          ? latestFailureMessage || '最近一次实例执行失败，请进入详情查看日志诊断。'
+          : '',
         sourceFilters: cloneSourceFilters(
           designFromRawScript.sourceFilters.length
             ? designFromRawScript.sourceFilters
@@ -2867,6 +2864,10 @@ const syncTask = defineComponent({
         : selectedFieldRows.value
     )
 
+    const unmappedRequiredTargetColumns = computed(() =>
+      getUnmappedRequiredTargetColumns(targetTableMode.value, state.fieldRows)
+    )
+
     const generatedConfig = computed(() => {
       const sourceDetail = state.source.datasourceId
         ? state.datasourceDetails[state.source.datasourceId]
@@ -2891,21 +2892,19 @@ const syncTask = defineComponent({
         sourceDetail.type,
         state.source.table,
         state.source.columns,
-        state.agentSampleLimit
+        null
       )
       const transformQuery = buildSeatunnelTransformQuery(state.fieldRows)
       const primaryKeys = buildPrimaryKeys(state.fieldRows)
       const targetType = targetDetail.type
-      const targetSchema = state.targetSchemaName.trim() || getDefaultSchemaName(targetType)
-      const sinkTableName =
-        targetType === 'POSTGRESQL' || targetType === 'ORACLE'
-          ? `${targetSchema}.${state.targetTableName.trim()}`
-          : state.targetTableName.trim()
+      const targetSchema =
+        state.targetSchemaName.trim() ||
+        getDefaultSchemaNameByDetail(targetType, targetDetail)
       const sinkTable = buildSinkTable(
         targetType,
         state.target.database,
         targetSchema,
-        sinkTableName
+        state.targetTableName.trim()
       )
       const sinkInsertQuery = buildJdbcSinkInsertQuery(
         state.fieldRows,
@@ -2920,11 +2919,11 @@ const syncTask = defineComponent({
         '',
         'source {',
         '  Jdbc {',
-        `    url = "${buildJdbcUrl(sourceDetail, state.source.database)}"`,
-        `    driver = "${buildDriver(sourceDetail.type)}"`,
-        `    user = "${sourceDetail.userName}"`,
-        `    password = "${sourceDetail.password}"`,
-        `    query = "${sourceQuery}"`,
+        `    url = ${seatunnelQuotedString(buildJdbcUrl(sourceDetail, state.source.database))}`,
+        `    driver = ${seatunnelQuotedString(buildDriver(sourceDetail.type))}`,
+        `    user = ${seatunnelQuotedString(sourceDetail.userName)}`,
+        `    password = ${seatunnelQuotedString(sourceDetail.password)}`,
+        `    query = ${seatunnelQuotedString(sourceQuery)}`,
         '    result_table_name = "sync_source"',
         '  }',
         '}',
@@ -2933,31 +2932,31 @@ const syncTask = defineComponent({
         '  Sql {',
         '    source_table_name = "sync_source"',
         '    result_table_name = "sync_mapped"',
-        `    query = "${transformQuery}"`,
+        `    query = ${seatunnelQuotedString(transformQuery)}`,
         '  }',
         '}',
         '',
         'sink {',
         '  Jdbc {',
         '    source_table_name = "sync_mapped"',
-        `    url = "${buildJdbcUrl(targetDetail, state.target.database)}"`,
-        `    driver = "${buildDriver(targetDetail.type)}"`,
-        `    user = "${targetDetail.userName}"`,
-        `    password = "${targetDetail.password}"`,
-        sinkInsertQuery ? `    query = "${sinkInsertQuery}"` : '    generate_sink_sql = true',
-        `    database = "${state.target.database}"`,
-        `    table = "${sinkTable}"`
+        `    url = ${seatunnelQuotedString(buildJdbcUrl(targetDetail, state.target.database))}`,
+        `    driver = ${seatunnelQuotedString(buildDriver(targetDetail.type))}`,
+        `    user = ${seatunnelQuotedString(targetDetail.userName)}`,
+        `    password = ${seatunnelQuotedString(targetDetail.password)}`,
+        sinkInsertQuery ? `    query = ${seatunnelQuotedString(sinkInsertQuery)}` : '    generate_sink_sql = true',
+        `    database = ${seatunnelQuotedString(state.target.database)}`,
+        `    table = ${seatunnelQuotedString(sinkTable)}`
       ]
       const customSql = state.sinkCustomSql.trim()
 
       if (customSql) {
         lines.push('    data_save_mode = "CUSTOM_PROCESSING"')
-        lines.push(`    custom_sql = "${escapeSeatunnelString(customSql)}"`)
+        lines.push(`    custom_sql = ${seatunnelQuotedString(customSql)}`)
       }
 
       if (primaryKeys.length) {
         lines.push(
-          `    primary_keys = [${primaryKeys.map((item) => `"${item}"`).join(', ')}]`
+          `    primary_keys = [${primaryKeys.map(seatunnelQuotedString).join(', ')}]`
         )
       }
 
@@ -3255,6 +3254,8 @@ const syncTask = defineComponent({
       state.fieldRows = normalizeTargetMappings(
         state.source.columns.map((sourceColumn) => {
           const oldRow = existed.get(sourceColumn.name)
+          const rowSync = oldRow?.sync ?? true
+          const targetKey = oldRow?.mappedTargetKey || sourceColumn.name
           return {
             key: sourceColumn.name,
             sourceColumn: sourceColumn.name,
@@ -3274,9 +3275,11 @@ const syncTask = defineComponent({
               oldRow?.targetPrimaryKey ?? !!sourceColumn.primaryKey,
             targetNullable:
               oldRow?.targetNullable ?? !!sourceColumn.nullable,
-            sync: oldRow?.sync || false,
-            mappedTargetKey: oldRow?.mappedTargetKey || null,
-            mappingKind: oldRow?.mappingKind || (oldRow?.mappedTargetKey ? 'AUTO' : undefined),
+            sync: rowSync,
+            mappedTargetKey: rowSync ? targetKey : null,
+            mappingKind: rowSync
+              ? oldRow?.mappingKind || 'AUTO'
+              : undefined,
             targetColumnTouched: oldRow?.targetColumnTouched || false
           }
         })
@@ -3700,327 +3703,20 @@ const syncTask = defineComponent({
       handleGlobalMouseMove(event)
     }
 
-    const resetAgentStages = () => {
-      state.agentStages = state.agentStages.map((stage) => ({
-        ...stage,
-        status: 'WAITING',
-        message: '等待执行'
-      }))
-      state.agentError = ''
-    }
-
-    const setAgentStage = (
-      key: SyncAgentStageKey,
-      status: SyncAgentStageStatus,
-      message: string
-    ) => {
-      state.agentStages = state.agentStages.map((stage) =>
-        stage.key === key ? { ...stage, status, message } : stage
-      )
-    }
-
-    const openAgentDrawer = () => {
-      state.agentDrawerVisible = true
-      if (!state.agentCommand.trim()) {
-        state.agentCommand = SYNC_AGENT_EXAMPLES[0]
-      }
-    }
-
-    const fillAgentExample = (command: string) => {
-      state.agentCommand = command
-      state.agentError = ''
-    }
-
-    const findAgentDatasource = (
-      type: SyncDatasourceType | null,
-      databaseName: string,
-      command: string
-    ) => {
-      if (!type) return null
-      const normalizedDatabase = databaseName.toLowerCase()
-      const normalizedCommand = command.toLowerCase()
-      const candidates = state.datasourceOptions.filter((item) => item.type === type)
-      if (!candidates.length) return null
-      return (
-        candidates.find((item) =>
-          String(item.label).toLowerCase().includes(normalizedDatabase)
-        ) ||
-        candidates.find((item) =>
-          normalizedCommand.includes(String(item.label).split(' ')[0].toLowerCase())
-        ) ||
-        candidates[0]
-      )
-    }
-
-    const chooseAgentTargetDatabase = (
-      parsed: SyncAgentParsedIntent,
-      targetEndpoint: EndpointState
-    ) => {
-      if (parsed.targetDatabase) {
-        const matched = targetEndpoint.databases.find(
-          (item) => item.toLowerCase() === parsed.targetDatabase.toLowerCase()
-        )
-        if (matched) return matched
-      }
-      const detailDatabase = targetEndpoint.datasourceId
-        ? state.datasourceDetails[targetEndpoint.datasourceId]?.database
-        : ''
-      return detailDatabase || targetEndpoint.databases[0] || parsed.targetDatabase || ''
-    }
-
-    const applyAgentFieldMappings = () => {
-      if (!state.source.columns.length) {
-        state.fieldRows = []
-        return
-      }
-      if (targetTableMode.value === 'EXISTING_TABLE' && state.target.columns.length) {
-        const sourceMap = new Map(
-          state.source.columns.map((item) => [item.name.toLowerCase(), item])
-        )
-        state.fieldRows = state.target.columns.map((targetColumn) => {
-          const matchedSource = sourceMap.get(targetColumn.name.toLowerCase()) || null
-          return {
-            key: targetColumn.name,
-            sourceColumn: matchedSource?.name || '',
-            sourceType: matchedSource?.type || '',
-            sourceComment: matchedSource?.comment || '',
-            sourcePrimaryKey: !!matchedSource?.primaryKey,
-            sourceNullable: matchedSource?.nullable ?? true,
-            targetColumn: targetColumn.name,
-            targetType: targetColumn.type,
-            targetComment: targetColumn.comment || '',
-            targetPrimaryKey: !!targetColumn.primaryKey,
-            targetNullable: !!targetColumn.nullable,
-            sync: !!matchedSource,
-            mappedTargetKey: matchedSource ? targetColumn.name : null,
-            mappingKind: matchedSource ? 'AUTO' : undefined,
-            targetColumnTouched: false
-          }
-        })
-        void nextTick(refreshMappingLayout)
-        return
-      }
-      const targetType = targetDatasourceOption.value?.type
-      state.fieldRows = state.source.columns.map((sourceColumn) => ({
-        key: sourceColumn.name,
-        sourceColumn: sourceColumn.name,
-        sourceType: sourceColumn.type,
-        sourceComment: sourceColumn.comment || '',
-        sourcePrimaryKey: !!sourceColumn.primaryKey,
-        sourceNullable: !!sourceColumn.nullable,
-        targetColumn: sourceColumn.name,
-        targetType: inferTargetColumnType(sourceColumn.type, targetType),
-        targetComment: sourceColumn.comment || '',
-        targetPrimaryKey: !!sourceColumn.primaryKey,
-        targetNullable: !!sourceColumn.nullable,
-        sync: true,
-        mappedTargetKey: sourceColumn.name,
-        mappingKind: 'AUTO',
-        targetColumnTouched: false
-      }))
-      void nextTick(refreshMappingLayout)
-    }
-
-    const applyAgentLimitHint = (parsed: SyncAgentParsedIntent) => {
-      state.agentSampleLimit = parsed.limit
-      if (!parsed.limit) {
-        state.sourceFilters = [createSourceFilterRule()]
-        return
-      }
-      state.sourceFilters = [
-        {
-          key: `agent-limit-${Date.now()}`,
-          enabled: true,
-          field: state.source.columns[0]?.name || '',
-          operator: 'NOT_NULL',
-          value: '',
-          valueEnd: ''
-        }
-      ]
-    }
-
-    const applyAgentPlanToWizard = async (executeAfterApply = false) => {
-      const parsed = parseSyncAgentIntent(state.agentCommand)
-      resetAgentStages()
-      state.agentRunning = true
-      state.agentPlan = null
-      state.agentAutoExecute = parsed.autoExecute || state.agentAutoExecute
-      setAgentStage('PARSE', 'RUNNING', '正在解析命令')
-
-      if (!parsed.command.trim()) {
-        setAgentStage('PARSE', 'ERROR', '命令为空')
-        state.agentError = '请输入同步任务描述。'
-        state.agentRunning = false
-        return false
-      }
-      setAgentStage('PARSE', parsed.missing.length ? 'ERROR' : 'SUCCESS',
-        parsed.missing.length ? `缺少 ${parsed.missing.join('、')}` : '已识别同步方向和目标表')
-
-      if (parsed.missing.length) {
-        state.agentError = `命令信息不完整：缺少 ${parsed.missing.join('、')}。`
-        state.agentRunning = false
-        state.agentPlan = {
-          ...parsed,
-          projectCode: null,
-          projectName: '-',
-          sourceDatasourceId: null,
-          sourceDatasourceName: '-',
-          targetDatasourceId: null,
-          targetDatasourceName: '-',
-          sourceColumnCount: 0,
-          mappedColumnCount: 0
-        }
-        return false
-      }
-
-      setAgentStage('MATCH', 'RUNNING', '正在匹配项目和数据源')
-      if (!state.projectOptions.length) {
-        await loadProjects()
-      }
-      if (!state.datasourceOptions.length) {
-        await loadDatasourceList()
-      }
-      const project = state.projectOptions[0] || null
-      const sourceDatasource = findAgentDatasource(
-        parsed.sourceType,
-        parsed.sourceDatabase,
-        parsed.command
-      )
-      const targetDatasource = findAgentDatasource(
-        parsed.targetType,
-        parsed.targetDatabase,
-        parsed.command
-      )
-      if (!project || !sourceDatasource || !targetDatasource) {
-        const errors = [
-          !project ? '项目' : '',
-          !sourceDatasource ? '源数据源' : '',
-          !targetDatasource ? '目标数据源' : ''
-        ].filter(Boolean)
-        setAgentStage('MATCH', 'ERROR', `未匹配到 ${errors.join('、')}`)
-        state.agentError = `Agent 未匹配到 ${errors.join('、')}，请先检查 Dolphin 项目和数据源配置。`
-        state.agentRunning = false
-        return false
-      }
-      setAgentStage('MATCH', 'SUCCESS', `${project.label} / ${sourceDatasource.label} -> ${targetDatasource.label}`)
-
-      resetWizardState()
-      state.selectedProjectCode = project.value
-      state.source.datasourceId = sourceDatasource.value
-      state.target.datasourceId = targetDatasource.value
-      state.executionMode = 'IMMEDIATE'
-      state.targetSchemaName = parsed.targetSchema || getDefaultSchemaName(parsed.targetType || undefined)
-      state.targetTableName = parsed.targetTable
-      state.taskName = buildWorkflowName(
-        sourceDatasource.label,
-        parsed.sourceTable,
-        targetDatasource.label,
-        parsed.targetTable
-      )
-
-      setAgentStage('METADATA', 'RUNNING', '正在加载源端和目标端元数据')
-      await loadDatabases(state.source)
-      state.source.database =
-        state.source.databases.find(
-          (item) => item.toLowerCase() === parsed.sourceDatabase.toLowerCase()
-        ) ||
-        parsed.sourceDatabase ||
-        state.source.database
-      await loadTables(state.source)
-      state.source.table =
-        state.source.tables.find(
-          (item) =>
-            item.toLowerCase() === parsed.sourceTable.toLowerCase() ||
-            item.split('.').at(-1)?.toLowerCase() === parsed.sourceTable.toLowerCase()
-        ) ||
-        parsed.sourceTable ||
-        state.source.table
-      await loadColumns(state.source)
-
-      await loadDatabases(state.target)
-      state.target.database = chooseAgentTargetDatabase(parsed, state.target)
-      await loadTables(state.target)
-      const targetMatchedTable = state.target.tables.find(
-        (item) =>
-          item.toLowerCase() === parsed.targetTable.toLowerCase() ||
-          item.split('.').at(-1)?.toLowerCase() === parsed.targetTable.toLowerCase()
-      )
-      state.target.table = targetMatchedTable || null
-      if (targetMatchedTable) {
-        state.targetTableName = targetMatchedTable
-        await loadColumns(state.target)
-      }
-      if (!state.source.columns.length) {
-        setAgentStage('METADATA', 'ERROR', '源表字段加载失败')
-        state.agentError = 'Agent 没有读取到源表字段，请检查源库、源表和数据源权限。'
-        state.agentRunning = false
-        return false
-      }
-      setAgentStage('METADATA', 'SUCCESS', `源表 ${state.source.columns.length} 列，目标${targetMatchedTable ? '已有表' : '新建表'}`)
-
-      setAgentStage('MAPPING', 'RUNNING', '正在生成字段映射')
-      applyAgentFieldMappings()
-      applyAgentLimitHint(parsed)
-      await nextTick()
-      refreshMappingLayout()
-      const mapped = state.fieldRows.filter((item) => item.sync && item.mappedTargetKey).length
-      setAgentStage('MAPPING', mapped ? 'SUCCESS' : 'ERROR', mapped ? `已映射 ${mapped} 个字段` : '没有可用映射字段')
-      if (!mapped) {
-        state.agentError = 'Agent 未生成有效字段映射，请进入向导手工检查字段。'
-        state.agentRunning = false
-        return false
-      }
-
-      const plan: SyncAgentPlan = {
-        ...parsed,
-        projectCode: project.value,
-        projectName: String(project.label),
-        sourceDatasourceId: sourceDatasource.value,
-        sourceDatasourceName: String(sourceDatasource.label),
-        targetDatasourceId: targetDatasource.value,
-        targetDatasourceName: String(targetDatasource.label),
-        sourceDatabase: state.source.database || parsed.sourceDatabase,
-        sourceTable: state.source.table || parsed.sourceTable,
-        targetDatabase: state.target.database || parsed.targetDatabase,
-        targetSchema: state.targetSchemaName,
-        targetTable: state.targetTableName,
-        sourceColumnCount: state.source.columns.length,
-        mappedColumnCount: mapped,
-        warnings: [
-          ...parsed.warnings,
-          targetMatchedTable
-            ? '目标表已存在，已按目标字段进行同名自动映射。'
-            : '目标表未匹配到已有表，将按源字段生成新目标表结构。'
-        ]
-      }
-      state.agentPlan = plan
-      state.agentAutoExecute = parsed.autoExecute || state.agentAutoExecute
-      setAgentStage('PLAN', 'SUCCESS', `方案已生成，置信度 ${plan.confidence}%`)
-      state.currentStep = 2
-      state.activeSolutionModule = 'MAPPING'
-      state.viewMode = 'WIZARD'
-      state.agentRunning = false
-      await nextTick()
-      refreshMappingLayout()
-      window.$message.success('Agent 已生成同步方案并套用到向导。')
-      if (executeAfterApply || state.agentAutoExecute) {
-        await handleRunWorkflow()
-      }
-      return true
-    }
-
     const buildMappingPath = (
       startPoint: { x: number; y: number },
       endPoint: { x: number; y: number }
     ) => {
-      if (Math.abs(endPoint.x - startPoint.x) < 120) {
-        return `M ${startPoint.x} ${startPoint.y} L ${endPoint.x} ${endPoint.y}`
-      }
-      const controlOffset = Math.min(
-        Math.max(Math.abs(endPoint.x - startPoint.x) * 0.36, 72),
-        140
-      )
-      return `M ${startPoint.x} ${startPoint.y} C ${startPoint.x + controlOffset} ${startPoint.y}, ${endPoint.x - controlOffset} ${endPoint.y}, ${endPoint.x} ${endPoint.y}`
+      const distance = Math.max(endPoint.x - startPoint.x, 40)
+      const laneLeft = startPoint.x + Math.min(Math.max(distance * 0.2, 24), 56)
+      const laneRight = endPoint.x - Math.min(Math.max(distance * 0.2, 24), 56)
+      const laneCenter = startPoint.x + distance / 2
+      return [
+        `M ${startPoint.x} ${startPoint.y}`,
+        `L ${laneLeft} ${startPoint.y}`,
+        `C ${laneCenter} ${startPoint.y}, ${laneCenter} ${endPoint.y}, ${laneRight} ${endPoint.y}`,
+        `L ${endPoint.x} ${endPoint.y}`
+      ].join(' ')
     }
 
     const handleChooseAllMappings = (checked: boolean) => {
@@ -4249,9 +3945,13 @@ const syncTask = defineComponent({
               taskInstanceId,
               skipLineNum,
               limit: 1000
-            })
+            }, true)
             const message = logChunk?.message || ''
             const lineNum = Number(logChunk?.lineNum || 0)
+            if (isTaskLogMissingMessage(message)) {
+              taskLogText = formatTaskLogMissingMessage()
+              break
+            }
             if (!message) break
             if (message === previousMessage) break
             taskLogText += message
@@ -4270,10 +3970,54 @@ const syncTask = defineComponent({
         asset.logText = logSections.join('\n\n')
         asset.logLoaded = true
       } catch (err) {
-        asset.logError = extractErrorMessage(err, '读取任务日志失败，请稍后重试。')
+        asset.logError = formatTaskLogReadError(err)
       } finally {
         asset.logLoading = false
       }
+    }
+
+    const queryTaskLogText = async (
+      taskInstanceId: number,
+      maxAttempts = 12
+    ): Promise<string> => {
+      let skipLineNum = 0
+      let taskLogText = ''
+      let previousMessage = ''
+      for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+        const logChunk = await queryLog({
+          taskInstanceId,
+          skipLineNum,
+          limit: 1000
+        }, true)
+        const message = logChunk?.message || ''
+        const lineNum = Number(logChunk?.lineNum || 0)
+        if (isTaskLogMissingMessage(message)) {
+          return taskLogText || formatTaskLogMissingMessage()
+        }
+        if (!message || message === previousMessage) break
+        taskLogText += message
+        previousMessage = message
+        skipLineNum += lineNum || message.split(/\r?\n/).length
+        if (!lineNum) break
+      }
+      return taskLogText
+    }
+
+    const queryWorkflowFailureSummary = async (
+      taskRows: WorkflowTaskProgressRow[]
+    ): Promise<string> => {
+      const failedTasks = taskRows.filter((taskRow) =>
+        taskRow.taskInstanceId &&
+        ['FAILURE', 'STOP'].includes(taskRow.state)
+      )
+      for (const taskRow of failedTasks) {
+        const taskLogText = await queryTaskLogText(taskRow.taskInstanceId as number, 8)
+        const summary = extractTaskFailureSummaryFromLog(taskLogText)
+        if (summary) {
+          return `${taskRow.name}: ${summary}`
+        }
+      }
+      return ''
     }
 
     const stopLatestInstancePolling = () => {
@@ -4281,6 +4025,7 @@ const syncTask = defineComponent({
         window.clearInterval(latestInstancePollingTimer)
         latestInstancePollingTimer = null
       }
+      latestInstancePollingErrorCount = 0
     }
 
     const resolveWorkflowStateMeta = (stateValue: string) => {
@@ -4338,7 +4083,8 @@ const syncTask = defineComponent({
         state.latestRunMessage = '执行成功'
       } else if (instanceState && TERMINAL_WORKFLOW_STATES.has(instanceState)) {
         state.latestRunStage = 'FAILURE'
-        state.latestRunMessage = '执行失败'
+        state.latestRunMessage =
+          (await queryWorkflowFailureSummary(taskRows)) || '执行失败，请进入日志诊断查看任务详情。'
       } else {
         state.latestRunStage = 'MONITORING'
         state.latestRunMessage = '运行中'
@@ -4367,9 +4113,12 @@ const syncTask = defineComponent({
                 taskInstanceId: taskRow.taskInstanceId,
                 skipLineNum,
                 limit: 1000
-              })
+              }, true)
               const message = logChunk?.message || ''
               const lineNum = Number(logChunk?.lineNum || 0)
+              if (isTaskLogMissingMessage(message)) {
+                break
+              }
               if (!message) {
                 break
               }
@@ -4410,7 +4159,9 @@ const syncTask = defineComponent({
             instanceState === 'SUCCESS' ? 'SUCCESS' : 'FAILED'
           const nowText = format(new Date(), 'yyyy-MM-dd HH:mm')
           asset.status = terminalStatus
-          asset.errorMessage = terminalStatus === 'FAILED' ? state.latestRunMessage : ''
+          asset.errorMessage = terminalStatus === 'FAILED'
+            ? state.latestRunMessage
+            : ''
           asset.lastInstanceId = state.latestInstanceId || instanceId
           asset.readRows = state.latestReadRowCount
           asset.writeRows = state.latestSyncedRowCount
@@ -4427,10 +4178,35 @@ const syncTask = defineComponent({
             },
             ...asset.history
           ].slice(0, 8)
+          try {
+            await registerCurrentGovernanceLineage(terminalStatus, asset)
+          } catch (err) {
+            console.warn('Update data governance lineage after sync failed.', err)
+          }
         }
       }
 
       return instanceState
+    }
+
+    const markLatestInstancePollingFailed = async (
+      instanceId: number,
+      error: any
+    ) => {
+      stopLatestInstancePolling()
+      state.latestRunStage = 'FAILURE'
+      state.latestRunMessage = extractErrorMessage(
+        error,
+        '运行状态刷新失败，请进入工作流实例或日志诊断确认执行结果。'
+      )
+      state.latestInstanceState = 'UNKNOWN'
+      state.latestInstanceStateLabel = '状态刷新失败'
+      state.latestInstanceStateType = 'error'
+      state.latestInstanceId = state.latestInstanceId || instanceId
+      const asset = upsertCurrentAsset('FAILED')
+      state.latestPublishedAssetId = asset.id
+      await registerCurrentGovernanceLineage('FAILED', asset)
+      window.$message.error(state.latestRunMessage)
     }
 
     const startLatestInstancePolling = async (instanceId: number) => {
@@ -4442,11 +4218,15 @@ const syncTask = defineComponent({
       latestInstancePollingTimer = window.setInterval(async () => {
         try {
           const currentState = await refreshLatestInstanceProgress(instanceId)
+          latestInstancePollingErrorCount = 0
           if (currentState && TERMINAL_WORKFLOW_STATES.has(currentState)) {
             stopLatestInstancePolling()
           }
         } catch (error) {
-          stopLatestInstancePolling()
+          latestInstancePollingErrorCount += 1
+          if (latestInstancePollingErrorCount >= 2) {
+            await markLatestInstancePollingFailed(instanceId, error)
+          }
         }
       }, 3000)
     }
@@ -4482,7 +4262,7 @@ const syncTask = defineComponent({
 
     const validateProjectSelection = (): number | null => {
       if (!state.selectedProjectCode) {
-        window.$message.error('请先选择要落入的 DolphinScheduler 项目。')
+        window.$message.error('请先选择要落入的 DataFlow 项目。')
         return null
       }
       return state.selectedProjectCode
@@ -4531,7 +4311,7 @@ const syncTask = defineComponent({
     const validateStepOne = (showMessage = true) => {
       if (!state.selectedProjectCode) {
         if (showMessage) {
-          window.$message.error('请先选择要落入的 DolphinScheduler 项目。')
+          window.$message.error('请先选择要落入的 DataFlow 项目。')
         }
         return false
       }
@@ -4590,6 +4370,14 @@ const syncTask = defineComponent({
         }
         return false
       }
+      if (unmappedRequiredTargetColumns.value.length) {
+        if (showMessage) {
+          window.$message.error(
+            `已有目标表存在未映射的必填字段：${unmappedRequiredTargetColumns.value.slice(0, 5).join('、')}，请补充映射后再保存或执行。`
+          )
+        }
+        return false
+      }
       return true
     }
 
@@ -4609,7 +4397,10 @@ const syncTask = defineComponent({
         database: state.target.database,
         schema:
           state.targetSchemaName.trim() ||
-          getDefaultSchemaName(targetDatasourceOption.value?.type),
+          getDefaultSchemaNameByDetail(
+            targetDatasourceOption.value?.type,
+            state.target.datasourceId ? state.datasourceDetails[state.target.datasourceId] : null
+          ),
         tableName: state.targetTableName.trim(),
         columns: targetFieldRows.value.filter((targetRow) => targetRow.sync).map((targetRow) => {
           const mappedSourceRow =
@@ -4637,12 +4428,11 @@ const syncTask = defineComponent({
       resetEndpoint(state.source)
       resetEndpoint(state.target)
       state.targetTableName = ''
-      state.targetSchemaName = 'public'
+      state.targetSchemaName = ''
       state.fieldRows = []
       state.sourceFilters = [createSourceFilterRule()]
       state.activeSolutionModule = 'MAPPING'
       state.sinkCustomSql = ''
-      state.agentSampleLimit = null
       state.configEditorText = ''
       state.configManualOverride = false
       state.latestWorkflowCode = null
@@ -4674,7 +4464,6 @@ const syncTask = defineComponent({
       state.latestScheduleSummary = '未配置'
       state.editingAssetId = ''
       state.latestPublishedAssetId = ''
-      state.agentSampleLimit = null
     }
 
     const openCreateWizard = () => {
@@ -4778,7 +4567,13 @@ const syncTask = defineComponent({
       state.source.databases = state.source.database ? [state.source.database] : []
       state.target.database = targetParts[0] || null
       state.targetSchemaName =
-        targetParts.length >= 3 ? targetParts[targetParts.length - 2] : 'public'
+        targetParts.length >= 3
+          ? targetParts[targetParts.length - 2]
+          : getDatasourceDefaultSchema(
+            state.target.datasourceId,
+            targetOption?.type,
+            state.datasourceDetails
+          )
       state.targetTableName = targetParts[targetParts.length - 1] || asset.targetPath
       state.target.table = state.targetTableName
       state.target.tables = state.targetTableName ? [state.targetTableName] : []
@@ -4833,13 +4628,18 @@ const syncTask = defineComponent({
         projectCode: state.selectedProjectCode,
         projectName,
         status,
-        scheduleStatus: state.latestScheduleId || state.executionMode === 'SCHEDULE' ? 'ON' : 'OFF',
+        scheduleStatus: state.latestScheduleId && isScheduleOnline(state.latestScheduleSummary) ? 'ON' : 'OFF',
         sourceType: sourceOption?.type || 'MYSQL',
         targetType: targetOption?.type || 'POSTGRESQL',
         sourceName: sourceOption?.label || '-',
-        sourcePath: `${state.source.database || '-'}.${state.source.table || '-'}`,
+        sourcePath: formatQualifiedPath(state.source.database, state.source.table),
         targetName: targetOption?.label || '-',
-        targetPath: `${state.target.database || '-'}.${state.targetSchemaName || getDefaultSchemaName(targetOption?.type)}.${state.targetTableName || '-'}`,
+        targetPath: formatQualifiedPath(
+          state.target.database,
+          state.targetSchemaName ||
+            getDatasourceDefaultSchema(state.target.datasourceId, targetOption?.type, state.datasourceDetails),
+          state.targetTableName
+        ),
         workflowCode: state.latestWorkflowCode,
         workflowName: state.latestWorkflowName || state.taskName,
         workflowVersion: state.latestWorkflowVersion,
@@ -4927,7 +4727,13 @@ const syncTask = defineComponent({
           targetDatasourceId: state.target.datasourceId,
           targetDatasourceName: String(targetOption.label || ''),
           targetDatabase: state.target.database,
-          targetSchema: state.targetSchemaName || getDefaultSchemaName(targetOption.type),
+          targetSchema:
+            state.targetSchemaName ||
+            getDatasourceDefaultSchema(
+              state.target.datasourceId,
+              targetOption.type,
+              state.datasourceDetails
+            ),
           targetTable: state.targetTableName.trim(),
           syncTaskName: asset?.name || state.latestWorkflowName || state.taskName || buildDraftWorkflowName(),
           lastRunStatus: status,
@@ -5122,12 +4928,12 @@ const syncTask = defineComponent({
       }
     }
 
-    const handleCreateTargetTable = async () => {
+    const handleCreateTargetTable = async (): Promise<boolean> => {
       const request = buildTargetTableRequest()
-      if (!request) return
+      if (!request) return false
       if (!state.latestCreateTableDdl.trim()) {
         window.$message.error('建表 SQL 还没有生成，请稍后重试或点击重新生成。')
-        return
+        return false
       }
       state.creatingTable = true
       try {
@@ -5147,9 +4953,10 @@ const syncTask = defineComponent({
           extractErrorMessage(err, '目标端建表失败，请检查目标库连接和建表语句。')
         )
         state.creatingTable = false
-        return
+        return false
       }
       state.creatingTable = false
+      return true
     }
 
     const handlePreviewTargetTable = async (force = true) => {
@@ -5179,6 +4986,22 @@ const syncTask = defineComponent({
         return
       }
       state.previewingTableDdl = false
+    }
+
+    const ensureTargetTableBeforeRun = async (): Promise<boolean> => {
+      if (targetTableMode.value === 'EXISTING_TABLE') {
+        return true
+      }
+      if (!state.latestCreateTableDdl.trim()) {
+        await handlePreviewTargetTable(false)
+      }
+      if (!state.latestCreateTableDdl.trim()) {
+        window.$message.error('目标表还没有完成建表预检查，请先生成建表 SQL。')
+        return false
+      }
+      state.latestRunStage = 'PREPARING'
+      state.latestRunMessage = '建表中'
+      return handleCreateTargetTable()
     }
 
     const handleSaveWorkflow = async () => {
@@ -5291,14 +5114,14 @@ const syncTask = defineComponent({
         }
         state.latestWorkflowName = payload.workflowName
         if (!state.latestWorkflowCode) {
-          throw new Error('工作流已提交保存，但没有拿到 DolphinScheduler 返回的工作流编码。')
+          throw new Error('工作流已提交保存，但没有拿到 DataFlow 返回的工作流编码。')
         }
         if (state.latestWorkflowCode) {
           await loadScheduleMeta(state.latestWorkflowCode)
         }
         const asset = upsertCurrentAsset('DRAFT')
         await registerCurrentGovernanceLineage('DRAFT', asset)
-        window.$message.success('同步任务已保存为 DolphinScheduler 工作流定义。')
+        window.$message.success('同步任务已保存为 DataFlow 工作流定义。')
       } catch (err) {
         window.$message.error(
           extractErrorMessage(err, '保存同步任务失败，请检查当前项目和任务配置。')
@@ -5419,6 +5242,13 @@ const syncTask = defineComponent({
       state.latestSyncedRowCountLoading = false
       state.latestSyncedRowCountInstanceId = null
       try {
+        const targetReady = await ensureTargetTableBeforeRun()
+        if (!targetReady) {
+          state.latestRunStage = 'FAILURE'
+          state.latestRunMessage = '建表失败'
+          state.runningWorkflow = false
+          return
+        }
         const saved = await handleSaveWorkflow()
         if (!saved) {
           state.runningWorkflow = false
@@ -5533,13 +5363,15 @@ const syncTask = defineComponent({
           const asset = upsertCurrentAsset('FAILED')
           state.latestPublishedAssetId = asset.id
           await registerCurrentGovernanceLineage('FAILED', asset)
-          window.$message.success('同步实例已启动，已返回同步任务列表。')
+          window.$message.error('同步实例启动后未获取到实例编号，请稍后刷新任务列表或进入工作流实例确认。')
         }
         returnToAssetListAfterPublish()
       } catch (err) {
         state.latestRunStage = 'FAILURE'
         state.latestRunMessage = '执行失败'
-        upsertCurrentAsset('FAILED')
+        const asset = upsertCurrentAsset('FAILED')
+        state.latestPublishedAssetId = asset.id
+        await registerCurrentGovernanceLineage('FAILED', asset)
         window.$message.error(extractErrorMessage(err, '执行失败，请检查工作流发布、调度或任务日志。'))
         state.runningWorkflow = false
         return
@@ -5576,7 +5408,14 @@ const syncTask = defineComponent({
         key: 'sourceColumn',
         minWidth: 260,
         render: (row) => (
-          <div class={[styles.columnCell, styles.sourceColumnCell]}>
+          <div
+            class={[styles.columnCell, styles.sourceColumnCell]}
+            onMouseup={() => {
+              if (draggingMapping.value?.side === 'target') {
+                handleMapTargetToSource(draggingMapping.value.key, row.sourceColumn || row.key)
+              }
+            }}
+          >
             <div
               class={[styles.mappingFieldHead, styles.sourceFieldHead]}
             >
@@ -5591,6 +5430,13 @@ const syncTask = defineComponent({
                   {row.sourceNullable ? '可空' : '非空'}
                 </NTag>
               </div>
+              <div
+                class={[styles.mappingAnchor, styles.sourceMappingAnchor]}
+                data-source-anchor={row.sourceColumn || row.key}
+                onMousedown={(event: MouseEvent) =>
+                  handleStartMappingDrag('source', row.sourceColumn || row.key, event)
+                }
+              />
             </div>
           </div>
         )
@@ -5619,13 +5465,6 @@ const syncTask = defineComponent({
             <span title={row.sourceComment || '暂无注释'} class={styles.commentText}>
               {row.sourceComment || '暂无注释'}
             </span>
-            <div
-              class={[styles.mappingAnchor, styles.sourceMappingAnchor]}
-              data-source-anchor={row.sourceColumn || row.key}
-              onMousedown={(event: MouseEvent) =>
-                handleStartMappingDrag('source', row.sourceColumn || row.key, event)
-              }
-            />
           </div>
         )
       }
@@ -5639,7 +5478,7 @@ const syncTask = defineComponent({
         render: (row) => (
           <div class={[styles.columnCell, styles.targetColumnCell]}>
             <div
-              class={styles.mappingFieldHead}
+              class={[styles.mappingFieldHead, styles.targetFieldHead]}
               onMouseup={() => {
                 if (draggingMapping.value?.side === 'source') {
                   handleMapSourceToTarget(draggingMapping.value.key, row.key)
@@ -5647,7 +5486,7 @@ const syncTask = defineComponent({
               }}
             >
               <div
-                class={styles.mappingAnchor}
+                class={[styles.mappingAnchor, styles.targetMappingAnchor]}
                 data-target-anchor={row.key}
                 onMousedown={(event: MouseEvent) =>
                   handleStartMappingDrag('target', row.key, event)
@@ -5892,8 +5731,11 @@ const syncTask = defineComponent({
       async () => {
         if (state.hydratingAsset) return
         resetEndpoint(state.target)
-        state.targetSchemaName = getDefaultSchemaName(targetDatasourceOption.value?.type)
         if (!state.target.datasourceId) return
+        state.targetSchemaName = getDefaultSchemaNameByDetail(
+          targetDatasourceOption.value?.type,
+          state.target.datasourceId ? state.datasourceDetails[state.target.datasourceId] : null
+        )
         await loadDatabases(state.target)
       }
     )
@@ -6125,9 +5967,6 @@ const syncTask = defineComponent({
       assetTableColumns,
       statusTagMeta,
       openCreateWizard,
-      openAgentDrawer,
-      fillAgentExample,
-      applyAgentPlanToWizard,
       backToAssetList,
       openAssetDetail,
       hydrateWizardFromAsset,
@@ -6163,158 +6002,6 @@ const syncTask = defineComponent({
   render() {
     const datasourceSelectOptions = this.state.datasourceOptions
     const selectedAsset = this.state.selectedAsset
-    const agentPlan = this.state.agentPlan
-    const renderAgentDrawer = () => (
-      <NDrawer
-        show={this.state.agentDrawerVisible}
-        placement='right'
-        width='560px'
-        onUpdateShow={(value) => { this.state.agentDrawerVisible = value }}
-      >
-        <NDrawerContent title='同步任务 Agent' closable>
-          <NSpace vertical size={14}>
-            <div class={styles.agentIntro}>
-              用一句话描述同步需求，Agent 会解析数据源、库表、字段映射和执行动作，并套用到现有同步任务向导。
-            </div>
-            <div class={styles.agentExampleList}>
-              {SYNC_AGENT_EXAMPLES.map((example) => (
-                <button
-                  key={example}
-                  type='button'
-                  class={styles.agentExample}
-                  onClick={() => this.fillAgentExample(example)}
-                >
-                  {example}
-                </button>
-              ))}
-            </div>
-            <NInput
-              type='textarea'
-              value={this.state.agentCommand}
-              placeholder='例如：把 mysql case_workbench.ajxx_tab 同步到 pg public.agent_ajxx_tab，只同步5条'
-              autosize={{ minRows: 5, maxRows: 8 }}
-              onUpdateValue={(value) => {
-                this.state.agentCommand = value
-              }}
-            />
-            <NCheckbox
-              checked={this.state.agentAutoExecute}
-              onUpdateChecked={(checked) => {
-                this.state.agentAutoExecute = checked
-              }}
-            >
-              解析成功后自动执行
-            </NCheckbox>
-            <NSpace>
-              <NButton
-                type='primary'
-                loading={this.state.agentRunning}
-                onClick={() => this.applyAgentPlanToWizard(false)}
-              >
-                解析并生成方案
-              </NButton>
-              <NButton
-                type='primary'
-                ghost
-                loading={this.state.agentRunning || this.state.runningWorkflow}
-                onClick={() => this.applyAgentPlanToWizard(true)}
-              >
-                确认并执行
-              </NButton>
-            </NSpace>
-            {this.state.agentError ? (
-              <NAlert type='error' showIcon={false}>
-                {this.state.agentError}
-              </NAlert>
-            ) : null}
-            <div class={styles.agentStages}>
-              {this.state.agentStages.map((stage) => (
-                <div key={stage.key} class={styles.agentStage}>
-                  <NTag
-                    bordered={false}
-                    type={
-                      stage.status === 'SUCCESS'
-                        ? 'success'
-                        : stage.status === 'ERROR'
-                          ? 'error'
-                          : stage.status === 'RUNNING'
-                            ? 'info'
-                            : 'default'
-                    }
-                  >
-                    {stage.status === 'WAITING'
-                      ? '等待'
-                      : stage.status === 'RUNNING'
-                        ? '进行中'
-                        : stage.status === 'SUCCESS'
-                          ? '完成'
-                          : '失败'}
-                  </NTag>
-                  <div>
-                    <strong>{stage.label}</strong>
-                    <span>{stage.message}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-            {agentPlan ? (
-              <div class={styles.agentPlanCard}>
-                <div class={styles.agentPlanHead}>
-                  <div>
-                    <div class={styles.sectionTitle}>Agent 同步方案</div>
-                    <div class={styles.hintText}>
-                      置信度 {agentPlan.confidence}% · {agentPlan.autoExecute || this.state.agentAutoExecute ? '立即执行' : '先生成草稿'}
-                    </div>
-                  </div>
-                  <NTag bordered={false} type={agentPlan.confidence >= 80 ? 'success' : 'warning'}>
-                    {agentPlan.sourceType || '-'} → {agentPlan.targetType || '-'}
-                  </NTag>
-                </div>
-                <div class={styles.agentPlanGrid}>
-                  <div><span>项目</span><strong>{agentPlan.projectName}</strong></div>
-                  <div><span>源端</span><strong>{agentPlan.sourceDatasourceName}</strong></div>
-                  <div><span>源表</span><strong>{agentPlan.sourceDatabase}.{agentPlan.sourceTable}</strong></div>
-                  <div><span>目标端</span><strong>{agentPlan.targetDatasourceName}</strong></div>
-                  <div><span>目标表</span><strong>{agentPlan.targetSchema}.{agentPlan.targetTable}</strong></div>
-                  <div><span>字段</span><strong>{agentPlan.mappedColumnCount} / {agentPlan.sourceColumnCount}</strong></div>
-                  <div><span>抽样</span><strong>{agentPlan.limit ? `${agentPlan.limit} 条` : '未限制'}</strong></div>
-                  <div><span>动作</span><strong>{agentPlan.autoExecute || this.state.agentAutoExecute ? '保存并执行' : '套用到向导'}</strong></div>
-                </div>
-                {agentPlan.warnings.length ? (
-                  <div class={styles.agentWarnings}>
-                    {agentPlan.warnings.map((warning) => (
-                      <NAlert key={warning} type='warning' showIcon={false}>
-                        {warning}
-                      </NAlert>
-                    ))}
-                  </div>
-                ) : null}
-                <NSpace>
-                  <NButton
-                    type='primary'
-                    onClick={() => {
-                      this.state.viewMode = 'WIZARD'
-                      this.state.currentStep = 2
-                      this.state.activeSolutionModule = 'MAPPING'
-                      this.state.agentDrawerVisible = false
-                      this.$nextTick(() => this.refreshMappingLayout())
-                    }}
-                  >
-                    查看字段映射
-                  </NButton>
-                  <NButton
-                    loading={this.state.runningWorkflow}
-                    onClick={this.handleRunWorkflow}
-                  >
-                    运行这个方案
-                  </NButton>
-                </NSpace>
-              </div>
-            ) : null}
-          </NSpace>
-        </NDrawerContent>
-      </NDrawer>
-    )
     const renderAssetLogContent = (asset: SyncTaskAsset, fullscreen = false) => (
       <NSpin show={!!asset.logLoading}>
         <NSpace vertical>
@@ -6466,7 +6153,6 @@ const syncTask = defineComponent({
               <div class={styles.hintText}>管理已保存的同步任务，查看运行状态、历史配置和失败诊断。</div>
             </div>
             <div class={styles.heroActions}>
-              <NButton ghost onClick={this.openAgentDrawer}>Agent 创建同步任务</NButton>
               <NButton type='primary' onClick={this.openCreateWizard}>新建同步任务</NButton>
             </div>
           </div>
@@ -6627,7 +6313,6 @@ const syncTask = defineComponent({
               {selectedAsset ? renderAssetLogContent(selectedAsset, true) : null}
             </NDrawerContent>
           </NDrawer>
-          {renderAgentDrawer()}
         </NSpace>
       )
     }
@@ -6639,7 +6324,6 @@ const syncTask = defineComponent({
             <div class={styles.sectionTitle}>源端过滤条件</div>
               <div class={styles.hintText}>
               可选配置。结构化条件会写入 source query，不配置时表示全量读取。
-              {this.state.agentSampleLimit ? ` Agent 已识别抽样限制：LIMIT ${this.state.agentSampleLimit}。` : ''}
             </div>
           </div>
           <NTag bordered={false} type='info'>
@@ -7362,7 +7046,7 @@ const syncTask = defineComponent({
               <div class={styles.actionPanel}>
                 <div class={styles.sectionTitle}>保存工作流草稿</div>
                 <div class={styles.hintText}>
-                  如果你希望先把同步任务保存到 DolphinScheduler，再稍后运行，可以先执行保存动作。
+                  如果你希望先把同步任务保存到 DataFlow，再稍后运行，可以先执行保存动作。
                 </div>
                 <NButton
                   type='primary'
@@ -7614,7 +7298,6 @@ const syncTask = defineComponent({
             }
           }}
         />
-        {renderAgentDrawer()}
       </NSpace>
     )
   }

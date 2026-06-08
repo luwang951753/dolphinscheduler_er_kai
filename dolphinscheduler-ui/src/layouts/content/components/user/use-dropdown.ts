@@ -75,16 +75,23 @@ export function useDropDown() {
     })
   }
 
-  const useLogout = () => {
-    logout().then(() => {
-      userStore.setSessionId('')
-      userStore.setSecurityConfigType('')
-      userStore.setUserInfo({})
-      userStore.setBaseResDir('')
-      cookies.remove('sessionId')
+  const clearLocalSession = () => {
+    userStore.setSessionId('')
+    userStore.setSecurityConfigType('')
+    userStore.setUserInfo({})
+    userStore.setBaseResDir('')
+    userStore.setModulePermissions(null)
+    cookies.remove('sessionId', { path: '/' })
+    cookies.remove('sessionId')
+  }
 
-      router.push({ path: '/login' })
-    })
+  const useLogout = () => {
+    logout()
+      .catch(() => undefined)
+      .finally(() => {
+        clearLocalSession()
+        router.replace({ path: '/login' })
+      })
   }
 
   return {

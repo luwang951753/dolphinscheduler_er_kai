@@ -17,7 +17,10 @@
 
 import { defineStore } from 'pinia'
 import type { UserState } from '@/store/user/types'
-import type { UserInfoRes } from '@/service/modules/users/types'
+import type {
+  ModulePermissionKey,
+  UserInfoRes
+} from '@/service/modules/users/types'
 
 export const useUserStore = defineStore({
   id: 'user',
@@ -25,7 +28,8 @@ export const useUserStore = defineStore({
     sessionId: '',
     securityConfigType: '',
     baseResDir: '',
-    userInfo: {}
+    userInfo: {},
+    modulePermissions: null
   }),
   persist: true,
   getters: {
@@ -40,6 +44,9 @@ export const useUserStore = defineStore({
     },
     getBaseResDir(): string {
       return this.baseResDir
+    },
+    getModulePermissions(): ModulePermissionKey[] | null {
+      return this.modulePermissions
     }
   },
   actions: {
@@ -54,6 +61,9 @@ export const useUserStore = defineStore({
     },
     setBaseResDir(baseResDir: string): void {
       this.baseResDir = baseResDir
+    },
+    setModulePermissions(modulePermissions: ModulePermissionKey[] | null): void {
+      this.modulePermissions = modulePermissions
     }
   }
 })

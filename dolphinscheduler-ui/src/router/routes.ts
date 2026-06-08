@@ -25,6 +25,8 @@ import syncTaskPage from './modules/sync-task'
 import dataPreviewPage from './modules/data-preview'
 import themeLibraryPage from './modules/theme-library'
 import dataGovernancePage from './modules/data-governance'
+import dataReturnPage from './modules/data-return'
+import dataIssuePage from './modules/data-issue'
 import monitorPage from './modules/monitor'
 import securityPage from './modules/security'
 // todo: why is it throwing cannot find module and its corresponding type, but the render is working?
@@ -90,6 +92,8 @@ const basePage: RouteRecordRaw[] = [
   dataPreviewPage,
   themeLibraryPage,
   dataGovernancePage,
+  dataReturnPage,
+  dataIssuePage,
   monitorPage,
   securityPage,
   uiSettingPage

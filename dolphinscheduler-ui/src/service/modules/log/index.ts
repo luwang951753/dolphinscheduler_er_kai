@@ -18,12 +18,20 @@
 import { axios } from '@/service/service'
 import { IdReq, LogReq } from './types'
 
-export function queryLog(params: LogReq): any {
+type LogRequestConfig = {
+  url: string
+  method: string
+  params: LogReq
+  suppressErrorMessage?: boolean
+}
+
+export function queryLog(params: LogReq, suppressErrorMessage = false): any {
   return axios({
     url: '/log/detail',
     method: 'get',
-    params
-  })
+    params,
+    suppressErrorMessage
+  } as LogRequestConfig)
 }
 
 export function downloadTaskLog(params: IdReq): any {

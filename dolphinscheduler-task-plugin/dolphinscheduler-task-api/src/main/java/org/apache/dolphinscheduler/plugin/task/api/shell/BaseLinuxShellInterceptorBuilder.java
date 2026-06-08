@@ -117,7 +117,7 @@ public abstract class BaseLinuxShellInterceptorBuilder<T extends BaseLinuxShellI
     }
 
     private Path shellAbsolutePath() {
-        return Paths.get(shellDirectory, shellName + shellExtension());
+        return Paths.get(shellDirectory, shellName + shellExtension()).toAbsolutePath().normalize();
     }
 
     private List<String> bootstrapCommandInSudoMode() {

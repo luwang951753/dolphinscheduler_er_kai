@@ -118,6 +118,17 @@ export default {
       }
     },
     {
+      path: '/security/magic-api',
+      name: 'magic-api',
+      component: components['security-magic-api'],
+      meta: {
+        title: '接口开发',
+        activeMenu: 'security',
+        showSide: false,
+        auth: ['ADMIN_USER']
+      }
+    },
+    {
       path: '/security/alarm-instance-manage',
       name: 'alarm-instance-manage',
       component: components['security-alarm-instance-manage'],

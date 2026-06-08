@@ -26,6 +26,18 @@ import utils from '@/utils'
 
 const userStore = useUserStore()
 const uiSettingStore = useUISettingStore()
+export const API_CONTEXT_PATH = '/dolphinscheduler'
+
+export const normalizeApiBaseUrl = (baseUrl?: string) => {
+  const normalized = (baseUrl || '').trim().replace(/\/+$/, '')
+
+  return `${normalized}${API_CONTEXT_PATH}`
+}
+
+export const apiBaseUrl =
+  import.meta.env.MODE === 'development'
+    ? API_CONTEXT_PATH
+    : normalizeApiBaseUrl(import.meta.env.VITE_APP_PROD_WEB_URL)
 
 /**
  * @description Log and display errors
@@ -37,14 +49,16 @@ const handleError = (res: AxiosResponse<any, any>) => {
     utils.log.capsule('DolphinScheduler', 'UI')
     utils.log.error(res)
   }
-  window.$message.error(res.data.msg)
+  if ((res.config as any)?.suppressErrorMessage) {
+    return
+  }
+  window.$message.error(
+    res.data.msg || res.data.message || '请求失败，请稍后重试。'
+  )
 }
 
 const baseRequestConfig: AxiosRequestConfig = {
-  baseURL:
-    import.meta.env.MODE === 'development'
-      ? '/dolphinscheduler'
-      : import.meta.env.VITE_APP_PROD_WEB_URL + '/dolphinscheduler',
+  baseURL: apiBaseUrl,
   timeout: uiSettingStore.getApiTimer ? uiSettingStore.getApiTimer : 20000,
   transformRequest: (params) => {
     if (_.isPlainObject(params)) {
@@ -66,6 +80,7 @@ const err = (err: AxiosError): Promise<AxiosError> => {
     userStore.setSecurityConfigType('')
     userStore.setUserInfo({})
     userStore.setBaseResDir('')
+    userStore.setModulePermissions(null)
     router.push({ path: '/login' })
   }
 
@@ -91,12 +106,20 @@ service.interceptors.response.use((res: AxiosResponse) => {
     return res.data
   }
 
+  if (
+    (res.config as any)?.acceptMagicApiSuccess &&
+    res.data.code === 1 &&
+    res.data.message === 'success'
+  ) {
+    return res.data.data
+  }
+
   switch (res.data.code) {
     case 0:
       return res.data.data
     default:
       handleError(res)
-      throw new Error()
+      throw new Error(res.data.msg || res.data.message || 'Request failed')
   }
 }, err)
 

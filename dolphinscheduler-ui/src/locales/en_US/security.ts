@@ -159,6 +159,8 @@ export default {
     authorize_project: 'Project Authorize',
     authorize_namespace: 'Namespace Authorize',
     authorize_datasource: 'Datasource Authorize',
+    authorize_module: 'Module Authorize',
+    module_permission: 'Module Permission',
     username: 'Username',
     username_exists: 'The username already exists',
     username_tips: 'Please enter username',

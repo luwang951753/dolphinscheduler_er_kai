@@ -122,7 +122,11 @@ const login = defineComponent({
         </div>
         <div class={styles['login-model']}>
           <div class={styles.logo}>
-            <div class={styles['logo-img']} />
+            <div class={styles['logo-mark']}>DF</div>
+            <div class={styles['logo-text']}>
+              <strong>DataFlow</strong>
+              <span>数据中台集成与治理平台</span>
+            </div>
           </div>
           <div
             class={styles['form-model']}

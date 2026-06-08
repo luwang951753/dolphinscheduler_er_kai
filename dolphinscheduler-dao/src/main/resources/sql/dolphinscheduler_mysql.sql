@@ -780,6 +780,107 @@ CREATE TABLE `t_ds_relation_datasource_user` (
 -- ----------------------------
 
 -- ----------------------------
+-- Table structure for t_ds_user_module_permission
+-- ----------------------------
+DROP TABLE IF EXISTS `t_ds_user_module_permission`;
+CREATE TABLE `t_ds_user_module_permission` (
+  `id` int(11) NOT NULL AUTO_INCREMENT COMMENT 'key',
+  `user_id` int(11) NOT NULL COMMENT 'user id',
+  `module_key` varchar(128) NOT NULL COMMENT 'module permission key',
+  `create_time` datetime DEFAULT NULL COMMENT 'create time',
+  `update_time` datetime DEFAULT NULL COMMENT 'update time',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_user_module_permission` (`user_id`, `module_key`),
+  KEY `idx_user_module_permission_user_id` (`user_id`)
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8 COLLATE = utf8_bin;
+
+-- ----------------------------
+-- Table structure for t_ds_data_governance_metadata
+-- ----------------------------
+DROP TABLE IF EXISTS `t_ds_data_governance_metadata`;
+CREATE TABLE `t_ds_data_governance_metadata` (
+  `id` int(11) NOT NULL AUTO_INCREMENT COMMENT 'key',
+  `asset_id` varchar(512) NOT NULL COMMENT 'asset id',
+  `owner` varchar(128) DEFAULT NULL COMMENT 'business owner',
+  `description` text DEFAULT NULL COMMENT 'asset description',
+  `tags_json` text DEFAULT NULL COMMENT 'tags json',
+  `create_time` datetime DEFAULT NULL COMMENT 'create time',
+  `update_time` datetime DEFAULT NULL COMMENT 'update time',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_data_governance_metadata_asset` (`asset_id`)
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE = utf8mb4_bin;
+
+-- ----------------------------
+-- Table structure for t_ds_data_governance_rule
+-- ----------------------------
+DROP TABLE IF EXISTS `t_ds_data_governance_rule`;
+CREATE TABLE `t_ds_data_governance_rule` (
+  `id` int(11) NOT NULL AUTO_INCREMENT COMMENT 'key',
+  `rule_code` varchar(128) NOT NULL COMMENT 'rule code',
+  `asset_id` varchar(512) NOT NULL COMMENT 'asset id',
+  `name` varchar(255) DEFAULT NULL COMMENT 'rule name',
+  `type` varchar(64) DEFAULT NULL COMMENT 'rule type',
+  `level` varchar(32) DEFAULT NULL COMMENT 'rule level',
+  `field_name` varchar(255) DEFAULT NULL COMMENT 'field name',
+  `severity` varchar(32) DEFAULT NULL COMMENT 'severity',
+  `frequency` varchar(64) DEFAULT NULL COMMENT 'run frequency',
+  `enabled` tinyint(1) DEFAULT 1 COMMENT 'enabled',
+  `status` varchar(32) DEFAULT NULL COMMENT 'run status',
+  `last_run_at` varchar(64) DEFAULT NULL COMMENT 'last run time',
+  `abnormal_count` bigint DEFAULT NULL COMMENT 'abnormal count',
+  `abnormal_rate` double DEFAULT NULL COMMENT 'abnormal rate',
+  `payload_json` text DEFAULT NULL COMMENT 'rule payload json',
+  `create_time` datetime DEFAULT NULL COMMENT 'create time',
+  `update_time` datetime DEFAULT NULL COMMENT 'update time',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_data_governance_rule_code` (`asset_id`, `rule_code`),
+  KEY `idx_data_governance_rule_asset` (`asset_id`)
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE = utf8mb4_bin;
+
+-- ----------------------------
+-- Table structure for t_ds_data_governance_issue
+-- ----------------------------
+DROP TABLE IF EXISTS `t_ds_data_governance_issue`;
+CREATE TABLE `t_ds_data_governance_issue` (
+  `id` int(11) NOT NULL AUTO_INCREMENT COMMENT 'key',
+  `issue_code` varchar(128) NOT NULL COMMENT 'issue code',
+  `asset_id` varchar(512) NOT NULL COMMENT 'asset id',
+  `rule_id` varchar(128) DEFAULT NULL COMMENT 'rule id',
+  `title` varchar(255) DEFAULT NULL COMMENT 'issue title',
+  `severity` varchar(32) DEFAULT NULL COMMENT 'severity',
+  `status` varchar(32) DEFAULT NULL COMMENT 'issue status',
+  `abnormal_count` bigint DEFAULT NULL COMMENT 'abnormal count',
+  `discovered_at` varchar(64) DEFAULT NULL COMMENT 'discovered time',
+  `resolved_at` varchar(64) DEFAULT NULL COMMENT 'resolved time',
+  `payload_json` text DEFAULT NULL COMMENT 'issue payload json',
+  `create_time` datetime DEFAULT NULL COMMENT 'create time',
+  `update_time` datetime DEFAULT NULL COMMENT 'update time',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_data_governance_issue_code` (`asset_id`, `issue_code`),
+  KEY `idx_data_governance_issue_asset` (`asset_id`)
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE = utf8mb4_bin;
+
+-- ----------------------------
+-- Table structure for t_ds_data_governance_lineage
+-- ----------------------------
+DROP TABLE IF EXISTS `t_ds_data_governance_lineage`;
+CREATE TABLE `t_ds_data_governance_lineage` (
+  `id` int(11) NOT NULL AUTO_INCREMENT COMMENT 'key',
+  `asset_id` varchar(512) NOT NULL COMMENT 'asset id',
+  `related_asset_id` varchar(512) NOT NULL COMMENT 'related asset id',
+  `direction` varchar(32) NOT NULL COMMENT 'lineage direction',
+  `sync_task_name` varchar(255) DEFAULT NULL COMMENT 'sync task name',
+  `last_run_status` varchar(64) DEFAULT NULL COMMENT 'last run status',
+  `last_run_time` varchar(64) DEFAULT NULL COMMENT 'last run time',
+  `payload_json` text DEFAULT NULL COMMENT 'lineage payload json',
+  `create_time` datetime DEFAULT NULL COMMENT 'create time',
+  `update_time` datetime DEFAULT NULL COMMENT 'update time',
+  PRIMARY KEY (`id`),
+  KEY `idx_data_governance_lineage_asset` (`asset_id`, `direction`),
+  KEY `idx_data_governance_lineage_related` (`related_asset_id`)
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE = utf8mb4_bin;
+
+-- ----------------------------
 -- Table structure for t_ds_relation_workflow_instance
 -- ----------------------------
 DROP TABLE IF EXISTS `t_ds_relation_workflow_instance`;

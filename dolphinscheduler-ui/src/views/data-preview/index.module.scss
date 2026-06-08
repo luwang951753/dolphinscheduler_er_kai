@@ -300,6 +300,10 @@
   background: #336791;
 }
 
+.dbVendorOracle {
+  background: #c74634;
+}
+
 .databaseIcon {
   position: relative;
   width: 14px;
@@ -338,6 +342,15 @@
 
 .databaseIconPostgresql::before {
   border-color: #336791;
+}
+
+.databaseIconOracle {
+  border-color: #c74634;
+  background: linear-gradient(180deg, #fff9f8 0%, #f7ded9 100%);
+}
+
+.databaseIconOracle::before {
+  border-color: #c74634;
 }
 
 .tableGroupIcon,

@@ -904,7 +904,7 @@
 .mappingWorkbench {
   display: grid;
   position: relative;
-  grid-template-columns: minmax(0, 1fr) 56px minmax(0, 1.12fr);
+  grid-template-columns: minmax(0, 1fr) 96px minmax(0, 1.12fr);
   gap: 0;
   align-items: start;
   overflow: visible;
@@ -951,8 +951,8 @@
   border-left: 1px solid rgba(226, 232, 240, 0.9);
   border-right: 1px solid rgba(226, 232, 240, 0.9);
   background:
-    linear-gradient(180deg, rgba(229, 235, 244, 0.58), rgba(229, 235, 244, 0.58)) center/1px 100% no-repeat,
-    linear-gradient(180deg, rgba(248, 250, 252, 0.88) 0%, rgba(255, 255, 255, 0.48) 100%),
+    linear-gradient(180deg, rgba(37, 99, 235, 0.22), rgba(37, 99, 235, 0.08)) center/2px 100% no-repeat,
+    linear-gradient(180deg, rgba(248, 250, 252, 0.96) 0%, rgba(255, 255, 255, 0.72) 100%),
     transparent;
 }
 
@@ -1033,7 +1033,7 @@
 }
 
 .sourceColumnCell {
-  padding-right: 0;
+  padding-right: 10px;
 }
 
 .sourceCommentCell {
@@ -1050,11 +1050,11 @@
   align-items: center;
   gap: 8px;
   position: relative;
-  z-index: 6;
+  z-index: 12;
 }
 
 .sourceFieldHead {
-  justify-content: flex-start;
+  justify-content: space-between;
   gap: 12px;
 }
 
@@ -1069,6 +1069,11 @@
 
 .targetColumnCell {
   min-width: 0;
+  padding-left: 0;
+}
+
+.targetFieldHead {
+  padding-left: 0;
 }
 
 .columnName {
@@ -1079,23 +1084,30 @@
 }
 
 .mappingAnchor {
-  width: 10px;
-  height: 10px;
+  width: 16px;
+  height: 16px;
   border-radius: 999px;
   border: 2px solid #2563eb;
   background: linear-gradient(180deg, #ffffff 0%, #dbeafe 100%);
-  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.08);
+  box-shadow: 0 0 0 6px rgba(37, 99, 235, 0.08);
   cursor: grab;
   flex-shrink: 0;
   position: relative;
-  z-index: 7;
+  z-index: 30;
+}
+
+.mappingAnchor:hover {
+  border-color: #1d4ed8;
+  box-shadow: 0 0 0 7px rgba(37, 99, 235, 0.14);
 }
 
 .sourceMappingAnchor {
-  position: absolute;
-  right: -16px;
-  top: 50%;
-  transform: translateY(-50%);
+  margin-right: -30px;
+}
+
+.targetMappingAnchor {
+  margin-left: 0;
+  transform: translateX(-4px);
 }
 
 .columnMeta {
@@ -1119,8 +1131,8 @@
 
 .mappingPathAuto {
   fill: none;
-  stroke: rgba(37, 99, 235, 0.42);
-  stroke-width: 2;
+  stroke: rgba(37, 99, 235, 0.34);
+  stroke-width: 2.2;
   stroke-dasharray: 6 5;
   stroke-linecap: round;
   stroke-linejoin: round;
@@ -1128,21 +1140,22 @@
 
 .mappingPathManual {
   fill: none;
-  stroke: rgba(37, 99, 235, 0.62);
-  stroke-width: 2.5;
+  stroke: rgba(14, 116, 144, 0.88);
+  stroke-width: 3;
   stroke-linecap: round;
   stroke-linejoin: round;
 }
 
 .mappingPathActive {
   stroke: #2563eb;
-  stroke-width: 3;
+  stroke-width: 4;
+  filter: drop-shadow(0 2px 5px rgba(37, 99, 235, 0.34));
 }
 
 .mappingPathDraft {
   fill: none;
   stroke: rgba(245, 158, 11, 0.88);
-  stroke-width: 2;
+  stroke-width: 3;
   stroke-dasharray: 8 6;
   stroke-linecap: round;
   stroke-linejoin: round;
@@ -1244,133 +1257,6 @@
 .taskLinkButton:hover {
   color: #1e40af;
   text-decoration: underline;
-}
-
-.agentIntro {
-  padding: 10px 12px;
-  border: 1px solid #e3e8f2;
-  border-radius: 8px;
-  background: #f8fbff;
-  color: var(--n-text-color-2);
-  font-size: 13px;
-  line-height: 1.6;
-}
-
-.agentExampleList {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.agentExample {
-  appearance: none;
-  width: 100%;
-  padding: 9px 10px;
-  border: 1px solid #dbe5f4;
-  border-radius: 8px;
-  background: #fff;
-  color: var(--n-text-color-2);
-  font-size: 12px;
-  line-height: 1.5;
-  text-align: left;
-  cursor: pointer;
-}
-
-.agentExample:hover {
-  border-color: rgba(47, 107, 255, 0.42);
-  color: #1d4ed8;
-  background: #f6f9ff;
-}
-
-.agentStages {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.agentStage {
-  display: grid;
-  grid-template-columns: 68px minmax(0, 1fr);
-  gap: 10px;
-  align-items: flex-start;
-  padding: 10px;
-  border: 1px solid #e6edf7;
-  border-radius: 8px;
-  background: #fff;
-}
-
-.agentStage strong,
-.agentStage span {
-  display: block;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.agentStage strong {
-  color: var(--n-text-color);
-  font-size: 13px;
-}
-
-.agentStage span {
-  margin-top: 2px;
-  color: var(--n-text-color-3);
-  font-size: 12px;
-}
-
-.agentPlanCard {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 12px;
-  border: 1px solid rgba(47, 107, 255, 0.18);
-  border-radius: 10px;
-  background: linear-gradient(180deg, #fbfdff 0%, #f6f9ff 100%);
-}
-
-.agentPlanHead {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  align-items: flex-start;
-}
-
-.agentPlanGrid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-}
-
-.agentPlanGrid > div {
-  min-width: 0;
-  padding: 8px 10px;
-  border: 1px solid #e5ebf4;
-  border-radius: 8px;
-  background: #fff;
-}
-
-.agentPlanGrid span {
-  display: block;
-  margin-bottom: 3px;
-  color: var(--n-text-color-3);
-  font-size: 12px;
-}
-
-.agentPlanGrid strong {
-  display: block;
-  min-width: 0;
-  overflow: hidden;
-  color: var(--n-text-color);
-  font-size: 13px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.agentWarnings {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
 }
 
 @media (max-width: 1200px) {

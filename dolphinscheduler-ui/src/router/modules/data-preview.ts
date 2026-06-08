@@ -35,7 +35,8 @@ export default {
         title: '数据预览',
         activeMenu: 'data-preview',
         showSide: false,
-        auth: []
+        auth: [],
+        modulePermission: 'data-preview:view'
       }
     }
   ]

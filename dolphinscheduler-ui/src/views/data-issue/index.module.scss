@@ -1,0 +1,176 @@
+.page {
+  min-height: 100%;
+  padding: 16px;
+  background: #f5f7fb;
+}
+
+.shell {
+  display: grid;
+  gap: 12px;
+}
+
+.hero {
+  display: flex;
+  align-items: center;
+  min-height: 64px;
+  padding: 14px 16px;
+  border: 1px solid #dde4ef;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 8px 18px rgba(31, 41, 55, 0.05);
+}
+
+.titleBlock {
+  min-width: 0;
+}
+
+.title {
+  margin: 0;
+  color: #1f2937;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 26px;
+}
+
+.queryPanel,
+.resultPanel {
+  border: 1px solid #dde4ef;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 8px 18px rgba(31, 41, 55, 0.05);
+}
+
+.queryPanel {
+  padding: 14px;
+}
+
+.queryGrid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(150px, 1fr)) auto;
+  gap: 10px;
+  align-items: end;
+}
+
+.field {
+  min-width: 0;
+}
+
+.fieldLabel {
+  display: block;
+  margin-bottom: 6px;
+  color: #344054;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-end;
+  min-width: 168px;
+}
+
+.resultPanel {
+  overflow: hidden;
+}
+
+.resultHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px 0;
+}
+
+.tabTitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tabTitle strong {
+  color: #1f2937;
+  font-size: 15px;
+}
+
+.tableWrap {
+  padding: 10px 14px 14px;
+}
+
+.cellText {
+  display: inline-block;
+  max-width: 280px;
+  overflow: hidden;
+  color: #1f2937;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.emptyHint {
+  padding: 40px 0;
+}
+
+.mappingModal {
+  width: 520px;
+  max-width: calc(100vw - 48px);
+}
+
+.mappingTip {
+  margin: 0 0 14px;
+  color: #667085;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.mappingList {
+  display: grid;
+  gap: 10px;
+}
+
+.mappingRow {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+}
+
+.mappingRow span {
+  color: #344054;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.modalActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+@media (max-width: 1320px) {
+  .queryGrid {
+    grid-template-columns: repeat(3, minmax(160px, 1fr));
+  }
+
+  .actions {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 900px) {
+  .hero {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .queryGrid {
+    grid-template-columns: 1fr;
+    min-width: 0;
+  }
+
+  .actions {
+    min-width: 0;
+  }
+}

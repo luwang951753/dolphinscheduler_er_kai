@@ -83,6 +83,40 @@
         <fileSet>
             <directory>${basedir}/../dolphinscheduler-standalone-server/target/standalone-server</directory>
             <outputDirectory>standalone-server</outputDirectory>
+            <excludes>
+                <exclude>bin/**</exclude>
+            </excludes>
+        </fileSet>
+
+        <fileSet>
+            <directory>${basedir}/../dolphinscheduler-standalone-server/target/standalone-server/bin</directory>
+            <outputDirectory>standalone-server/bin</outputDirectory>
+            <fileMode>0755</fileMode>
+            <directoryMode>0755</directoryMode>
+        </fileSet>
+
+        <fileSet>
+            <directory>${basedir}/../dolphinscheduler-datasource-plugin/dolphinscheduler-datasource-mysql/target</directory>
+            <includes>
+                <include>dolphinscheduler-datasource-mysql-*-shade.jar</include>
+            </includes>
+            <outputDirectory>standalone-server/plugins/datasource-plugins</outputDirectory>
+        </fileSet>
+
+        <fileSet>
+            <directory>${basedir}/../dolphinscheduler-datasource-plugin/dolphinscheduler-datasource-oracle/target</directory>
+            <includes>
+                <include>dolphinscheduler-datasource-oracle-*-shade.jar</include>
+            </includes>
+            <outputDirectory>standalone-server/plugins/datasource-plugins</outputDirectory>
+        </fileSet>
+
+        <fileSet>
+            <directory>${basedir}/../dolphinscheduler-datasource-plugin/dolphinscheduler-datasource-postgresql/target</directory>
+            <includes>
+                <include>dolphinscheduler-datasource-postgresql-*-shade.jar</include>
+            </includes>
+            <outputDirectory>standalone-server/plugins/datasource-plugins</outputDirectory>
         </fileSet>
 
         <fileSet>
@@ -98,6 +132,11 @@
         <fileSet>
             <directory>${basedir}/../dolphinscheduler-ui/dist</directory>
             <outputDirectory>./ui</outputDirectory>
+        </fileSet>
+
+        <fileSet>
+            <directory>${basedir}/../data/magic-api</directory>
+            <outputDirectory>./data/magic-api</outputDirectory>
         </fileSet>
 
         <fileSet>

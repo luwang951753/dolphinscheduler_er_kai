@@ -16,12 +16,14 @@
  */
 
 import type { UserInfoRes } from '@/service/modules/users/types'
+import type { ModulePermissionKey } from '@/service/modules/users/types'
 
 interface UserState {
   sessionId: string
   securityConfigType: string
   baseResDir: string
   userInfo: UserInfoRes | {}
+  modulePermissions: ModulePermissionKey[] | null
 }
 
 export { UserState }

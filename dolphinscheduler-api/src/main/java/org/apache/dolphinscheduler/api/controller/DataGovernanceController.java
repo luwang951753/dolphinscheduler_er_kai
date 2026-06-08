@@ -22,6 +22,8 @@ import org.apache.dolphinscheduler.api.dto.datagovernance.DataGovernanceDtos.Fie
 import org.apache.dolphinscheduler.api.dto.datagovernance.DataGovernanceDtos.Issue;
 import org.apache.dolphinscheduler.api.dto.datagovernance.DataGovernanceDtos.IssueStatusRequest;
 import org.apache.dolphinscheduler.api.dto.datagovernance.DataGovernanceDtos.Lineage;
+import org.apache.dolphinscheduler.api.dto.datagovernance.DataGovernanceDtos.LineageRepairRequest;
+import org.apache.dolphinscheduler.api.dto.datagovernance.DataGovernanceDtos.LineageRepairResult;
 import org.apache.dolphinscheduler.api.dto.datagovernance.DataGovernanceDtos.MetadataRequest;
 import org.apache.dolphinscheduler.api.dto.datagovernance.DataGovernanceDtos.QualityRule;
 import org.apache.dolphinscheduler.api.dto.datagovernance.DataGovernanceDtos.QualityRuleRequest;
@@ -137,6 +139,22 @@ public class DataGovernanceController extends BaseController {
             @Parameter(hidden = true) @RequestAttribute(value = Constants.SESSION_USER) User loginUser,
             @RequestBody SyncTaskLineageRequest request) {
         return Result.success(dataGovernanceService.registerSyncTaskLineage(loginUser, request));
+    }
+
+    @PostMapping(value = "/sync-task-lineage/repair")
+    @ResponseStatus(HttpStatus.OK)
+    public Result<LineageRepairResult> repairSyncTaskLineage(
+            @Parameter(hidden = true) @RequestAttribute(value = Constants.SESSION_USER) User loginUser,
+            @RequestBody LineageRepairRequest request) {
+        return Result.success(dataGovernanceService.repairSyncTaskLineage(loginUser, request));
+    }
+
+    @PostMapping(value = "/assets/{assetId}/rules/run-after-sync")
+    @ResponseStatus(HttpStatus.OK)
+    public Result<List<TrialRunResult>> runAfterSyncRules(
+            @Parameter(hidden = true) @RequestAttribute(value = Constants.SESSION_USER) User loginUser,
+            @PathVariable("assetId") String assetId) {
+        return Result.success(dataGovernanceService.runAfterSyncRules(loginUser, assetId));
     }
 
     @GetMapping(value = "/assets/{assetId}/issues")

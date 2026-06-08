@@ -43,6 +43,7 @@ export function useUpdate(state: any) {
         await userStore.setSecurityConfigType('')
         await userStore.setUserInfo({})
         await userStore.setBaseResDir('')
+        await userStore.setModulePermissions(null)
         await router.push({ path: 'login' })
       }
     })

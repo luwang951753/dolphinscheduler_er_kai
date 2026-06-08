@@ -1,0 +1,41 @@
+.page {
+  position: relative;
+  width: 100%;
+  height: calc(100vh - 65px);
+  min-height: 680px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.openButton {
+  position: absolute;
+  top: 50%;
+  right: 0;
+  transform: translateY(-50%);
+  z-index: 20;
+  width: 34px;
+  min-width: 34px;
+  min-height: 112px;
+  padding: 10px 6px;
+  border: 1px solid rgb(214 220 231);
+  border-right: 0;
+  border-radius: 10px 0 0 10px;
+  background: rgb(255 255 255 / 94%);
+  box-shadow: -8px 8px 22px rgb(15 23 42 / 14%);
+  backdrop-filter: blur(8px);
+
+  :global(.n-button__content) {
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+    letter-spacing: 2px;
+    line-height: 1.1;
+  }
+}
+
+.frame {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #fff;
+}

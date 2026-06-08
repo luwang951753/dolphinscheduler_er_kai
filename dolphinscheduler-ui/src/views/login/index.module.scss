@@ -40,13 +40,42 @@
       display: flex;
       align-items: center;
       justify-content: center;
+      gap: 12px;
       padding-top: 30px;
 
-      .logo-img {
-        width: 280px;
-        height: 60px;
-        background: url('../../assets/images/logo-light.svg') 50% no-repeat;
-        margin: 0 auto;
+      .logo-mark {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 46px;
+        height: 46px;
+        border-radius: 12px;
+        background: linear-gradient(135deg, #1f7aff 0%, #23b7d9 100%);
+        color: #fff;
+        font-size: 17px;
+        font-weight: 800;
+        letter-spacing: 0;
+        box-shadow: 0 8px 18px rgba(31, 122, 255, 0.28);
+      }
+
+      .logo-text {
+        display: grid;
+        gap: 5px;
+        color: #1f2937;
+
+        strong {
+          font-size: 30px;
+          font-weight: 800;
+          line-height: 1;
+          letter-spacing: 0;
+        }
+
+        span {
+          color: #667085;
+          font-size: 13px;
+          font-weight: 600;
+          letter-spacing: 0;
+        }
       }
     }
 

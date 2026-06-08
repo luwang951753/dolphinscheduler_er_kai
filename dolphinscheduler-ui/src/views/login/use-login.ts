@@ -22,7 +22,10 @@ import {
   getOidcProviders,
   login
 } from '@/service/modules/login'
-import { getUserInfo } from '@/service/modules/users'
+import {
+  getUserInfo,
+  queryCurrentUserModulePermissions
+} from '@/service/modules/users'
 import { useUserStore } from '@/store/user/user'
 import type { Router } from 'vue-router'
 import type {
@@ -43,6 +46,15 @@ export function useLogin(state: any) {
   const routeStore = useRouteStore()
   const timezoneStore = useTimezoneStore()
   const route = useRoute()
+  const loadModulePermissions = async () => {
+    try {
+      const modulePermissions = await queryCurrentUserModulePermissions()
+      await userStore.setModulePermissions(modulePermissions)
+    } catch {
+      await userStore.setModulePermissions(null)
+    }
+  }
+
   const handleLogin = () => {
     state.loginFormRef.validate(async (valid: any) => {
       if (!valid) {
@@ -53,6 +65,7 @@ export function useLogin(state: any) {
 
         const userInfoRes: UserInfoRes = await getUserInfo()
         await userStore.setUserInfo(userInfoRes)
+        await loadModulePermissions()
 
         const baseResDir = await queryBaseDir({
           type: 'FILE'
@@ -100,6 +113,7 @@ export function useLogin(state: any) {
           cookies.set('sessionId', String(sessionId), { path: '/' })
           const userInfoRes: UserInfoRes = await getUserInfo()
           await userStore.setUserInfo(userInfoRes)
+          await loadModulePermissions()
           const timezone = userInfoRes.timeZone ? userInfoRes.timeZone : 'UTC'
           await timezoneStore.setTimezone(timezone)
           router.push('home')

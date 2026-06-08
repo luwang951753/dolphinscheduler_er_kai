@@ -21,6 +21,7 @@ import org.apache.dolphinscheduler.api.interceptor.LocaleChangeInterceptor;
 import org.apache.dolphinscheduler.api.interceptor.LoginHandlerInterceptor;
 import org.apache.dolphinscheduler.api.interceptor.RateLimitInterceptor;
 
+import java.nio.file.Paths;
 import java.util.Locale;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -115,12 +116,14 @@ public class AppConfiguration implements WebMvcConfigurer {
         registry.addResourceHandler("/static/**").addResourceLocations("classpath:/static/");
         registry.addResourceHandler("doc.html").addResourceLocations("classpath:/META-INF/resources/");
         registry.addResourceHandler("/webjars/**").addResourceLocations("classpath:/META-INF/resources/webjars/");
-        registry.addResourceHandler("/ui/**").addResourceLocations("file:ui/");
+        String uiLocation = Paths.get(System.getProperty("user.dir"), "ui").toUri().toString();
+        registry.addResourceHandler("/ui/**").addResourceLocations(uiLocation);
     }
 
     @Override
     public void addViewControllers(ViewControllerRegistry registry) {
         registry.addViewController("/").setViewName("redirect:/ui/");
+        registry.addViewController("/ui").setViewName("forward:/ui/index.html");
         registry.addViewController("/ui/").setViewName("forward:/ui/index.html");
     }
 

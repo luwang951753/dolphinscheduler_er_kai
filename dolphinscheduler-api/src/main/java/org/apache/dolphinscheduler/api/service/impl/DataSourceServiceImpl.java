@@ -31,6 +31,7 @@ import org.apache.dolphinscheduler.api.dto.DatasourceColumnDto;
 import org.apache.dolphinscheduler.api.dto.DatasourceTableCreateRequest;
 import org.apache.dolphinscheduler.api.enums.Status;
 import org.apache.dolphinscheduler.api.exceptions.ServiceException;
+import org.apache.dolphinscheduler.api.service.DataPreviewCellValueNormalizer;
 import org.apache.dolphinscheduler.api.service.DataSourceService;
 import org.apache.dolphinscheduler.api.utils.PageInfo;
 import org.apache.dolphinscheduler.common.constants.Constants;
@@ -55,6 +56,7 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 
 import java.sql.Connection;
+import java.sql.Clob;
 import java.sql.DatabaseMetaData;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -123,6 +125,29 @@ public class DataSourceServiceImpl extends BaseServiceImpl implements DataSource
     private static final int DATA_PREVIEW_SQL_MAX_TIMEOUT_SECONDS = 60;
     private static final DateTimeFormatter DATA_PREVIEW_TIME_FORMATTER =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+
+    @FunctionalInterface
+    private interface DdlFallback {
+        String build();
+    }
+
+    private static final class DatasourceTableOption extends ParamsOptions {
+
+        private final String comment;
+
+        private DatasourceTableOption(String tableName, String comment) {
+            super(tableName, tableName, false);
+            this.comment = StringUtils.defaultString(comment);
+        }
+
+        public String getComment() {
+            return comment;
+        }
+
+        public String getTableComment() {
+            return comment;
+        }
+    }
 
     /**
      * create data source
@@ -455,10 +480,18 @@ public class DataSourceServiceImpl extends BaseServiceImpl implements DataSource
     }
 
     @Override
+    public List<ParamsOptions> getTables(User loginUser, Integer datasourceId, String database) {
+        checkDatasourceMetadataPermission(loginUser, datasourceId);
+        return getTables(datasourceId, database);
+    }
+
+    @Override
     public List<ParamsOptions> getTables(Integer datasourceId, String database) {
         DataSource dataSource = dataSourceMapper.selectById(datasourceId);
+        if (dataSource == null) {
+            throw new ServiceException(Status.RESOURCE_NOT_EXIST);
+        }
 
-        List<String> tableList;
         BaseConnectionParam connectionParam =
                 (BaseConnectionParam) DataSourceUtils.buildConnectionParams(
                         dataSource.getType(),
@@ -490,20 +523,24 @@ public class DataSourceServiceImpl extends BaseServiceImpl implements DataSource
             if (dataSource.getType() == DbType.ORACLE) {
                 database = null;
             }
+            String schemaPattern = getDbSchemaPattern(dataSource.getType(), schema, connectionParam);
             tables = metaData.getTables(
                     database,
-                    getDbSchemaPattern(dataSource.getType(), schema, connectionParam),
+                    schemaPattern,
                     "%", TABLE_TYPES);
             if (null == tables) {
                 log.error("Get datasource tables error, datasourceId:{}.", datasourceId);
                 throw new ServiceException(Status.GET_DATASOURCE_TABLES_ERROR);
             }
 
-            tableList = new ArrayList<>();
+            List<ParamsOptions> tableOptions = new ArrayList<>();
             while (tables.next()) {
                 String name = tables.getString(TABLE_NAME);
-                tableList.add(name);
+                String comment = resolveTableComment(connection, dataSource.getType(), database, schemaPattern, name,
+                        safeGetMetadataString(tables, "REMARKS"));
+                tableOptions.add(new DatasourceTableOption(name, comment));
             }
+            return tableOptions;
 
         } catch (Exception e) {
             log.error("Get datasource tables error, datasourceId:{}.", datasourceId, e);
@@ -512,14 +549,20 @@ public class DataSourceServiceImpl extends BaseServiceImpl implements DataSource
             closeResult(tables);
             releaseConnection(connection);
         }
+    }
 
-        List<ParamsOptions> options = getParamsOptions(tableList);
-        return options;
+    @Override
+    public List<ParamsOptions> getTableColumns(User loginUser, Integer datasourceId, String database, String tableName) {
+        checkDatasourceMetadataPermission(loginUser, datasourceId);
+        return getTableColumns(datasourceId, database, tableName);
     }
 
     @Override
     public List<ParamsOptions> getTableColumns(Integer datasourceId, String database, String tableName) {
         DataSource dataSource = dataSourceMapper.selectById(datasourceId);
+        if (dataSource == null) {
+            throw new ServiceException(Status.RESOURCE_NOT_EXIST);
+        }
         BaseConnectionParam connectionParam =
                 (BaseConnectionParam) DataSourceUtils.buildConnectionParams(
                         dataSource.getType(),
@@ -576,6 +619,24 @@ public class DataSourceServiceImpl extends BaseServiceImpl implements DataSource
 
     @Override
     public List<DatasourceColumnDto> getTableColumnMetas(Integer datasourceId, String database, String tableName) {
+        return getTableColumnMetas(datasourceId, database, null, tableName);
+    }
+
+    @Override
+    public List<DatasourceColumnDto> getTableColumnMetas(User loginUser,
+                                                         Integer datasourceId,
+                                                         String database,
+                                                         String schema,
+                                                         String tableName) {
+        checkDatasourceMetadataPermission(loginUser, datasourceId);
+        return getTableColumnMetas(datasourceId, database, schema, tableName);
+    }
+
+    @Override
+    public List<DatasourceColumnDto> getTableColumnMetas(Integer datasourceId,
+                                                         String database,
+                                                         String schema,
+                                                         String tableName) {
         DataSource dataSource = dataSourceMapper.selectById(datasourceId);
         if (dataSource == null) {
             throw new ServiceException(Status.RESOURCE_NOT_EXIST);
@@ -604,9 +665,11 @@ public class DataSourceServiceImpl extends BaseServiceImpl implements DataSource
             }
 
             DatabaseMetaData metaData = connection.getMetaData();
-            String schema = null;
+            String schemaPattern = schema;
             try {
-                schema = metaData.getConnection().getSchema();
+                if (StringUtils.isBlank(schemaPattern)) {
+                    schemaPattern = metaData.getConnection().getSchema();
+                }
             } catch (SQLException e) {
                 log.error("Cant not get the schema, datasourceId:{}.", datasourceId, e);
                 throw new ServiceException(Status.GET_DATASOURCE_TABLE_COLUMNS_ERROR);
@@ -618,14 +681,14 @@ public class DataSourceServiceImpl extends BaseServiceImpl implements DataSource
             Set<String> primaryKeyColumns = new HashSet<>();
             primaryKeyRs = metaData.getPrimaryKeys(
                     database,
-                    getDbSchemaPattern(dataSource.getType(), schema, connectionParam),
+                    getDbSchemaPattern(dataSource.getType(), schemaPattern, connectionParam),
                     tableName);
             while (primaryKeyRs != null && primaryKeyRs.next()) {
                 primaryKeyColumns.add(primaryKeyRs.getString(COLUMN_NAME));
             }
             rs = metaData.getColumns(
                     database,
-                    getDbSchemaPattern(dataSource.getType(), schema, connectionParam),
+                    getDbSchemaPattern(dataSource.getType(), schemaPattern, connectionParam),
                     tableName,
                     "%");
             if (rs == null) {
@@ -634,7 +697,7 @@ public class DataSourceServiceImpl extends BaseServiceImpl implements DataSource
             while (rs.next()) {
                 String columnName = rs.getString(COLUMN_NAME);
                 String typeName = rs.getString("TYPE_NAME");
-                String comment = normalizeMetadataText(rs.getString("REMARKS"));
+                String comment = normalizeMetadataText(safeGetMetadataString(rs, "REMARKS"));
                 int nullableValue = rs.getInt("NULLABLE");
                 boolean nullable = nullableValue == DatabaseMetaData.columnNullable;
                 boolean primaryKey = primaryKeyColumns.contains(columnName);
@@ -666,17 +729,18 @@ public class DataSourceServiceImpl extends BaseServiceImpl implements DataSource
         if (dataSource == null) {
             throw new ServiceException(Status.RESOURCE_NOT_EXIST);
         }
-        // 首期真实页面先只开放 MySQL / PostgreSQL，避免不同方言的分页语法和元数据差异直接暴露给用户。
-        if (dataSource.getType() != DbType.MYSQL && dataSource.getType() != DbType.POSTGRESQL) {
+        if (!isSupportedPreviewDataSourceType(dataSource.getType())) {
             throw new ServiceException(Status.DATA_PREVIEW_QUERY_ERROR);
         }
         if (!canOperatorPermissions(loginUser, new Object[]{dataSource.getId()}, AuthorizationType.DATASOURCE,
                 ApiFuncIdentificationConstant.DATASOURCE)) {
             throw new ServiceException(Status.USER_NO_OPERATION_PERM);
         }
+        normalizeOraclePreviewRequest(dataSource.getType(), request);
 
         List<DatasourceColumnDto> columns =
-                getTableColumnMetas(request.getDatasourceId(), request.getDatabase(), request.getTableName());
+                getTableColumnMetas(request.getDatasourceId(), request.getDatabase(), request.getSchema(),
+                        request.getTableName());
         Set<String> allowedColumns = columns.stream()
                 .map(DatasourceColumnDto::getName)
                 .collect(Collectors.toCollection(LinkedHashSet::new));
@@ -711,7 +775,11 @@ public class DataSourceServiceImpl extends BaseServiceImpl implements DataSource
                 while (resultSet.next()) {
                     Map<String, Object> row = new LinkedHashMap<>();
                     for (int i = 1; i <= columnCount; i++) {
-                        row.put(metaData.getColumnLabel(i), normalizePreviewCellValue(resultSet.getObject(i)));
+                        String columnLabel = metaData.getColumnLabel(i);
+                        if ("RN__".equalsIgnoreCase(columnLabel)) {
+                            continue;
+                        }
+                        row.put(columnLabel, normalizePreviewCellValue(resultSet.getObject(i)));
                     }
                     rows.add(row);
                 }
@@ -736,6 +804,35 @@ public class DataSourceServiceImpl extends BaseServiceImpl implements DataSource
         return result;
     }
 
+    private void normalizeOraclePreviewRequest(DbType dbType, DataPreviewQueryRequest request) {
+        if (dbType != DbType.ORACLE || request == null) {
+            return;
+        }
+        request.setSchema(upperCaseOracleIdentifier(request.getSchema()));
+        request.setTableName(upperCaseOracleIdentifier(request.getTableName()));
+        if (CollectionUtils.isNotEmpty(request.getFilters())) {
+            for (DataPreviewQueryRequest.Filter filter : request.getFilters()) {
+                if (filter != null) {
+                    filter.setField(upperCaseOracleIdentifier(filter.getField()));
+                }
+            }
+        }
+        if (CollectionUtils.isNotEmpty(request.getSorts())) {
+            for (DataPreviewQueryRequest.Sort sort : request.getSorts()) {
+                if (sort != null) {
+                    sort.setField(upperCaseOracleIdentifier(sort.getField()));
+                }
+            }
+        }
+    }
+
+    private String upperCaseOracleIdentifier(String identifier) {
+        if (StringUtils.isBlank(identifier)) {
+            return identifier;
+        }
+        return StringUtils.upperCase(StringUtils.trim(identifier), Locale.ROOT);
+    }
+
     @Override
     public DataPreviewTableStructureResult queryTableStructure(User loginUser,
                                                                Integer datasourceId,
@@ -756,17 +853,18 @@ public class DataSourceServiceImpl extends BaseServiceImpl implements DataSource
         ResultSet indexRs = null;
         try {
             DatabaseMetaData metaData = connection.getMetaData();
+            String catalog = dataSource.getType() == DbType.ORACLE ? null : database;
+            String schemaPattern = getDbSchemaPattern(dataSource.getType(), schema, connectionParam);
+            String normalizedTableName = normalizeMetadataTableName(dataSource.getType(), tableName);
             Set<String> primaryKeys = new LinkedHashSet<>();
-            primaryKeyRs = metaData.getPrimaryKeys(database, getDbSchemaPattern(dataSource.getType(), schema, connectionParam),
-                    tableName);
+            primaryKeyRs = metaData.getPrimaryKeys(catalog, schemaPattern, normalizedTableName);
             while (primaryKeyRs != null && primaryKeyRs.next()) {
                 primaryKeys.add(primaryKeyRs.getString(COLUMN_NAME));
             }
 
             Map<String, DataPreviewTableStructureResult.Index> indexByNameAndColumn = new LinkedHashMap<>();
             Map<String, String> firstIndexByColumn = new LinkedHashMap<>();
-            indexRs = metaData.getIndexInfo(database, getDbSchemaPattern(dataSource.getType(), schema, connectionParam),
-                    tableName, false, false);
+            indexRs = metaData.getIndexInfo(catalog, schemaPattern, normalizedTableName, false, false);
             while (indexRs != null && indexRs.next()) {
                 String indexName = indexRs.getString("INDEX_NAME");
                 String columnName = indexRs.getString(COLUMN_NAME);
@@ -783,8 +881,7 @@ public class DataSourceServiceImpl extends BaseServiceImpl implements DataSource
             }
 
             List<DataPreviewTableStructureResult.Column> columns = new ArrayList<>();
-            columnRs = metaData.getColumns(database, getDbSchemaPattern(dataSource.getType(), schema, connectionParam),
-                    tableName, "%");
+            columnRs = metaData.getColumns(catalog, schemaPattern, normalizedTableName, "%");
             while (columnRs != null && columnRs.next()) {
                 DataPreviewTableStructureResult.Column column = new DataPreviewTableStructureResult.Column();
                 String columnName = columnRs.getString(COLUMN_NAME);
@@ -794,23 +891,23 @@ public class DataSourceServiceImpl extends BaseServiceImpl implements DataSource
                 column.setScale(columnRs.getInt("DECIMAL_DIGITS"));
                 column.setNullable(columnRs.getInt("NULLABLE") == DatabaseMetaData.columnNullable);
                 column.setPrimaryKey(primaryKeys.contains(columnName));
-                column.setDefaultValue(columnRs.getString("COLUMN_DEF"));
-                column.setComment(normalizeMetadataText(columnRs.getString("REMARKS")));
+                column.setDefaultValue(safeGetMetadataString(columnRs, "COLUMN_DEF"));
+                column.setComment(normalizeMetadataText(safeGetMetadataString(columnRs, "REMARKS")));
                 column.setIndexName(firstIndexByColumn.get(columnName));
                 columns.add(column);
             }
 
             DataPreviewTableStructureResult.TableSummary summary = new DataPreviewTableStructureResult.TableSummary();
-            summary.setTableName(tableName);
+            summary.setTableName(normalizedTableName);
             summary.setDatabase(database);
             summary.setSchema(StringUtils.trimToEmpty(schema));
             summary.setDatasourceType(dataSource.getType().name());
             summary.setFieldCount(columns.size());
-            tableRs = metaData.getTables(database, getDbSchemaPattern(dataSource.getType(), schema, connectionParam),
-                    tableName, TABLE_TYPES);
+            tableRs = metaData.getTables(catalog, schemaPattern, normalizedTableName, TABLE_TYPES);
             if (tableRs != null && tableRs.next()) {
                 summary.setTableType(tableRs.getString("TABLE_TYPE"));
-                summary.setTableComment(normalizeMetadataText(tableRs.getString("REMARKS")));
+                summary.setTableComment(resolveTableComment(connection, dataSource.getType(), catalog, schemaPattern,
+                        normalizedTableName, safeGetMetadataString(tableRs, "REMARKS")));
             }
             if (StringUtils.isBlank(summary.getTableComment())) {
                 summary.setTableComment("");
@@ -824,7 +921,9 @@ public class DataSourceServiceImpl extends BaseServiceImpl implements DataSource
             result.setConstraints(primaryKeys.isEmpty()
                     ? Collections.emptyList()
                     : Collections.singletonList("PRIMARY KEY (" + String.join(", ", primaryKeys) + ")"));
-            result.setDdl(buildPreviewDdl(dataSource.getType(), tableName, summary.getTableComment(), columns, primaryKeys));
+            result.setDdl(resolveRealTableDdl(connection, dataSource.getType(), catalog, schemaPattern,
+                    normalizedTableName, summary.getTableType(),
+                    () -> buildPreviewDdl(dataSource.getType(), normalizedTableName, summary.getTableComment(), columns, primaryKeys)));
             return result;
         } catch (Exception ex) {
             log.error("Query data preview table structure error, datasourceId:{} table:{}.", datasourceId, tableName, ex);
@@ -1105,7 +1204,7 @@ public class DataSourceServiceImpl extends BaseServiceImpl implements DataSource
         if (dataSource == null) {
             throw new ServiceException(Status.RESOURCE_NOT_EXIST);
         }
-        if (dataSource.getType() != DbType.MYSQL && dataSource.getType() != DbType.POSTGRESQL) {
+        if (!isSupportedPreviewDataSourceType(dataSource.getType())) {
             throw new ServiceException(Status.DATA_PREVIEW_QUERY_ERROR);
         }
         if (!canOperatorPermissions(loginUser, new Object[]{datasourceId}, AuthorizationType.DATASOURCE,
@@ -1113,6 +1212,10 @@ public class DataSourceServiceImpl extends BaseServiceImpl implements DataSource
             throw new ServiceException(Status.USER_NO_OPERATION_PERM);
         }
         return dataSource;
+    }
+
+    private boolean isSupportedPreviewDataSourceType(DbType dbType) {
+        return dbType == DbType.MYSQL || dbType == DbType.POSTGRESQL || dbType == DbType.ORACLE;
     }
 
     private BaseConnectionParam getPreviewConnectionParam(DataSource dataSource) {
@@ -1264,6 +1367,12 @@ public class DataSourceServiceImpl extends BaseServiceImpl implements DataSource
         if (lower.matches("[\\s\\S]*\\blimit\\s+\\d+[\\s\\S]*")) {
             return sql;
         }
+        if (dbType == DbType.ORACLE) {
+            if (lower.matches("[\\s\\S]*\\b(fetch\\s+next|rownum)\\b[\\s\\S]*")) {
+                return sql;
+            }
+            return "SELECT * FROM (" + sql + ") WHERE ROWNUM <= " + pageSize;
+        }
         if (dbType == DbType.MYSQL || dbType == DbType.POSTGRESQL) {
             return sql + " LIMIT " + pageSize;
         }
@@ -1320,6 +1429,10 @@ public class DataSourceServiceImpl extends BaseServiceImpl implements DataSource
         if (dbType == DbType.MYSQL) {
             return "`" + identifier.replace("`", "``") + "`";
         }
+        if (dbType == DbType.ORACLE) {
+            String normalizedIdentifier = StringUtils.upperCase(StringUtils.trim(identifier), Locale.ROOT);
+            return "\"" + normalizedIdentifier.replace("\"", "\"\"") + "\"";
+        }
         return "\"" + identifier.replace("\"", "\"\"") + "\"";
     }
 
@@ -1368,6 +1481,185 @@ public class DataSourceServiceImpl extends BaseServiceImpl implements DataSource
         return ddl.toString();
     }
 
+    private String normalizeMetadataTableName(DbType dbType, String tableName) {
+        if (dbType == DbType.ORACLE) {
+            return upperCaseOracleIdentifier(tableName);
+        }
+        return tableName;
+    }
+
+    private String resolveTableComment(Connection connection,
+                                       DbType dbType,
+                                       String catalog,
+                                       String schema,
+                                       String tableName,
+                                       String jdbcRemark) {
+        String normalizedJdbcRemark = normalizeMetadataText(jdbcRemark);
+        if (StringUtils.isNotBlank(normalizedJdbcRemark)) {
+            return normalizedJdbcRemark;
+        }
+        try {
+            if (dbType == DbType.MYSQL) {
+                return queryMysqlTableComment(connection, catalog, tableName);
+            }
+            if (dbType == DbType.ORACLE) {
+                return queryOracleTableComment(connection, schema, tableName);
+            }
+            if (dbType == DbType.POSTGRESQL) {
+                return queryPostgresqlTableComment(connection, schema, tableName);
+            }
+        } catch (Exception ex) {
+            log.warn("Resolve table comment failed, dbType:{} catalog:{} schema:{} table:{}.",
+                    dbType, catalog, schema, tableName, ex);
+        }
+        return StringUtils.EMPTY;
+    }
+
+    private String safeGetMetadataString(ResultSet resultSet, String columnLabel) {
+        try {
+            return resultSet.getString(columnLabel);
+        } catch (SQLException | RuntimeException ex) {
+            log.warn("Read datasource metadata column failed, columnLabel:{}, error:{}.",
+                    columnLabel, ex.toString());
+            return StringUtils.EMPTY;
+        }
+    }
+
+    private String queryMysqlTableComment(Connection connection, String database, String tableName) throws SQLException {
+        if (StringUtils.isBlank(database)) {
+            return StringUtils.EMPTY;
+        }
+        String sql = "SELECT TABLE_COMMENT, HEX(TABLE_COMMENT) AS TABLE_COMMENT_HEX "
+                + "FROM information_schema.TABLES WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?";
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, database);
+            statement.setString(2, tableName);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                if (resultSet.next()) {
+                    return decodeMysqlMetadataHex(
+                            resultSet.getString("TABLE_COMMENT_HEX"),
+                            resultSet.getString("TABLE_COMMENT"));
+                }
+            }
+        }
+        return StringUtils.EMPTY;
+    }
+
+    private String queryOracleTableComment(Connection connection, String schema, String tableName) throws SQLException {
+        String sql = StringUtils.isBlank(schema)
+                ? "SELECT COMMENTS FROM USER_TAB_COMMENTS WHERE TABLE_NAME = ?"
+                : "SELECT COMMENTS FROM ALL_TAB_COMMENTS WHERE OWNER = ? AND TABLE_NAME = ?";
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            int index = 1;
+            if (StringUtils.isNotBlank(schema)) {
+                statement.setString(index++, upperCaseOracleIdentifier(schema));
+            }
+            statement.setString(index, upperCaseOracleIdentifier(tableName));
+            try (ResultSet resultSet = statement.executeQuery()) {
+                if (resultSet.next()) {
+                    return normalizeMetadataText(resultSet.getString("COMMENTS"));
+                }
+            }
+        }
+        return StringUtils.EMPTY;
+    }
+
+    private String queryPostgresqlTableComment(Connection connection, String schema, String tableName) throws SQLException {
+        String sql = "SELECT obj_description(format('%I.%I', ?, ?)::regclass, 'pg_class') AS table_comment";
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, StringUtils.defaultIfBlank(schema, "public"));
+            statement.setString(2, tableName);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                if (resultSet.next()) {
+                    return normalizeMetadataText(resultSet.getString("table_comment"));
+                }
+            }
+        }
+        return StringUtils.EMPTY;
+    }
+
+    private String resolveRealTableDdl(Connection connection,
+                                       DbType dbType,
+                                       String catalog,
+                                       String schema,
+                                       String tableName,
+                                       String tableType,
+                                       DdlFallback fallback) {
+        try {
+            String ddl = StringUtils.EMPTY;
+            if (dbType == DbType.MYSQL) {
+                ddl = queryMysqlTableDdl(connection, catalog, tableName);
+            } else if (dbType == DbType.ORACLE) {
+                ddl = queryOracleTableDdl(connection, schema, tableName, tableType);
+            } else if (dbType == DbType.POSTGRESQL) {
+                ddl = fallback.build();
+            }
+            if (StringUtils.isNotBlank(ddl)) {
+                return ddl.trim();
+            }
+        } catch (Exception ex) {
+            log.warn("Resolve real table DDL failed, dbType:{} catalog:{} schema:{} table:{}.",
+                    dbType, catalog, schema, tableName, ex);
+        }
+        return fallback.build();
+    }
+
+    private String queryMysqlTableDdl(Connection connection, String database, String tableName) throws SQLException {
+        String tableReference = StringUtils.isBlank(database)
+                ? "`" + escapeMysqlIdentifier(tableName) + "`"
+                : "`" + escapeMysqlIdentifier(database) + "`.`" + escapeMysqlIdentifier(tableName) + "`";
+        try (Statement statement = connection.createStatement();
+             ResultSet resultSet = statement.executeQuery("SHOW CREATE TABLE " + tableReference)) {
+            if (resultSet.next()) {
+                return resultSet.getString(2);
+            }
+        }
+        return StringUtils.EMPTY;
+    }
+
+    private String queryOracleTableDdl(Connection connection,
+                                      String schema,
+                                      String tableName,
+                                      String tableType) throws SQLException {
+        String metadataType = StringUtils.equalsIgnoreCase(tableType, VIEW) ? "VIEW" : "TABLE";
+        try (PreparedStatement transform = connection.prepareStatement(
+                "BEGIN DBMS_METADATA.SET_TRANSFORM_PARAM(DBMS_METADATA.SESSION_TRANSFORM, 'SQLTERMINATOR', TRUE); "
+                        + "DBMS_METADATA.SET_TRANSFORM_PARAM(DBMS_METADATA.SESSION_TRANSFORM, 'PRETTY', TRUE); END;")) {
+            transform.execute();
+        }
+        String sql = StringUtils.isBlank(schema)
+                ? "SELECT DBMS_METADATA.GET_DDL(?, ?) AS DDL FROM DUAL"
+                : "SELECT DBMS_METADATA.GET_DDL(?, ?, ?) AS DDL FROM DUAL";
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, metadataType);
+            statement.setString(2, upperCaseOracleIdentifier(tableName));
+            if (StringUtils.isNotBlank(schema)) {
+                statement.setString(3, upperCaseOracleIdentifier(schema));
+            }
+            try (ResultSet resultSet = statement.executeQuery()) {
+                if (resultSet.next()) {
+                    return readClobOrString(resultSet.getObject("DDL"));
+                }
+            }
+        }
+        return StringUtils.EMPTY;
+    }
+
+    private String readClobOrString(Object value) throws SQLException {
+        if (value == null) {
+            return StringUtils.EMPTY;
+        }
+        if (value instanceof Clob) {
+            Clob clob = (Clob) value;
+            long length = clob.length();
+            if (length <= 0) {
+                return StringUtils.EMPTY;
+            }
+            return clob.getSubString(1, (int) Math.min(length, Integer.MAX_VALUE));
+        }
+        return String.valueOf(value);
+    }
+
     private String buildPreviewTableName(DbType dbType, DataPreviewQueryRequest request) {
         if (dbType == DbType.MYSQL) {
             return quoteIdentifier(dbType, request.getDatabase()) + "." + quoteIdentifier(dbType, request.getTableName());
@@ -1391,8 +1683,24 @@ public class DataSourceServiceImpl extends BaseServiceImpl implements DataSource
         sql.append(" FROM ").append(buildPreviewTableName(dbType, request));
         appendPreviewWhere(sql, request, allowedColumns, dbType);
         appendPreviewOrderBy(sql, request, allowedColumns, dbType);
-        sql.append(" LIMIT ").append(pageSize).append(" OFFSET ").append((pageNo - 1) * pageSize);
+        appendPreviewPagination(sql, dbType, pageNo, pageSize);
         return sql.toString();
+    }
+
+    private void appendPreviewPagination(StringBuilder sql, DbType dbType, int pageNo, int pageSize) {
+        int offset = (pageNo - 1) * pageSize;
+        if (dbType == DbType.ORACLE) {
+            String baseSql = sql.toString();
+            sql.setLength(0);
+            sql.append("SELECT * FROM (SELECT preview__.*, ROWNUM rn__ FROM (")
+                    .append(baseSql)
+                    .append(") preview__ WHERE ROWNUM <= ")
+                    .append(offset + pageSize)
+                    .append(") WHERE rn__ > ")
+                    .append(offset);
+            return;
+        }
+        sql.append(" LIMIT ").append(pageSize).append(" OFFSET ").append(offset);
     }
 
     private void appendPreviewWhere(StringBuilder sql,
@@ -1407,12 +1715,12 @@ public class DataSourceServiceImpl extends BaseServiceImpl implements DataSource
             if (filter == null || !allowedColumns.contains(filter.getField())) {
                 throw new ServiceException(Status.DATA_PREVIEW_QUERY_ERROR);
             }
-            String operator = StringUtils.upperCase(StringUtils.trimToEmpty(filter.getOperator()), Locale.ROOT);
+            String operator = normalizePreviewFilterOperator(filter.getOperator());
             if ("=".equals(operator) || "!=".equals(operator) || ">".equals(operator) || ">=".equals(operator)
                     || "<".equals(operator) || "<=".equals(operator)) {
                 conditions.add(quoteIdentifier(dbType, filter.getField()) + " " + operator + " ?");
             } else if ("CONTAINS".equals(operator)) {
-                conditions.add(quoteIdentifier(dbType, filter.getField()) + " LIKE ?");
+                conditions.add(quoteIdentifier(dbType, filter.getField()) + " LIKE ? " + buildLikeEscapeClause(dbType));
             } else {
                 throw new ServiceException(Status.DATA_PREVIEW_QUERY_ERROR);
             }
@@ -1420,6 +1728,13 @@ public class DataSourceServiceImpl extends BaseServiceImpl implements DataSource
         if (!conditions.isEmpty()) {
             sql.append(" WHERE ").append(String.join(" AND ", conditions));
         }
+    }
+
+    private String buildLikeEscapeClause(DbType dbType) {
+        if (dbType == DbType.MYSQL) {
+            return "ESCAPE '\\\\'";
+        }
+        return "ESCAPE '\\'";
     }
 
     private void appendPreviewOrderBy(StringBuilder sql,
@@ -1454,9 +1769,9 @@ public class DataSourceServiceImpl extends BaseServiceImpl implements DataSource
             if (filter == null || !allowedColumns.contains(filter.getField())) {
                 throw new ServiceException(Status.DATA_PREVIEW_QUERY_ERROR);
             }
-            String operator = StringUtils.upperCase(StringUtils.trimToEmpty(filter.getOperator()), Locale.ROOT);
+            String operator = normalizePreviewFilterOperator(filter.getOperator());
             if ("CONTAINS".equals(operator)) {
-                parameters.add("%" + StringUtils.defaultString(filter.getValue()) + "%");
+                parameters.add("%" + escapePreviewLikeValue(filter.getValue()) + "%");
             } else {
                 parameters.add(filter.getValue());
             }
@@ -1464,9 +1779,36 @@ public class DataSourceServiceImpl extends BaseServiceImpl implements DataSource
         return parameters;
     }
 
+    private String escapePreviewLikeValue(String value) {
+        return StringUtils.defaultString(value)
+                .replace("\\", "\\\\")
+                .replace("%", "\\%")
+                .replace("_", "\\_");
+    }
+
+    private String normalizePreviewFilterOperator(String operator) {
+        String normalized = StringUtils.upperCase(StringUtils.trimToEmpty(operator), Locale.ROOT);
+        switch (normalized) {
+            case "EQ":
+                return "=";
+            case "NE":
+                return "!=";
+            case "GT":
+                return ">";
+            case "GTE":
+                return ">=";
+            case "LT":
+                return "<";
+            case "LTE":
+                return "<=";
+            default:
+                return normalized;
+        }
+    }
+
     private Object normalizePreviewCellValue(Object value) {
         if (!(value instanceof String)) {
-            return value;
+            return DataPreviewCellValueNormalizer.normalize(value);
         }
         // 只对字符串结果做保守编码修复。数字、日期等类型保持 JDBC 原始值，
         // 避免影响前端排序展示和后续类型判断。
@@ -1510,14 +1852,14 @@ public class DataSourceServiceImpl extends BaseServiceImpl implements DataSource
     }
 
     @Override
-    public String createTableByColumns(DatasourceTableCreateRequest request) {
-        String ddl = previewCreateTableSql(request);
+    public String createTableByColumns(User loginUser, DatasourceTableCreateRequest request) {
+        String ddl = previewCreateTableSql(loginUser, request);
         request.setDdl(ddl);
-        return executeTableDdl(request);
+        return executeTableDdl(loginUser, request);
     }
 
     @Override
-    public String previewCreateTableSql(DatasourceTableCreateRequest request) {
+    public String previewCreateTableSql(User loginUser, DatasourceTableCreateRequest request) {
         if (request == null
                 || request.getDatasourceId() == null
                 || StringUtils.isBlank(request.getDatabase())
@@ -1530,12 +1872,13 @@ public class DataSourceServiceImpl extends BaseServiceImpl implements DataSource
         if (dataSource == null) {
             throw new ServiceException(Status.QUERY_DATASOURCE_ERROR);
         }
+        checkCreateTableDatasourcePermission(loginUser, dataSource.getId());
 
         return buildCreateTableSql(dataSource.getType(), request, true);
     }
 
     @Override
-    public String executeTableDdl(DatasourceTableCreateRequest request) {
+    public String executeTableDdl(User loginUser, DatasourceTableCreateRequest request) {
         if (request == null
                 || request.getDatasourceId() == null
                 || StringUtils.isBlank(request.getDatabase())
@@ -1548,6 +1891,7 @@ public class DataSourceServiceImpl extends BaseServiceImpl implements DataSource
         if (dataSource == null) {
             throw new ServiceException(Status.QUERY_DATASOURCE_ERROR);
         }
+        checkCreateTableDatasourcePermission(loginUser, dataSource.getId());
 
         BaseConnectionParam connectionParam =
                 (BaseConnectionParam) DataSourceUtils.buildConnectionParams(
@@ -1597,6 +1941,14 @@ public class DataSourceServiceImpl extends BaseServiceImpl implements DataSource
         }
     }
 
+    private void checkCreateTableDatasourcePermission(User loginUser, Integer datasourceId) {
+        if (loginUser == null || datasourceId == null
+                || !canOperatorPermissions(loginUser, new Object[]{datasourceId}, AuthorizationType.DATASOURCE,
+                        ApiFuncIdentificationConstant.DATASOURCE)) {
+            throw new ServiceException(Status.USER_NO_OPERATION_PERM);
+        }
+    }
+
     private boolean tableAlreadyExists(Connection connection,
                                        DbType dbType,
                                        DatasourceTableCreateRequest request) throws SQLException {
@@ -1639,6 +1991,12 @@ public class DataSourceServiceImpl extends BaseServiceImpl implements DataSource
             return "目标端建表失败，请检查目标库连接和建表语句。";
         }
         return "目标端建表失败：" + message;
+    }
+
+    @Override
+    public List<ParamsOptions> getDatabases(User loginUser, Integer datasourceId) {
+        checkDatasourceMetadataPermission(loginUser, datasourceId);
+        return getDatabases(datasourceId);
     }
 
     @Override
@@ -1695,6 +2053,14 @@ public class DataSourceServiceImpl extends BaseServiceImpl implements DataSource
         return options;
     }
 
+    private void checkDatasourceMetadataPermission(User loginUser, Integer datasourceId) {
+        if (loginUser == null || datasourceId == null
+                || !canOperatorPermissions(loginUser, new Object[]{datasourceId}, AuthorizationType.DATASOURCE,
+                        ApiFuncIdentificationConstant.DATASOURCE)) {
+            throw new ServiceException(Status.USER_NO_OPERATION_PERM);
+        }
+    }
+
     private List<ParamsOptions> getParamsOptions(List<String> columnList) {
         List<ParamsOptions> options = null;
         if (CollectionUtils.isNotEmpty(columnList)) {
@@ -1742,6 +2108,7 @@ public class DataSourceServiceImpl extends BaseServiceImpl implements DataSource
     }
 
     private String buildCreateTableSql(DbType dbType, DatasourceTableCreateRequest request, boolean includePrimaryKey) {
+        validateCreateTableColumns(dbType, request);
         switch (dbType) {
             case MYSQL:
                 return buildMysqlCreateTableSql(request, includePrimaryKey);
@@ -1754,6 +2121,344 @@ public class DataSourceServiceImpl extends BaseServiceImpl implements DataSource
             default:
                 throw new ServiceException("Unsupported create table datasource type: " + dbType);
         }
+    }
+
+    private void validateCreateTableColumns(DbType dbType, DatasourceTableCreateRequest request) {
+        if (request == null || CollectionUtils.isEmpty(request.getColumns())) {
+            throw new ServiceException(Status.REQUEST_PARAMS_NOT_VALID_ERROR);
+        }
+        Set<String> allowedTypes = getAllowedCreateTableColumnTypes(dbType);
+        for (DatasourceTableCreateRequest.ColumnDefinition column : request.getColumns()) {
+            String columnName = StringUtils.trimToEmpty(column == null ? null : column.getTargetColumn());
+            String rawColumnType = column == null ? null : column.getTargetType();
+            if (!isSafeColumnTypeExpression(rawColumnType)) {
+                throw new ServiceException(Status.REQUEST_PARAMS_NOT_VALID_ERROR);
+            }
+            String columnType = normalizeCreateTableColumnType(dbType, rawColumnType);
+            if (StringUtils.isBlank(columnName) || StringUtils.isBlank(columnType)
+                    || !isAllowedCreateTableColumnType(dbType, columnType, allowedTypes)) {
+                throw new ServiceException(Status.REQUEST_PARAMS_NOT_VALID_ERROR);
+            }
+            column.setTargetType(columnType);
+        }
+    }
+
+    private boolean isSafeColumnTypeExpression(String columnType) {
+        String normalized = StringUtils.trimToEmpty(columnType);
+        return StringUtils.isNotBlank(normalized) && normalized.matches("[A-Za-z0-9_(), ]+");
+    }
+
+    private Set<String> getAllowedCreateTableColumnTypes(DbType dbType) {
+        Set<String> allowedTypes = new HashSet<>();
+        switch (dbType) {
+            case MYSQL:
+                Collections.addAll(allowedTypes,
+                        "BIGINT", "INT", "INTEGER", "SMALLINT", "TINYINT", "DECIMAL(10,2)", "DOUBLE", "FLOAT",
+                        "VARCHAR(255)", "TEXT", "LONGTEXT", "DATE", "TIME", "DATETIME", "TIMESTAMP", "BOOLEAN",
+                        "JSON");
+                break;
+            case POSTGRESQL:
+                Collections.addAll(allowedTypes,
+                        "BIGINT", "INTEGER", "SMALLINT", "NUMERIC(10,2)", "DOUBLE PRECISION", "REAL",
+                        "VARCHAR(255)", "TEXT", "DATE", "TIME", "TIMESTAMP", "TIMESTAMPTZ", "BOOLEAN", "JSONB");
+                break;
+            case ORACLE:
+                Collections.addAll(allowedTypes,
+                        "NUMBER(19)", "NUMBER(10)", "NUMBER(5)", "NUMBER(3)", "NUMBER(1)", "NUMBER(10,2)",
+                        "BINARY_DOUBLE",
+                        "BINARY_FLOAT", "VARCHAR2(255)", "NVARCHAR2(255)", "CLOB", "DATE", "TIMESTAMP");
+                break;
+            case DORIS:
+                Collections.addAll(allowedTypes,
+                        "BIGINT", "INT", "SMALLINT", "TINYINT", "DECIMAL(10,2)", "DOUBLE", "FLOAT",
+                        "VARCHAR(255)", "STRING", "DATE", "DATETIME", "BOOLEAN", "JSON");
+                break;
+            default:
+                throw new ServiceException("Unsupported create table datasource type: " + dbType);
+        }
+        return allowedTypes;
+    }
+
+    private String normalizeCreateTableColumnType(DbType dbType, String columnType) {
+        String normalized = StringUtils.upperCase(StringUtils.normalizeSpace(StringUtils.trimToEmpty(columnType)), Locale.ROOT)
+                .replaceAll("\\s*\\(\\s*", "(")
+                .replaceAll("\\s*,\\s*", ",")
+                .replaceAll("\\s*\\)", ")");
+        if (StringUtils.isBlank(normalized)) {
+            return StringUtils.EMPTY;
+        }
+        switch (dbType) {
+            case MYSQL:
+                return normalizeMysqlCreateTableColumnType(normalized);
+            case POSTGRESQL:
+                return normalizePostgresqlCreateTableColumnType(normalized);
+            case ORACLE:
+                return normalizeOracleCreateTableColumnType(normalized);
+            case DORIS:
+                return normalizeDorisCreateTableColumnType(normalized);
+            default:
+                return normalized;
+        }
+    }
+
+    private String normalizeMysqlCreateTableColumnType(String normalized) {
+        if (normalized.contains("BIGINT") || normalized.matches("NUMBER\\((1[1-9]|[2-9][0-9])\\)")) {
+            return "BIGINT";
+        }
+        if (normalized.contains("SMALLINT") || normalized.matches("NUMBER\\([4-6]\\)")) {
+            return "SMALLINT";
+        }
+        if (normalized.contains("TINYINT") || normalized.matches("NUMBER\\([1-3]\\)")) {
+            return "TINYINT";
+        }
+        if (normalized.contains("INT") || normalized.contains("SERIAL") || normalized.matches("NUMBER\\(([7-9]|10)\\)")) {
+            return "INT";
+        }
+        if (isDecimalFamily(normalized)) {
+            return normalizeDecimalType(normalized, "DECIMAL", 10, 2, 65);
+        }
+        if (normalized.contains("DOUBLE") || normalized.contains("BINARY_DOUBLE")) {
+            return "DOUBLE";
+        }
+        if (normalized.contains("FLOAT") || normalized.contains("REAL") || normalized.contains("BINARY_FLOAT")) {
+            return "FLOAT";
+        }
+        if (normalized.contains("JSON")) {
+            return "JSON";
+        }
+        if (normalized.contains("CLOB") || normalized.contains("TEXT")) {
+            return "TEXT";
+        }
+        if (isStringFamily(normalized)) {
+            return "VARCHAR(" + normalizeColumnLength(normalized, 255, 65535) + ")";
+        }
+        if (normalized.contains("TIMESTAMP")) {
+            return "TIMESTAMP";
+        }
+        if (normalized.contains("DATETIME") || normalized.contains("DATE")) {
+            return "DATETIME";
+        }
+        if (normalized.contains("TIME")) {
+            return "TIME";
+        }
+        if (normalized.contains("BOOL")) {
+            return "BOOLEAN";
+        }
+        return normalized;
+    }
+
+    private String normalizePostgresqlCreateTableColumnType(String normalized) {
+        if (normalized.contains("BIGINT") || normalized.matches("NUMBER\\((1[1-9]|[2-9][0-9])\\)")) {
+            return "BIGINT";
+        }
+        if (normalized.contains("SMALLINT") || normalized.contains("TINYINT") || normalized.matches("NUMBER\\([1-6]\\)")) {
+            return "SMALLINT";
+        }
+        if (normalized.contains("INT") || normalized.contains("SERIAL") || normalized.matches("NUMBER\\(([7-9]|10)\\)")) {
+            return "INTEGER";
+        }
+        if (isDecimalFamily(normalized)) {
+            return normalizeDecimalType(normalized, "NUMERIC", 10, 2, 1000);
+        }
+        if (normalized.contains("DOUBLE") || normalized.contains("BINARY_DOUBLE")) {
+            return "DOUBLE PRECISION";
+        }
+        if (normalized.contains("FLOAT") || normalized.contains("REAL") || normalized.contains("BINARY_FLOAT")) {
+            return "REAL";
+        }
+        if (normalized.contains("JSON")) {
+            return "JSONB";
+        }
+        if (normalized.contains("CLOB") || normalized.contains("TEXT")) {
+            return "TEXT";
+        }
+        if (isStringFamily(normalized)) {
+            return "VARCHAR(" + normalizeColumnLength(normalized, 255, 10485760) + ")";
+        }
+        if (normalized.contains("TIMESTAMP") || normalized.contains("DATETIME")) {
+            return "TIMESTAMP";
+        }
+        if (normalized.contains("DATE")) {
+            return "DATE";
+        }
+        if (normalized.contains("TIME")) {
+            return "TIME";
+        }
+        if (normalized.contains("BOOL")) {
+            return "BOOLEAN";
+        }
+        return normalized;
+    }
+
+    private String normalizeOracleCreateTableColumnType(String normalized) {
+        if (normalized.contains("BOOL") || normalized.equals("BIT") || normalized.equals("TINYINT(1)")) {
+            return "NUMBER(1)";
+        }
+        if (normalized.contains("BIGINT")) {
+            return "NUMBER(19)";
+        }
+        if (normalized.contains("SMALLINT")) {
+            return "NUMBER(5)";
+        }
+        if (normalized.contains("TINYINT")) {
+            return "NUMBER(3)";
+        }
+        if (normalized.contains("INT") || normalized.contains("SERIAL")) {
+            return "NUMBER(10)";
+        }
+        if (normalized.startsWith("NUMBER(")) {
+            return normalizeOracleNumberType(normalized);
+        }
+        if (normalized.equals("NUMBER")) {
+            return "NUMBER(10)";
+        }
+        if (normalized.contains("DECIMAL") || normalized.contains("NUMERIC")) {
+            return normalizeDecimalType(normalized, "NUMBER", 10, 2, 38);
+        }
+        if (normalized.contains("DOUBLE") || normalized.contains("BINARY_DOUBLE")) {
+            return "BINARY_DOUBLE";
+        }
+        if (normalized.contains("FLOAT") || normalized.contains("REAL") || normalized.contains("BINARY_FLOAT")) {
+            return "BINARY_FLOAT";
+        }
+        if (normalized.contains("JSON") || normalized.contains("CLOB") || normalized.contains("TEXT")) {
+            return "CLOB";
+        }
+        if (isStringFamily(normalized)) {
+            return "VARCHAR2(" + normalizeColumnLength(normalized, 255, 4000) + ")";
+        }
+        if (normalized.contains("TIMESTAMP") || normalized.contains("DATETIME")) {
+            return "TIMESTAMP";
+        }
+        if (normalized.contains("DATE") || normalized.contains("TIME")) {
+            return "DATE";
+        }
+        return normalized;
+    }
+
+    private String normalizeDorisCreateTableColumnType(String normalized) {
+        if (normalized.contains("BIGINT") || normalized.matches("NUMBER\\((1[1-9]|[2-9][0-9])\\)")) {
+            return "BIGINT";
+        }
+        if (normalized.contains("SMALLINT") || normalized.matches("NUMBER\\([4-6]\\)")) {
+            return "SMALLINT";
+        }
+        if (normalized.contains("TINYINT") || normalized.matches("NUMBER\\([1-3]\\)")) {
+            return "TINYINT";
+        }
+        if (normalized.contains("INT") || normalized.matches("NUMBER\\(([7-9]|10)\\)")) {
+            return "INT";
+        }
+        if (isDecimalFamily(normalized)) {
+            return normalizeDecimalType(normalized, "DECIMAL", 10, 2, 38);
+        }
+        if (normalized.contains("DOUBLE") || normalized.contains("BINARY_DOUBLE")) {
+            return "DOUBLE";
+        }
+        if (normalized.contains("FLOAT") || normalized.contains("REAL") || normalized.contains("BINARY_FLOAT")) {
+            return "FLOAT";
+        }
+        if (normalized.contains("JSON")) {
+            return "JSON";
+        }
+        if (normalized.contains("CLOB") || normalized.contains("TEXT") || isStringFamily(normalized)) {
+            return "STRING";
+        }
+        if (normalized.contains("TIMESTAMP") || normalized.contains("DATETIME")) {
+            return "DATETIME";
+        }
+        if (normalized.contains("DATE")) {
+            return "DATE";
+        }
+        if (normalized.contains("BOOL")) {
+            return "BOOLEAN";
+        }
+        return normalized;
+    }
+
+    private String normalizeOracleNumberType(String normalized) {
+        List<Integer> args = parseColumnTypeArgs(normalized);
+        if (args.isEmpty()) {
+            return "NUMBER(10)";
+        }
+        int precision = Math.max(1, Math.min(args.get(0), 38));
+        if (args.size() > 1) {
+            int scale = Math.max(0, Math.min(args.get(1), precision));
+            return String.format("NUMBER(%d,%d)", precision, scale);
+        }
+        return String.format("NUMBER(%d)", precision);
+    }
+
+    private boolean isAllowedCreateTableColumnType(DbType dbType, String columnType, Set<String> allowedTypes) {
+        if (allowedTypes.contains(columnType)) {
+            return true;
+        }
+        switch (dbType) {
+            case MYSQL:
+                return columnType.matches("VARCHAR\\(([1-9][0-9]{0,4})\\)")
+                        || columnType.matches("DECIMAL\\(([1-9][0-9]?,[0-9][0-9]?)\\)");
+            case POSTGRESQL:
+                return columnType.matches("VARCHAR\\(([1-9][0-9]{0,7})\\)")
+                        || columnType.matches("NUMERIC\\(([1-9][0-9]?,[0-9][0-9]?)\\)");
+            case ORACLE:
+                return columnType.matches("VARCHAR2\\(([1-9][0-9]{0,3})\\)")
+                        || columnType.matches("NVARCHAR2\\(([1-9][0-9]{0,3})\\)")
+                        || columnType.matches("NUMBER\\(([1-9][0-9]?)(,[0-9][0-9]?)?\\)");
+            case DORIS:
+                return columnType.matches("VARCHAR\\(([1-9][0-9]{0,4})\\)")
+                        || columnType.matches("DECIMAL\\(([1-9][0-9]?,[0-9][0-9]?)\\)");
+            default:
+                return false;
+        }
+    }
+
+    private boolean isStringFamily(String normalized) {
+        return normalized.contains("CHAR") || normalized.contains("VARCHAR") || normalized.contains("STRING");
+    }
+
+    private boolean isDecimalFamily(String normalized) {
+        if (normalized.matches("NUMBER\\([^,]+,[^)]+\\)")) {
+            return true;
+        }
+        return normalized.contains("DECIMAL") || normalized.contains("NUMERIC");
+    }
+
+    private String normalizeDecimalType(String normalized,
+                                        String typeName,
+                                        int defaultPrecision,
+                                        int defaultScale,
+                                        int maxPrecision) {
+        List<Integer> args = parseColumnTypeArgs(normalized);
+        if (args.size() < 2) {
+            return String.format("%s(%d,%d)", typeName, defaultPrecision, defaultScale);
+        }
+        int precision = Math.max(1, Math.min(args.get(0), maxPrecision));
+        int scale = Math.max(0, Math.min(args.get(1), precision));
+        return String.format("%s(%d,%d)", typeName, precision, scale);
+    }
+
+    private int normalizeColumnLength(String normalized, int defaultLength, int maxLength) {
+        List<Integer> args = parseColumnTypeArgs(normalized);
+        if (args.isEmpty()) {
+            return defaultLength;
+        }
+        return Math.max(1, Math.min(args.get(0), maxLength));
+    }
+
+    private List<Integer> parseColumnTypeArgs(String columnType) {
+        int start = columnType.indexOf('(');
+        int end = columnType.indexOf(')', start + 1);
+        if (start < 0 || end <= start) {
+            return Collections.emptyList();
+        }
+        List<Integer> args = new ArrayList<>();
+        for (String item : columnType.substring(start + 1, end).split(",")) {
+            if (!item.matches("\\d+")) {
+                return Collections.emptyList();
+            }
+            args.add(Integer.parseInt(item));
+        }
+        return args;
     }
 
     private String buildMysqlCreateTableSql(DatasourceTableCreateRequest request, boolean includePrimaryKey) {
@@ -1832,7 +2537,7 @@ public class DataSourceServiceImpl extends BaseServiceImpl implements DataSource
         List<String> columnDefinitions = request.getColumns().stream()
                 .map(column -> String.format(
                         "\"%s\" %s %s",
-                        escapeSqlIdentifier(column.getTargetColumn()),
+                        escapeOracleIdentifier(column.getTargetColumn()),
                         column.getTargetType(),
                         Boolean.FALSE.equals(column.getNullable()) ? "NOT NULL" : "NULL"))
                 .collect(Collectors.toList());
@@ -1842,22 +2547,22 @@ public class DataSourceServiceImpl extends BaseServiceImpl implements DataSource
                 columnDefinitions.add(String.format(
                         "PRIMARY KEY (%s)",
                         primaryKeyColumns.stream()
-                                .map(column -> String.format("\"%s\"", escapeSqlIdentifier(column)))
+                                .map(column -> String.format("\"%s\"", escapeOracleIdentifier(column)))
                                 .collect(Collectors.joining(", "))));
             }
         }
         String createTableSql = String.format(
                 "CREATE TABLE %s\"%s\" (%s)",
                 tablePrefix,
-                escapeSqlIdentifier(request.getTableName()),
+                escapeOracleIdentifier(request.getTableName()),
                 String.join(", ", columnDefinitions));
         List<String> commentStatements = request.getColumns().stream()
                 .filter(column -> StringUtils.isNotBlank(column.getTargetComment()))
                 .map(column -> String.format(
                         "COMMENT ON COLUMN %s\"%s\".\"%s\" IS '%s'",
                         tablePrefix,
-                        escapeSqlIdentifier(request.getTableName()),
-                        escapeSqlIdentifier(column.getTargetColumn()),
+                        escapeOracleIdentifier(request.getTableName()),
+                        escapeOracleIdentifier(column.getTargetColumn()),
                         escapeSqlComment(column.getTargetComment())))
                 .collect(Collectors.toList());
         if (CollectionUtils.isEmpty(commentStatements)) {
@@ -2001,17 +2706,17 @@ public class DataSourceServiceImpl extends BaseServiceImpl implements DataSource
             case ORACLE:
                 String oracleSchema = StringUtils.upperCase(StringUtils.defaultIfBlank(request.getSchema(), ""));
                 String oracleTable = StringUtils.isBlank(oracleSchema)
-                        ? String.format("\"%s\"", escapeSqlIdentifier(request.getTableName()))
+                        ? String.format("\"%s\"", escapeOracleIdentifier(request.getTableName()))
                         : String.format("\"%s\".\"%s\"",
                                 escapeSqlIdentifier(oracleSchema),
-                                escapeSqlIdentifier(request.getTableName()));
-                String oracleConstraintName = String.format("pk_%s", request.getTableName());
+                                escapeOracleIdentifier(request.getTableName()));
+                String oracleConstraintName = String.format("PK_%s", upperCaseOracleIdentifier(request.getTableName()));
                 return String.format(
                         "ALTER TABLE %s ADD CONSTRAINT \"%s\" PRIMARY KEY (%s)",
                         oracleTable,
                         escapeSqlIdentifier(oracleConstraintName),
                         primaryKeyColumns.stream()
-                                .map(column -> String.format("\"%s\"", escapeSqlIdentifier(column)))
+                                .map(column -> String.format("\"%s\"", escapeOracleIdentifier(column)))
                                 .collect(Collectors.joining(", ")));
             default:
                 throw new ServiceException("Unsupported primary key datasource type: " + dbType);
@@ -2020,6 +2725,10 @@ public class DataSourceServiceImpl extends BaseServiceImpl implements DataSource
 
     private String escapeSqlIdentifier(String identifier) {
         return identifier.replace("\"", "\"\"");
+    }
+
+    private String escapeOracleIdentifier(String identifier) {
+        return upperCaseOracleIdentifier(identifier).replace("\"", "\"\"");
     }
 
     private String escapeMysqlIdentifier(String identifier) {

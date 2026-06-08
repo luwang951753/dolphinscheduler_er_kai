@@ -26,9 +26,21 @@ export default {
   path: '/monitor',
   name: 'monitor',
   meta: { title: 'monitor' },
-  redirect: { name: 'servers-master' },
+  redirect: { name: 'instance-statistics' },
   component: () => import('@/layouts/content'),
   children: [
+    {
+      path: '/monitor/instance-statistics',
+      name: 'instance-statistics',
+      component: components['monitor-statistics-instance-statistics'],
+      meta: {
+        title: '实例统计',
+        activeMenu: 'monitor',
+        showSide: true,
+        auth: [],
+        modulePermission: 'monitor:view'
+      }
+    },
     {
       path: '/monitor/master',
       name: 'servers-master',
@@ -37,7 +49,8 @@ export default {
         title: '服务管理-Master',
         activeMenu: 'monitor',
         showSide: true,
-        auth: []
+        auth: [],
+        modulePermission: 'monitor:view'
       }
     },
     {
@@ -48,7 +61,8 @@ export default {
         title: '服务管理-Worker',
         activeMenu: 'monitor',
         showSide: true,
-        auth: []
+        auth: [],
+        modulePermission: 'monitor:view'
       }
     },
     {
@@ -59,7 +73,8 @@ export default {
         title: '服务管理-Alert Server',
         activeMenu: 'monitor',
         showSide: true,
-        auth: []
+        auth: [],
+        modulePermission: 'monitor:view'
       }
     },
     {
@@ -70,7 +85,8 @@ export default {
         title: '服务管理-DB',
         activeMenu: 'monitor',
         showSide: true,
-        auth: []
+        auth: [],
+        modulePermission: 'monitor:view'
       }
     },
     {
@@ -81,7 +97,8 @@ export default {
         title: '统计管理-Statistics',
         activeMenu: 'monitor',
         showSide: true,
-        auth: []
+        auth: [],
+        modulePermission: 'monitor:view'
       }
     },
     {
@@ -92,7 +109,8 @@ export default {
         title: '审计日志-AuditLog',
         activeMenu: 'monitor',
         showSide: true,
-        auth: []
+        auth: [],
+        modulePermission: 'monitor:view'
       }
     }
   ]

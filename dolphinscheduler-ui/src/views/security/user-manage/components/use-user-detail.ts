@@ -135,11 +135,41 @@ export function useUserDetail() {
       state.formData.tenantId = state.tenants[0].value
     }
   }
+  const getInitialOptions = async () => {
+    if (!IS_ADMIN) return
+
+    state.loading = true
+    try {
+      await Promise.all([getQueues(), getTenants()])
+    } finally {
+      state.loading = false
+    }
+  }
+  const ensureAdminDefaults = () => {
+    if (!IS_ADMIN) return true
+
+    const tenantExists = state.tenants.some(
+      (tenant) => tenant.value === state.formData.tenantId
+    )
+    if (!tenantExists && state.tenants.length) {
+      state.formData.tenantId = state.tenants[0].value
+    }
+    const queueExists = state.queues.some(
+      (queue) => queue.value === state.formData.queue
+    )
+    if (!queueExists && state.queues.length) {
+      state.formData.queue = state.queues[0].value
+    }
+
+    return state.formData.tenantId !== null && state.queues.length > 0
+  }
   const onReset = () => {
     state.formData = { ...initialValues }
   }
   const onSave = async (id?: number): Promise<boolean> => {
     try {
+      if (state.loading) return false
+      if (!ensureAdminDefaults()) return false
       await state.formRef.validate()
       if (state.saving) return false
       state.saving = true
@@ -173,12 +203,7 @@ export function useUserDetail() {
     PREV_NAME = state.formData.userName
   }
 
-  onMounted(async () => {
-    if (IS_ADMIN) {
-      getQueues()
-      getTenants()
-    }
-  })
+  onMounted(getInitialOptions)
 
   return { state, formRules, IS_ADMIN, onReset, onSave, onSetValues }
 }

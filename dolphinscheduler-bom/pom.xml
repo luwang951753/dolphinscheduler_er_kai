@@ -475,6 +475,12 @@
             </dependency>
 
             <dependency>
+                <groupId>com.oracle.database.nls</groupId>
+                <artifactId>orai18n</artifactId>
+                <version>${oracle-jdbc.version}</version>
+            </dependency>
+
+            <dependency>
                 <groupId>com.dameng</groupId>
                 <artifactId>DmJdbcDriver18</artifactId>
                 <version>${dameng-jdbc.version}</version>

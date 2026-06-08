@@ -98,6 +98,14 @@ interface UserInfoRes extends UserReq, IdReq {
   updateTime: string
 }
 
+type ModulePermissionKey =
+  | 'sync-task:view'
+  | 'data-preview:view'
+  | 'theme-library:view'
+  | 'data-governance:view'
+  | 'monitor:view'
+  | 'resources:view'
+
 interface UserListRes {
   id: number
   userName: string
@@ -131,5 +139,6 @@ export {
   ListReq,
   RegisterUserReq,
   UserInfoRes,
-  UserListRes
+  UserListRes,
+  ModulePermissionKey
 }

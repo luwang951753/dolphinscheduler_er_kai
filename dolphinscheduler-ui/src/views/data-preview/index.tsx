@@ -67,7 +67,7 @@ import type {
 } from '@/service/modules/data-source/types'
 import styles from './index.module.scss'
 
-type SupportedDatasourceType = 'MYSQL' | 'POSTGRESQL'
+type SupportedDatasourceType = 'MYSQL' | 'POSTGRESQL' | 'ORACLE'
 type FilterOperator = '=' | '!=' | '>' | '>=' | '<' | '<=' | 'CONTAINS'
 type ActivePanel = 'columns' | 'filters' | 'sorts' | 'joins' | null
 type JoinMode = 'manual' | 'lookup'
@@ -107,6 +107,7 @@ interface OpenedTab {
   key: string
   datasourceId: number
   database: string
+  schema?: string
   tableName: string
 }
 
@@ -153,7 +154,7 @@ interface SqlHistoryItem {
   meta: string
 }
 
-const SUPPORTED_TYPES: SupportedDatasourceType[] = ['MYSQL', 'POSTGRESQL']
+const SUPPORTED_TYPES: SupportedDatasourceType[] = ['MYSQL', 'POSTGRESQL', 'ORACLE']
 const PAGE_SIZE_OPTIONS = [20, 50, 100, 200]
 const FILTER_OPERATOR_OPTIONS: Array<{ label: string; value: FilterOperator }> = [
   { label: '等于', value: '=' },
@@ -246,6 +247,30 @@ const normalizeTextList = (payload: unknown): string[] => {
     .filter(Boolean) as string[]
 }
 
+const normalizeTableList = (payload: unknown) => {
+  const comments: Record<string, string> = {}
+  const tables = normalizeList(payload)
+    .map((item) => {
+      const tableName =
+        typeof item === 'string'
+          ? item
+          : typeof item?.value === 'string'
+            ? item.value
+            : typeof item?.label === 'string'
+              ? item.label
+              : ''
+      if (tableName && typeof item !== 'string') {
+        const comment = item.tableComment || item.comment || item.remarks || ''
+        if (comment) {
+          comments[tableName] = comment
+        }
+      }
+      return tableName
+    })
+    .filter(Boolean) as string[]
+  return { tables, comments }
+}
+
 const parseDatasourceDefaultDatabase = (item: DatasourceRecord) => {
   if (item.database) {
     return item.database
@@ -281,7 +306,59 @@ const cloneJoin = (item: JoinConfig): JoinConfig => ({
 })
 
 const quoteIdentifier = (dbType: SupportedDatasourceType, identifier: string) => {
-  return dbType === 'MYSQL' ? `\`${identifier}\`` : `"${identifier}"`
+  const quote = dbType === 'MYSQL' ? '`' : '"'
+  return `${quote}${identifier.split(quote).join(quote + quote)}${quote}`
+}
+
+const quoteSqlLiteral = (value: string) => {
+  return `'${value.replace(/'/g, "''")}'`
+}
+
+const escapeSqlLikeLiteral = (value: string) => {
+  return value.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_').replace(/'/g, "''")
+}
+
+const buildTableReference = (
+  dbType: SupportedDatasourceType,
+  database: string,
+  schema: string | null | undefined,
+  tableName: string
+) => {
+  if (dbType === 'MYSQL') {
+    return `${quoteIdentifier(dbType, database)}.${quoteIdentifier(dbType, tableName)}`
+  }
+  if (schema) {
+    return `${quoteIdentifier(dbType, schema)}.${quoteIdentifier(dbType, tableName)}`
+  }
+  return quoteIdentifier(dbType, tableName)
+}
+
+const buildPreviewPageClause = (
+  dbType: SupportedDatasourceType,
+  pageNo: number,
+  pageSize: number
+) => {
+  const offset = (pageNo - 1) * pageSize
+  if (dbType === 'ORACLE') {
+    return [
+      '-- Oracle 预览执行由后端使用 ROWNUM 兼容分页',
+      `-- 当前页码 ${pageNo}，偏移 ${offset}，每页 ${pageSize} 行`
+    ].join('\n')
+  }
+  return `LIMIT ${pageSize} OFFSET ${offset}`
+}
+
+const resolvePreviewSchema = (
+  dbType: SupportedDatasourceType | null,
+  database: string | null
+) => {
+  return dbType === 'POSTGRESQL' ? database : null
+}
+
+const datasourceBadgeText = (type?: SupportedDatasourceType) => {
+  if (type === 'POSTGRESQL') return 'PG'
+  if (type === 'ORACLE') return 'OR'
+  return 'MY'
 }
 
 const formatCellValue = (value: unknown) => {
@@ -292,6 +369,11 @@ const formatCellValue = (value: unknown) => {
     return JSON.stringify(value)
   }
   return String(value)
+}
+
+const sanitizeCsvCellValue = (value: unknown) => {
+  const text = formatCellValue(value)
+  return /^[\t\r\n ]*[=+\-@]/.test(text) ? `'${text}` : text
 }
 
 export default defineComponent({
@@ -314,6 +396,7 @@ export default defineComponent({
       selectedDatasourceType: null as SupportedDatasourceType | null,
       databaseOptions: [] as string[],
       database: null as string | null,
+      schema: null as string | null,
       tables: [] as string[],
       tableComments: {} as Record<string, string>,
       tableSearch: '',
@@ -483,7 +566,7 @@ export default defineComponent({
       if (!state.datasourceId || !state.database || !state.selectedTable) {
         return ''
       }
-      return `${state.datasourceId}:${state.database}:${state.selectedTable}`
+      return `${state.datasourceId}:${state.database}:${state.schema || ''}:${state.selectedTable}`
     })
     const activeView = computed(() =>
       state.savedViews.find((item) => item.id === state.activeViewId) || state.savedViews[0] || null
@@ -523,9 +606,9 @@ export default defineComponent({
         .filter((item) => item.field && item.value.trim())
         .map((item) => {
           if (item.operator === 'CONTAINS') {
-            return `${quoteIdentifier(state.selectedDatasourceType!, item.field!)} LIKE '%${item.value}%'`
+            return `${quoteIdentifier(state.selectedDatasourceType!, item.field!)} LIKE ${quoteSqlLiteral(`%${escapeSqlLikeLiteral(item.value)}%`)} ESCAPE '\\\\'`
           }
-          return `${quoteIdentifier(state.selectedDatasourceType!, item.field!)} ${item.operator} '${item.value}'`
+          return `${quoteIdentifier(state.selectedDatasourceType!, item.field!)} ${item.operator} ${quoteSqlLiteral(item.value)}`
         })
       const orderParts = state.sorts
         .filter((item) => item.field)
@@ -533,8 +616,10 @@ export default defineComponent({
 
       const lines = [
         `SELECT ${fields.join(', ')}`,
-        `FROM ${quoteIdentifier(state.selectedDatasourceType!, state.database)}.${quoteIdentifier(
+        `FROM ${buildTableReference(
           state.selectedDatasourceType!,
+          state.database,
+          state.schema,
           state.selectedTable
         )}`
       ]
@@ -551,7 +636,7 @@ export default defineComponent({
       if (orderParts.length) {
         lines.push(`ORDER BY ${orderParts.join(', ')}`)
       }
-      lines.push(`LIMIT ${state.pageSize} OFFSET ${(state.pageNo - 1) * state.pageSize}`)
+      lines.push(buildPreviewPageClause(state.selectedDatasourceType!, state.pageNo, state.pageSize))
       return lines.join('\n')
     })
     const defaultReadonlySql = computed(() => {
@@ -564,11 +649,13 @@ export default defineComponent({
         '-- 只读查询，执行时自动限制最大返回行数',
         'SELECT',
         fields.length ? fields.join(',\n') : '  *',
-        `FROM ${quoteIdentifier(state.selectedDatasourceType || 'MYSQL', state.database || '')}.${quoteIdentifier(
+        `FROM ${buildTableReference(
           state.selectedDatasourceType || 'MYSQL',
+          state.database || '',
+          state.schema,
           state.selectedTable
         )}`,
-        `LIMIT ${state.pageSize};`
+        `${buildPreviewPageClause(state.selectedDatasourceType || 'MYSQL', 1, state.pageSize)};`
       ].join('\n')
     })
 
@@ -618,6 +705,7 @@ export default defineComponent({
     const buildViewRequest = (viewName?: string) => ({
       datasourceId: state.datasourceId!,
       database: state.database!,
+      schema: state.schema || undefined,
       tableName: state.selectedTable!,
       viewName,
       viewConfig: JSON.stringify(createViewConfig())
@@ -636,6 +724,7 @@ export default defineComponent({
         const res = await queryDataPreviewViews({
           datasourceId: state.datasourceId,
           database: state.database,
+          schema: state.schema || undefined,
           tableName: state.selectedTable
         })
         const remoteViews = normalizeList(res)
@@ -702,11 +791,16 @@ export default defineComponent({
       }
       state.loadingDatasources = true
       try {
-        const [mysqlList, postgresqlList] = await Promise.all([
+        const [mysqlList, postgresqlList, oracleList] = await Promise.all([
           queryDataSourceList({ type: 'MYSQL' }),
-          queryDataSourceList({ type: 'POSTGRESQL' })
+          queryDataSourceList({ type: 'POSTGRESQL' }),
+          queryDataSourceList({ type: 'ORACLE' })
         ])
-        const list = [...normalizeList(mysqlList), ...normalizeList(postgresqlList)] as DatasourceRecord[]
+        const list = [
+          ...normalizeList(mysqlList),
+          ...normalizeList(postgresqlList),
+          ...normalizeList(oracleList)
+        ] as DatasourceRecord[]
         state.datasourceOptions = list
           .filter((item) => SUPPORTED_TYPES.includes(item.type))
           .map((item) => ({
@@ -750,16 +844,20 @@ export default defineComponent({
       }
       state.loadingTables = true
       try {
+        state.schema = resolvePreviewSchema(state.selectedDatasourceType, state.database)
         const res = await getDatasourceTablesById(state.datasourceId, state.database)
-        state.tables = normalizeTextList(res)
+        const tableResult = normalizeTableList(res)
+        state.tables = tableResult.tables
+        state.tableComments = tableResult.comments
         state.selectedTable = state.tables[0] || null
         if (state.datasourceId && state.database && state.selectedTable) {
           state.recentTables = [state.selectedTable]
           state.openedTabs = [
             {
-              key: `${state.datasourceId}:${state.database}:${state.selectedTable}`,
+              key: `${state.datasourceId}:${state.database}:${state.schema || ''}:${state.selectedTable}`,
               datasourceId: state.datasourceId,
               database: state.database,
+              schema: state.schema || undefined,
               tableName: state.selectedTable
             }
           ]
@@ -783,7 +881,8 @@ export default defineComponent({
         const res = await getDatasourceTableColumnMetasById(
           state.datasourceId,
           state.database,
-          state.selectedTable
+          state.selectedTable,
+          state.schema || undefined
         )
         state.columns = normalizeColumns(res)
         state.columnOrder = state.columns.map((item) => item.name)
@@ -822,6 +921,7 @@ export default defineComponent({
         state.tableStructure = (await queryDataPreviewTableStructure({
           datasourceId: state.datasourceId,
           database: state.database,
+          schema: state.schema || undefined,
           tableName: state.selectedTable
         })) as IDataPreviewTableStructureResult
         if (state.tableStructure?.summary?.tableComment) {
@@ -887,6 +987,7 @@ export default defineComponent({
         const result = (await previewDatasourceTableData({
           datasourceId: state.datasourceId,
           database: state.database,
+          schema: state.schema || undefined,
           tableName: state.selectedTable,
           filters,
           sorts,
@@ -938,6 +1039,7 @@ export default defineComponent({
         state.datasourceOptions.find((item) => item.value === value)?.type || null
       state.databaseOptions = []
       state.database = null
+      state.schema = null
       resetTableState()
       if (!value) {
         return
@@ -952,6 +1054,7 @@ export default defineComponent({
 
     const handleDatabaseChange = async (value: string | null) => {
       state.database = value
+      state.schema = resolvePreviewSchema(state.selectedDatasourceType, value)
       resetTableState()
       if (!value) {
         return
@@ -972,12 +1075,13 @@ export default defineComponent({
         tableName,
         ...state.recentTables.filter((item) => item !== tableName)
       ].slice(0, 5)
-      const tabKey = `${state.datasourceId}:${state.database}:${tableName}`
+      const tabKey = `${state.datasourceId}:${state.database}:${state.schema || ''}:${tableName}`
       if (!state.openedTabs.some((tab) => tab.key === tabKey)) {
         state.openedTabs.push({
           key: tabKey,
           datasourceId: state.datasourceId,
           database: state.database,
+          schema: state.schema || undefined,
           tableName
         })
       }
@@ -1137,6 +1241,7 @@ export default defineComponent({
       return {
         datasourceId: state.datasourceId,
         database: state.database,
+        schema: state.schema || undefined,
         tableName: state.selectedTable || undefined,
         sql: state.sqlText,
         pageSize: state.pageSize,
@@ -1350,7 +1455,7 @@ export default defineComponent({
         return
       }
       const columns = displayColumns.value
-      const escapeCsv = (value: unknown) => `"${formatCellValue(value).replace(/"/g, '""')}"`
+      const escapeCsv = (value: unknown) => `"${sanitizeCsvCellValue(value).replace(/"/g, '""')}"`
       const header = columns.map((item) => escapeCsv(item.name)).join(',')
       const body = state.rows
         .map((row) =>
@@ -1914,12 +2019,14 @@ export default defineComponent({
                     <span
                       class={[
                         styles.dbVendorIcon,
-                        this.selectedDatasource?.type === 'POSTGRESQL'
-                          ? styles.dbVendorPostgresql
-                          : styles.dbVendorMysql
+                        this.selectedDatasource?.type === 'ORACLE'
+                          ? styles.dbVendorOracle
+                          : this.selectedDatasource?.type === 'POSTGRESQL'
+                            ? styles.dbVendorPostgresql
+                            : styles.dbVendorMysql
                       ]}
                     >
-                      {this.selectedDatasource?.type === 'POSTGRESQL' ? 'PG' : 'MY'}
+                      {datasourceBadgeText(this.selectedDatasource?.type)}
                     </span>
                     <span class={styles.treeNodeText}>{this.selectedDatasource?.label || '数据源'}</span>
                     <span class={styles.treeNodeMeta}>{this.selectedDatasource?.type || 'DB'}</span>
@@ -1939,7 +2046,9 @@ export default defineComponent({
                         <span
                           class={[
                             styles.databaseIcon,
-                            this.selectedDatasource?.type === 'POSTGRESQL'
+                            this.selectedDatasource?.type === 'ORACLE'
+                              ? styles.databaseIconOracle
+                              : this.selectedDatasource?.type === 'POSTGRESQL'
                               ? styles.databaseIconPostgresql
                               : styles.databaseIconMysql
                           ]}

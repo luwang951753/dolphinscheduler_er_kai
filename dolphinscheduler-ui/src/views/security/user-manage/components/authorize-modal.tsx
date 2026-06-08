@@ -207,6 +207,33 @@ export const AuthorizeModal = defineComponent({
             class={styles.transfer}
           />
         )}
+        {type === 'authorize_module' && (
+          <NSpace vertical size={12}>
+            <div class={styles.authHint}>
+              勾选后，该用户才能在顶部菜单和路由中访问对应模块。管理员默认拥有全部模块权限。
+            </div>
+            <div class={styles.moduleAuthGrid}>
+              {this.modulePermissionOptions.map((item) => (
+                <label class={styles.moduleAuthItem} key={item.value}>
+                  <input
+                    type='checkbox'
+                    checked={this.authorizedModules.includes(item.value)}
+                    onChange={(event) => {
+                      const checked = (event.target as HTMLInputElement).checked
+                      this.authorizedModules = checked
+                        ? [...this.authorizedModules, item.value]
+                        : this.authorizedModules.filter((value: string) => value !== item.value)
+                    }}
+                  />
+                  <span>
+                    <strong>{item.label}</strong>
+                    <small>{item.description}</small>
+                  </span>
+                </label>
+              ))}
+            </div>
+          </NSpace>
+        )}
       </Modal>
     )
   }

@@ -30,6 +30,7 @@
             <includes>
                 <include>*.yaml</include>
                 <include>*.xml</include>
+                <include>*.js</include>
                 <include>swagger.properties</include>
             </includes>
             <outputDirectory>conf</outputDirectory>
@@ -67,6 +68,10 @@
         <fileSet>
             <directory>${basedir}/../dolphinscheduler-ui/dist</directory>
             <outputDirectory>./ui</outputDirectory>
+        </fileSet>
+        <fileSet>
+            <directory>${basedir}/../data/magic-api</directory>
+            <outputDirectory>./data/magic-api</outputDirectory>
         </fileSet>
     </fileSets>
     <dependencySets>

@@ -822,6 +822,23 @@
       background: #eef5ff;
       color: #1f5fbf;
     }
+    .magicLinkStatus {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-left: auto;
+      color: #475467;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+    .magicLinkStatus i {
+      width: 7px;
+      height: 7px;
+      border-radius: 999px;
+      background: #98a2b3;
+    }
+    .magicLinkStatus.live i { background: #12b76a; }
+    .magicLinkStatus.error i { background: #f79009; }
     .formGrid {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -905,22 +922,18 @@
       <div class="brand"><span class="brandIcon">T</span><span>主题库</span><span class="brandSub">公安业务主题工作台</span></div>
       <input class="search" id="globalSearch" placeholder="搜索主题、对象、资产、字段、来源系统" />
       <select class="select" id="scopeFilter"><option>全部主题</option><option>我负责的</option><option>最近更新</option></select>
-      <select class="select" id="roleSelect" title="当前用户权限">
-        <option value="admin">管理员</option>
-        <option value="editor">主题维护员</option>
-        <option value="viewer">只读用户</option>
-      </select>
     </header>
     <main class="workspace">
       <aside class="domainPane">
-        <div class="paneHeader"><span>主题域</span><button class="linkBtn" type="button" data-create-type="domain" data-edit-only>新建主题</button></div>
+        <div class="paneHeader"><span>主题域</span></div>
         <div class="domainList" id="domainList"></div>
-        <div class="paneFooter"><span class="muted">主题域 -> 业务对象</span><button class="linkBtn" type="button" data-create-type="domain" data-edit-only>维护主题</button></div>
+        <div class="paneFooter"><span class="muted">主题域 -> 业务对象</span></div>
       </aside>
       <div class="splitter" id="paneSplitter" title="左右拖拽调整主题域宽度"></div>
       <section class="contentPane">
         <div class="contentHeader">
           <div class="contentTitle"><strong id="contentTitle">警情域</strong><span id="contentSubtitle">业务对象与主题资产</span></div>
+          <span class="magicLinkStatus" id="magicLinkStatus"><i></i><span>Magic 接口待连接</span></span>
         </div>
         <div class="contentBody" id="contentBody"></div>
       </section>
@@ -1109,7 +1122,7 @@
       }
     };
 
-    const themeDomains = [
+    let themeDomains = [
       {
         id: 'all',
         name: '全部主题',
@@ -1370,13 +1383,158 @@
       };
     }
 
-    const state = { domainId: 'alarm', objectId: '', tab: 'overview', notice: '', editing: null, role: 'admin', hiddenInsights: new Set(), deletedInsights: new Set() };
+    function resolveApiContextPath() {
+      const pathname = window.location.pathname || '';
+      const uiIndex = pathname.indexOf('/ui/');
+      if (uiIndex > 0) {
+        return pathname.slice(0, uiIndex);
+      }
+      return '/dolphinscheduler';
+    }
+
+    const apiContextPath = resolveApiContextPath();
+    const localThemeDomains = themeDomains;
+    const magicApi = {
+      domains: `${apiContextPath}/magic-api/ztk/domains`,
+      objects: `${apiContextPath}/magic-api/ztk/objects`,
+      scenarios: `${apiContextPath}/magic-api/ztk/scenarios`
+    };
+
+    const state = { domainId: 'alarm', objectId: '', tab: 'overview', notice: '', editing: null, role: 'viewer', hiddenInsights: new Set(), deletedInsights: new Set(), magicStatus: 'loading', magicMessage: '正在连接 Magic 接口' };
     const sqlState = { object: null, scenario: null, main: null };
     const insightEditState = { object: null, scenario: null, main: null, key: null, type: null };
     const objectEditState = { domain: null, object: null };
 
     function canEdit() {
-      return state.role === 'admin' || state.role === 'editor';
+      return false;
+    }
+
+    function normalizeMagicPayload(payload) {
+      if (payload && payload.code !== undefined && payload.data !== undefined) return payload.data;
+      return payload;
+    }
+
+    function readCookie(name) {
+      const parts = document.cookie ? document.cookie.split('; ') : [];
+      const prefix = `${name}=`;
+      const match = parts.find(item => item.startsWith(prefix));
+      return match ? decodeURIComponent(match.slice(prefix.length)) : '';
+    }
+
+    async function fetchMagicJson(url) {
+      const cacheSeparator = url.includes('?') ? '&' : '?';
+      const sessionId = readCookie('sessionId');
+      const headers = sessionId ? { sessionId } : {};
+      const response = await fetch(`${url}${cacheSeparator}_=${Date.now()}`, {
+        credentials: 'include',
+        headers
+      });
+      if (!response.ok) throw new Error(`Magic 接口 ${response.status}`);
+      return normalizeMagicPayload(await response.json());
+    }
+
+    function localDomainById(domainId) {
+      return localThemeDomains.find(domain => domain.id === domainId);
+    }
+
+    function normalizeMagicDomain(raw) {
+      const local = localDomainById(raw.id) || {};
+      return {
+        ...local,
+        ...raw,
+        objects: Array.isArray(raw.objects) ? raw.objects : (local.objects || []),
+        fromMagic: true
+      };
+    }
+
+    function normalizeMagicObject(raw, domain) {
+      const local = (localDomainById(domain.id)?.objects || []).find(object => object.id === raw.id) || {};
+      return {
+        ...local,
+        ...raw,
+        domainId: domain.id,
+        domainName: domain.name,
+        questions: raw.questions || local.questions || ['当前总量是多少', '哪些单位变化明显', '是否存在异常或待治理事项'],
+        systems: raw.systems || local.systems || ['Magic 接口'],
+        assets: raw.assets || local.assets || [],
+        fields: raw.fields || local.fields || [],
+        metrics: raw.metrics || local.metrics || [],
+        scenarios: raw.scenarios || local.scenarios || [],
+        fromMagic: true
+      };
+    }
+
+    function applyMagicObjects(domainId, objects) {
+      const domain = themeDomains.find(item => item.id === domainId);
+      if (!domain || !Array.isArray(objects)) return;
+      domain.objects = objects.map(item => normalizeMagicObject(item, domain));
+    }
+
+    function applyMagicScenarios(objectId, scenarios) {
+      const object = realDomains().flatMap(domain => domain.objects).find(item => item.id === objectId);
+      if (!object || !Array.isArray(scenarios)) return;
+      object.scenarios = scenarios.map(item => ({
+        ...item,
+        assets: item.assets || object.assets.map(asset => asset.name),
+        metrics: item.metrics || object.metrics.map(metric => metric.name),
+        fields: item.fields || object.fields.map(field => field.zh),
+        fromMagic: true
+      }));
+    }
+
+    function setMagicStatus(status, message) {
+      state.magicStatus = status;
+      state.magicMessage = message;
+      const node = document.getElementById('magicLinkStatus');
+      if (!node) return;
+      node.className = `magicLinkStatus ${status === 'live' ? 'live' : status === 'error' ? 'error' : ''}`;
+      node.querySelector('span').textContent = message;
+    }
+
+    async function loadMagicDomains() {
+      try {
+        setMagicStatus('loading', '正在连接 Magic 主题域接口');
+        const domains = await fetchMagicJson(magicApi.domains);
+        if (!Array.isArray(domains)) throw new Error('主题域接口返回不是数组');
+        const allDomain = localThemeDomains.find(domain => domain.id === 'all') || { id: 'all', name: '全部主题', owner: '数据治理组', status: '运行中', virtual: true, objects: [] };
+        themeDomains = [allDomain, ...domains.map(normalizeMagicDomain)];
+        setMagicStatus('live', '已连接 Magic：主题域');
+      } catch (error) {
+        themeDomains = localThemeDomains;
+        setMagicStatus('error', `Magic 未连接，使用本地演示数据：${error.message}`);
+      }
+      renderAll();
+    }
+
+    async function loadMagicObjects(domainId) {
+      if (!domainId || domainId === 'all') return;
+      try {
+        setMagicStatus('loading', '正在通过 Magic 加载业务项');
+        const data = await fetchMagicJson(`${magicApi.objects}?domainId=${encodeURIComponent(domainId)}`);
+        const objects = Array.isArray(data) ? data : [];
+        if (!Array.isArray(objects)) throw new Error('业务项接口未返回当前主题域数据');
+        applyMagicObjects(domainId, objects);
+        setMagicStatus('live', `已连接 Magic：${getActiveDomain().name}业务项`);
+      } catch (error) {
+        setMagicStatus('error', `业务项仍使用本地数据：${error.message}`);
+      }
+      renderAll();
+    }
+
+    async function loadMagicScenarios(objectId) {
+      if (!objectId) return;
+      const domainId = getActiveObject()?.domainId || state.domainId;
+      try {
+        setMagicStatus('loading', '正在通过 Magic 加载分析场景');
+        const data = await fetchMagicJson(`${magicApi.scenarios}?domainId=${encodeURIComponent(domainId)}&objectId=${encodeURIComponent(objectId)}`);
+        const scenarios = Array.isArray(data) ? data : [];
+        if (!Array.isArray(scenarios)) throw new Error('分析场景接口未返回当前业务项数据');
+        applyMagicScenarios(objectId, scenarios);
+        setMagicStatus('live', `已连接 Magic：${getActiveObject()?.name || '业务项'}分析场景`);
+      } catch (error) {
+        setMagicStatus('error', `分析场景仍使用本地数据：${error.message}`);
+      }
+      renderAll();
     }
 
     function realDomains() {
@@ -1434,6 +1592,7 @@
           state.tab = 'overview';
           state.notice = '';
           renderAll();
+          loadMagicObjects(state.domainId);
         });
         button.addEventListener('keydown', event => {
           if (event.key === 'Enter' || event.key === ' ') button.click();
@@ -1457,7 +1616,7 @@
           <div class="objectToolbar"><input class="fieldInput" disabled placeholder="该主题暂无可搜索业务项" />${canEdit() ? '<button class="btn btnPrimary" type="button" data-create-type="object">新增业务项</button>' : ''}</div>
           <div class="emptyState">
             <h3>该主题还没有业务对象</h3>
-            <p class="muted">${canEdit() ? '可以继续点击“新增业务项”，为这个主题补充业务内容和分析场景。' : '当前账号只有查看权限，请联系管理员维护主题内容。'}</p>
+            <p class="muted">当前主题暂无业务项，请在 Magic 接口维护后刷新页面查看。</p>
           </div>
         `;
         body.querySelector('[data-create-type]')?.addEventListener('click', event => openCreateForm(event.target.dataset.createType));
@@ -1498,6 +1657,7 @@
           state.objectId = state.objectId === button.dataset.objectId ? '' : button.dataset.objectId;
           state.notice = '';
           renderAll();
+          if (state.objectId) loadMagicScenarios(state.objectId);
         });
         button.addEventListener('keydown', event => {
           if (event.key === 'Enter' || event.key === ' ') button.click();
@@ -1727,19 +1887,19 @@
 
     function renderScenarioInsightBlocks(object, scenario) {
       const isAlarmReceiveTrend = object.id === 'alarm-receive' && (scenario.title || '').includes('接警总量');
-      const rankRows = isAlarmReceiveTrend ? [
+      const rankRows = scenario.insightRows?.rank || (isAlarmReceiveTrend ? [
         { name: '西城派出所', value: '218 起' },
         { name: '东城派出所', value: '196 起' },
         { name: '南城派出所', value: '173 起' },
         { name: '交警一中队', value: '139 起' },
         { name: '中心商圈警务站', value: '122 起' }
-      ] : buildInsightRankRows(object, scenario);
-      const pieRows = isAlarmReceiveTrend ? [
+      ] : buildInsightRankRows(object, scenario));
+      const pieRows = scenario.insightRows?.pie || (isAlarmReceiveTrend ? [
         { name: '需关注', value: '42%', color: '#1f5fbf' },
         { name: '运行中', value: '26%', color: '#60a5fa' },
         { name: '待处理', value: '16%', color: '#f59e0b' },
         { name: '已闭环', value: '16%', color: '#22c55e' }
-      ] : buildInsightPieRows(scenario);
+      ] : buildInsightPieRows(scenario));
       const baseCode = `${object.id}_${slugText(scenario.title || 'scenario')}`;
       const rankKey = `${baseCode}_rank`;
       const pieKey = `${baseCode}_pie`;
@@ -2026,7 +2186,7 @@
     }
 
     function queryStatusText(scenario) {
-      if (!scenario.sqlConfig) return '默认展示场景条目，点击编辑SQL可选择 DolphinScheduler 数据源';
+      if (!scenario.sqlConfig) return '数据由 Magic 接口返回的主题库场景配置展示';
       return `根据 ${scenario.sqlConfig.datasourceLabel} 的 SQL 展示查询结果`;
     }
 
@@ -2658,11 +2818,14 @@
     document.getElementById('globalSearch').addEventListener('input', event => {
       renderContent();
     });
-    document.getElementById('roleSelect').addEventListener('change', event => {
-      state.role = event.target.value;
-      state.notice = event.target.value === 'viewer' ? '当前为只读用户，只能查看主题、业务项和查询结果。' : '';
-      renderAll();
-    });
+    const roleSelect = document.getElementById('roleSelect');
+    if (roleSelect) {
+      roleSelect.addEventListener('change', event => {
+        state.role = event.target.value;
+        state.notice = event.target.value === 'viewer' ? '当前为只读用户，只能查看主题、业务项和查询结果。' : '';
+        renderAll();
+      });
+    }
     const splitter = document.getElementById('paneSplitter');
     splitter.addEventListener('mousedown', () => {
       splitter.classList.add('dragging');
@@ -2678,7 +2841,7 @@
       splitter.classList.remove('dragging');
       document.body.style.userSelect = '';
     });
-    renderAll();
+    loadMagicDomains();
   </script>
 </body>
 </html>

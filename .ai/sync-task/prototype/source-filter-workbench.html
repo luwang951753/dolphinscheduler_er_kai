@@ -72,13 +72,16 @@
     .btn.ghost{background:#f7f9fc}
     .btn:disabled{cursor:not-allowed;background:#f1f4f8;color:var(--muted)}
     .grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+    .grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
     .field{display:flex;flex-direction:column;gap:6px;min-width:0}
     .field.full{grid-column:span 2}
+    .field.full3{grid-column:span 3}
     label{color:var(--subtle);font-weight:600;font-size:12px}
     select,input,textarea{
       width:100%;height:34px;border:1px solid #d8e0ec;border-radius:8px;padding:0 10px;background:#fff;color:var(--text);outline:none;font:inherit
     }
     textarea{height:78px;padding:9px 10px;resize:none;line-height:1.55}
+    textarea.sql-template{height:168px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;line-height:1.6}
     select:focus,input:focus,textarea:focus{border-color:#7aa2ff;box-shadow:0 0 0 3px rgba(47,107,255,.1)}
     .statgrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
     .stat{border:1px solid var(--line2);background:#fbfcff;border-radius:var(--radius-sm);padding:9px 10px;min-width:0}
@@ -102,6 +105,32 @@
     .preview{border:1px solid #e7edf6;background:#fbfcff;border-radius:8px;padding:9px 10px}
     .preview span{display:block;font-size:11px;color:var(--muted)}
     .preview strong{display:block;margin-top:4px;font-size:14px}
+    .option-tabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+    .option-tab{height:44px;border:1px solid #d8e0ec;background:#fff;border-radius:8px;padding:6px 10px;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;color:#344054;text-align:left;cursor:pointer;font:inherit;min-width:0}
+    .option-tab.active{border-color:rgba(47,107,255,.35);background:var(--primary-soft);color:var(--primary);font-weight:700}
+    .option-tab strong{font-size:12px;line-height:1.2}
+    .option-tab span{margin-top:2px;font-size:11px;color:var(--subtle);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+    .sink-tabs{display:flex;gap:6px;flex-wrap:wrap;border-bottom:1px solid var(--line2);padding:0 2px}
+    .sink-tab{height:34px;border:0;border-bottom:2px solid transparent;background:transparent;padding:0 10px;cursor:pointer;color:#475467;font:inherit;white-space:nowrap}
+    .sink-tab.active{color:var(--primary);border-bottom-color:var(--primary);font-weight:700}
+    .sink-tab-panel{border:1px solid var(--line2);border-top:0;border-radius:0 0 10px 10px;background:#fff;padding:12px;display:flex;flex-direction:column;gap:10px}
+    .sink-section{border:1px solid var(--line2);border-radius:10px;background:#fff;padding:12px;display:flex;flex-direction:column;gap:10px}
+    .sink-section-title{display:flex;align-items:center;justify-content:space-between;gap:10px;font-weight:700}
+    .notice{border:1px solid #d8e4ff;background:#f6f9ff;border-radius:10px;padding:10px 12px;color:#344054;line-height:1.55}
+    .notice.warn{border-color:#ffe0a8;background:#fff8ec;color:#704d16}
+    .notice.danger{border-color:#ffd5e1;background:#fff5f7;color:#9f1239}
+    .field-note{color:var(--muted);font-size:11px;line-height:1.45}
+    .label-help{display:inline-flex;align-items:center;gap:5px;position:relative;width:max-content}
+    .help-icon{width:16px;height:16px;border-radius:50%;border:1px solid #b9c7dd;color:#667085;background:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;cursor:help}
+    .help-popover{position:absolute;left:0;top:22px;z-index:20;width:420px;border:1px solid #cbd8ea;border-radius:8px;background:#fff;box-shadow:0 12px 28px rgba(25,40,74,.16);padding:10px 12px;color:#344054;line-height:1.55;display:none;font-weight:400}
+    .help-popover div+div{margin-top:6px}
+    .help-popover strong{color:#1f2937}
+    .label-help:hover .help-popover,
+    .label-help:focus-within .help-popover{display:block}
+    .field.is-disabled input,
+    .field.is-disabled select,
+    .field.is-disabled textarea{background:#f1f4f8;color:#98a2b3;cursor:not-allowed}
+    .hidden{display:none!important}
     .map-shell{border:1px solid var(--line2);border-radius:10px;background:#f9fbff;padding:12px;display:flex;flex-direction:column;gap:10px}
     .map-toolbar{display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap}
     .map-toolbar-left{display:flex;gap:8px;flex-wrap:wrap}
@@ -147,7 +176,7 @@
     <div class="topbar">
       <div>
         <div class="title">同步任务 · 第 2 步：配置同步方案原型</div>
-        <div class="subtitle">参考 DataWorks 的分区方式，将第 2 步拆成多个功能块：字段映射关系、源端过滤条件、数据去向、数据处理。</div>
+        <div class="subtitle">参考 DataWorks 的分区方式，将第 2 步拆成多个功能块：字段映射关系、数据去向、源端过滤条件、数据处理。</div>
       </div>
       <div class="steps">
         <span class="step">1 选择源与目标</span>
@@ -161,8 +190,8 @@
       <div class="summary-item"><span>项目</span><strong>test1</strong></div>
       <div class="summary-item"><span>源端连接</span><strong>mysql_case_workbench</strong></div>
       <div class="summary-item"><span>源表</span><strong>case_workbench.ajxx_tab</strong></div>
-      <div class="summary-item"><span>目标端连接</span><strong>pgsql_test1</strong></div>
-      <div class="summary-item"><span>目标模式</span><strong>新建目标表</strong></div>
+      <div class="summary-item"><span>目标端连接</span><strong>doris_fe_mysql</strong></div>
+      <div class="summary-item"><span>目标端类型</span><strong>Doris</strong></div>
       <div class="summary-item"><span>同步方案</span><strong id="summaryText">4 个模块</strong></div>
     </div>
 
@@ -218,6 +247,16 @@
       `
     },
     {
+      id: 'sink',
+      name: '数据去向',
+      desc: '配置目标端写入方式。目标端数据源类型为 Doris 时，展示 Doris Stream Load Sink 选项。',
+      chip: 'Doris',
+      type: 'panel',
+      body: `
+        <div id="dorisSinkWorkbench"></div>
+      `
+    },
+    {
       id: 'filter',
       name: '源端过滤条件',
       desc: '在读取阶段拼接 WHERE 条件、时间范围和前 N 条限制。',
@@ -249,34 +288,6 @@
               <button class="btn" id="copySql" style="height:24px;">复制 SQL</button>
             </div>
             <pre id="sqlText"></pre>
-          </div>
-        </div>
-      `
-    },
-    {
-      id: 'sink',
-      name: '数据去向',
-      desc: '配置目标写入前 SQL，例如通过 SeaTunnel JDBC custom_sql 在同步前清空旧数据。',
-      chip: '可配置',
-      type: 'panel',
-      body: `
-        <div class="cardbox">
-          <div class="block-head">
-            <div>
-              <div class="section-title">数据去向</div>
-              <div class="section-tip">SeaTunnel JDBC sink 支持 custom_sql 作为同步前 SQL；不是 preSql 参数名。</div>
-            </div>
-            <span class="chip warn">待配置</span>
-          </div>
-          <div class="grid2">
-            <div class="field full">
-              <label>同步前 SQL（custom_sql）</label>
-              <textarea>truncate table ajxx_tab_sync;</textarea>
-            </div>
-            <div class="field full">
-              <label>说明</label>
-              <input value="系统按 custom_sql 自动生成 SeaTunnel 同步前 SQL 配置。" disabled />
-            </div>
           </div>
         </div>
       `
@@ -344,7 +355,99 @@
       { enabled:true, field:'create_time', op:'GTE', value:'2026-05-01 00:00:00', valueEnd:'' }
     ],
     estimated:false,
-    estimateRows:12480
+    estimateRows:12480,
+    sinkTarget:'doris',
+    dorisTab:'base',
+    jdbcTab:'base',
+    dorisSink: {
+      fenodes:'10.10.1.21:8030,10.10.1.22:8030',
+      queryPort:'9030',
+      database:'ods',
+      table:'ajxx_tab_sync',
+      username:'root',
+      password:'******',
+      labelPrefix:'df_ajxx_sync',
+      schemaSaveMode:'CREATE_SCHEMA_WHEN_NOT_EXIST',
+      dataSaveMode:'APPEND_DATA',
+      enable2pc:'true',
+      enableDelete:'false',
+      needsUnsupportedTypeCasting:'false',
+      caseSensitive:'false',
+      bufferSize:'100000',
+      bufferCount:'3',
+      batchSize:'1024',
+      checkInterval:'10000',
+      maxRetries:'3',
+      format:'json',
+      readJsonByLine:'true',
+      stripOuterArray:'true',
+      columnSeparator:',',
+      loadToSingleTablet:'false',
+      customSql:'truncate table ods.ajxx_tab_sync;',
+      saveModeCreateTemplate:`CREATE TABLE IF NOT EXISTS \`\${database}\`.\`\${table_name}\` (
+  \${rowtype_primary_key},
+  \${rowtype_fields}
+)
+ENGINE=OLAP
+UNIQUE KEY (\${rowtype_primary_key})
+DISTRIBUTED BY HASH (\${rowtype_primary_key})
+PROPERTIES (
+  "replication_allocation" = "tag.location.default: 1"
+);`
+    },
+    jdbcSink: {
+      mysql: {
+        url:'jdbc:mysql://10.10.1.30:3306/ods?useUnicode=true&characterEncoding=utf8&rewriteBatchedStatements=true',
+        driver:'com.mysql.cj.jdbc.Driver',
+        username:'dataflow',
+        password:'******',
+        database:'ods',
+        table:'ajxx_tab_sync',
+        primaryKeys:'id',
+        query:'',
+        schemaSaveMode:'CREATE_SCHEMA_WHEN_NOT_EXIST',
+        dataSaveMode:'APPEND_DATA',
+        customSql:'truncate table ods.ajxx_tab_sync;',
+        enableUpsert:'true',
+        generateSinkSql:'false',
+        fieldIde:'ORIGINAL',
+        batchSize:'1000',
+        maxRetries:'0',
+        connectionCheckTimeoutSec:'30',
+        isExactlyOnce:'false',
+        xaDataSourceClassName:'com.mysql.cj.jdbc.MysqlXADataSource',
+        maxCommitAttempts:'3',
+        transactionTimeoutSec:'-1',
+        autoCommit:'true',
+        properties:'rewriteBatchedStatements=true\nuseServerPrepStmts=false'
+      },
+      oracle: {
+        url:'jdbc:oracle:thin:@10.10.1.40:1521/FREEPDB1',
+        driver:'oracle.jdbc.OracleDriver',
+        username:'DATAFLOW',
+        password:'******',
+        database:'DATAFLOW',
+        table:'DATAFLOW.AJXX_TAB_SYNC',
+        primaryKeys:'ID',
+        query:'',
+        schemaSaveMode:'CREATE_SCHEMA_WHEN_NOT_EXIST',
+        dataSaveMode:'APPEND_DATA',
+        customSql:'truncate table DATAFLOW.AJXX_TAB_SYNC',
+        enableUpsert:'true',
+        generateSinkSql:'false',
+        fieldIde:'UPPERCASE',
+        batchSize:'1000',
+        batchIntervalMs:'1000',
+        maxRetries:'0',
+        connectionCheckTimeoutSec:'30',
+        isExactlyOnce:'false',
+        xaDataSourceClassName:'oracle.jdbc.xa.client.OracleXADataSource',
+        maxCommitAttempts:'3',
+        transactionTimeoutSec:'-1',
+        autoCommit:'true',
+        properties:'oracle.jdbc.timezoneAsRegion=false'
+      }
+    }
   };
 
   const typeOf = field => (fieldOptions.find(f => f.value === field) || {}).type || 'string';
@@ -369,6 +472,9 @@
     }
   };
   const currentOps = field => ops[typeOf(field)] || ops.string;
+  const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const boolOptions = value => ['true','false'].map(v => `<option value="${v}" ${v === value ? 'selected' : ''}>${v}</option>`).join('');
+  const selectOptions = (items, value) => items.map(v => `<option value="${v}" ${v === value ? 'selected' : ''}>${v}</option>`).join('');
 
   function renderMenu(){
     const wrap = document.getElementById('moduleList');
@@ -522,6 +628,397 @@
     document.getElementById('sqlText').innerHTML = buildSql(state.rows.map(clause).filter(Boolean));
   }
 
+  function buildDorisConfigText(){
+    const d = state.dorisSink;
+    const lines = [
+      'sink {',
+      '  Doris {',
+      `    fenodes = "${d.fenodes}"`,
+      `    query-port = ${d.queryPort}`,
+      `    username = "${d.username}"`,
+      `    password = "${d.password}"`,
+      `    database = "${d.database}"`,
+      `    table = "${d.table}"`,
+      `    sink.label-prefix = "${d.labelPrefix}"`,
+      `    sink.enable-2pc = ${d.enable2pc}`,
+      `    sink.enable-delete = ${d.enableDelete}`,
+      `    sink.buffer-count = ${d.bufferCount}`,
+      `    doris.batch.size = ${d.batchSize}`,
+      `    sink.check-interval = ${d.checkInterval}`,
+      `    sink.max-retries = ${d.maxRetries}`,
+      `    needs_unsupported_type_casting = ${d.needsUnsupportedTypeCasting}`,
+      `    case_sensitive = ${d.caseSensitive}`,
+      `    schema_save_mode = "${d.schemaSaveMode}"`,
+      `    data_save_mode = "${d.dataSaveMode}"`
+    ];
+
+    if (d.enable2pc !== 'true') {
+      lines.splice(10, 0, `    sink.buffer-size = ${d.bufferSize}`);
+    }
+    if (d.dataSaveMode === 'CUSTOM_PROCESSING') {
+      lines.push(`    custom_sql = "${d.customSql.replaceAll('"', '\\"')}"`);
+    }
+    if (d.schemaSaveMode !== 'ERROR_WHEN_SCHEMA_NOT_EXIST') {
+      lines.push('    save_mode_create_template = """');
+      lines.push(...d.saveModeCreateTemplate.split('\n').map(line => `      ${line}`));
+      lines.push('    """');
+    }
+
+    lines.push('    doris.config = {');
+    lines.push(`      format = "${d.format}"`);
+    if (d.format === 'json') {
+      lines.push(`      read_json_by_line = "${d.readJsonByLine}"`);
+      lines.push(`      strip_outer_array = "${d.stripOuterArray}"`);
+    } else {
+      lines.push(`      column_separator = "${d.columnSeparator}"`);
+    }
+    lines.push(`      load_to_single_tablet = "${d.loadToSingleTablet}"`);
+    lines.push('    }');
+    lines.push('  }');
+    lines.push('}');
+    return lines.join('\n');
+  }
+
+  function currentJdbcSink(){
+    return state.jdbcSink[state.sinkTarget === 'oracle' ? 'oracle' : 'mysql'];
+  }
+
+  function buildPropertiesBlock(value, indent = '      '){
+    const rows = String(value || '').split('\n').map(line => line.trim()).filter(Boolean);
+    if (!rows.length) return [];
+    const lines = ['    properties = {'];
+    rows.forEach(row => {
+      const eq = row.indexOf('=');
+      const key = eq >= 0 ? row.slice(0, eq).trim() : row;
+      const val = eq >= 0 ? row.slice(eq + 1).trim() : '';
+      lines.push(`${indent}${key} = "${val.replaceAll('"', '\\"')}"`);
+    });
+    lines.push('    }');
+    return lines;
+  }
+
+  function buildJdbcConfigText(){
+    const target = state.sinkTarget === 'oracle' ? 'oracle' : 'mysql';
+    const d = currentJdbcSink();
+    const connector = target === 'oracle' ? 'Oracle' : 'Mysql';
+    const lines = [
+      'sink {',
+      `  ${connector} {`,
+      `    url = "${d.url}"`,
+      `    driver = "${d.driver}"`,
+      `    user = "${d.username}"`,
+      `    password = "${d.password}"`,
+      `    database = "${d.database}"`,
+      `    table = "${d.table}"`,
+      `    primary_keys = ["${d.primaryKeys.split(',').map(v => v.trim()).filter(Boolean).join('", "')}"]`,
+      `    schema_save_mode = "${d.schemaSaveMode}"`,
+      `    data_save_mode = "${d.dataSaveMode}"`,
+      `    enable_upsert = ${d.enableUpsert}`,
+      `    generate_sink_sql = ${d.generateSinkSql}`,
+      `    field_ide = "${d.fieldIde}"`,
+      `    batch_size = ${d.batchSize}`,
+      `    max_retries = ${d.maxRetries}`,
+      `    connection_check_timeout_sec = ${d.connectionCheckTimeoutSec}`,
+      `    is_exactly_once = ${d.isExactlyOnce}`,
+      `    xa_data_source_class_name = "${d.xaDataSourceClassName}"`,
+      `    max_commit_attempts = ${d.maxCommitAttempts}`,
+      `    transaction_timeout_sec = ${d.transactionTimeoutSec}`,
+      `    auto_commit = ${d.autoCommit}`
+    ];
+    if (target === 'oracle') {
+      lines.splice(14, 0, `    batch_interval_ms = ${d.batchIntervalMs}`);
+    }
+    if (d.query.trim()) {
+      lines.push(`    query = "${d.query.replaceAll('"', '\\"')}"`);
+    }
+    if (d.dataSaveMode === 'CUSTOM_PROCESSING') {
+      lines.push(`    custom_sql = "${d.customSql.replaceAll('"', '\\"')}"`);
+    }
+    lines.push(...buildPropertiesBlock(d.properties));
+    lines.push('  }');
+    lines.push('}');
+    return lines.join('\n');
+  }
+
+  function renderTargetSelector(){
+    const items = [
+      { id:'doris', label:'Doris', desc:'SeaTunnel Doris Sink / Stream Load' },
+      { id:'mysql', label:'MySQL', desc:'SeaTunnel MySQL Sink / JDBC' },
+      { id:'oracle', label:'Oracle', desc:'SeaTunnel Oracle Sink / JDBC' }
+    ];
+    return `
+      <div class="option-tabs" data-testid="sink-target-tabs">
+        ${items.map(item => `<button class="option-tab ${state.sinkTarget === item.id ? 'active' : ''}" data-sink-target="${item.id}" type="button"><strong>${item.label}</strong><span>${item.desc}</span></button>`).join('')}
+      </div>
+    `;
+  }
+
+  function renderJdbcSink(mount){
+    const d = currentJdbcSink();
+    const target = state.sinkTarget === 'oracle' ? 'oracle' : 'mysql';
+    const targetLabel = target === 'oracle' ? 'Oracle' : 'MySQL';
+    const customSqlActive = d.dataSaveMode === 'CUSTOM_PROCESSING';
+    const exactOnceActive = d.isExactlyOnce === 'true';
+    const tabs = [
+      { id:'base', label:'连接与目标表' },
+      { id:'mode', label:'写入模式' },
+      { id:'throughput', label:'吞吐与事务' },
+      { id:'properties', label:'JDBC 扩展参数' }
+    ];
+    if (!tabs.some(tab => tab.id === state.jdbcTab)) state.jdbcTab = 'base';
+
+    const modeHelp = `<span class="help-icon" tabindex="0">?</span><span class="help-popover"><div><strong>APPEND_DATA：</strong>追加写入。</div><div><strong>DROP_DATA：</strong>写入前清空目标表。</div><div><strong>ERROR_WHEN_DATA_EXISTS：</strong>目标表已有数据时中断。</div><div><strong>CUSTOM_PROCESSING：</strong>先执行 custom_sql，再写入本次数据。</div></span>`;
+    const schemaHelp = `<span class="help-icon" tabindex="0">?</span><span class="help-popover"><div><strong>CREATE_SCHEMA_WHEN_NOT_EXIST：</strong>目标表不存在时自动建表。</div><div><strong>RECREATE_SCHEMA：</strong>重建目标表，生产环境慎用。</div><div><strong>ERROR_WHEN_SCHEMA_NOT_EXIST：</strong>表不存在时报错，不改库结构。</div></span>`;
+
+    const tabBodies = {
+      base: `
+        <div class="sink-section-title"><span>${targetLabel} 连接与目标表</span><span class="badge primary">JDBC Sink</span></div>
+        <div class="grid3">
+          <div class="field full3"><label class="label-help">JDBC URL<span class="help-icon" tabindex="0">!</span><span class="help-popover">${target === 'mysql' ? 'MySQL 建议在 URL 中带 rewriteBatchedStatements=true，提高批量写入效率。' : 'Oracle 使用 service name 时通常是 jdbc:oracle:thin:@host:1521/serviceName。'}</span></label><input data-jdbc="url" value="${escapeHtml(d.url)}" /></div>
+          <div class="field"><label>驱动类（driver）</label><input data-jdbc="driver" value="${escapeHtml(d.driver)}" /></div>
+          <div class="field"><label>用户名（user）</label><input data-jdbc="username" value="${escapeHtml(d.username)}" /></div>
+          <div class="field"><label>密码（password）</label><input data-jdbc="password" value="${escapeHtml(d.password)}" /></div>
+          <div class="field"><label>数据库/Schema（database）</label><input data-jdbc="database" value="${escapeHtml(d.database)}" /></div>
+          <div class="field"><label>目标表（table）</label><input data-jdbc="table" value="${escapeHtml(d.table)}" /></div>
+          <div class="field"><label class="label-help">主键字段（primary_keys）<span class="help-icon" tabindex="0">!</span><span class="help-popover">多个主键用英文逗号分隔。开启 upsert、自动建表或 Exactly Once 时都应明确主键。</span></label><input data-jdbc="primaryKeys" value="${escapeHtml(d.primaryKeys)}" /></div>
+          <div class="field full3"><label class="label-help">自定义写入 SQL（query）<span class="help-icon" tabindex="0">!</span><span class="help-popover">留空时由字段映射自动生成 INSERT/UPSERT。只有需要完全接管写入语句时才填写。</span></label><textarea data-jdbc="query">${escapeHtml(d.query)}</textarea></div>
+        </div>
+      `,
+      mode: `
+        <div class="sink-section-title"><span>写入模式</span><span class="badge orange">SaveMode</span></div>
+        <div class="grid3">
+          <div class="field"><label class="label-help">结构处理（schema_save_mode）${schemaHelp}</label><select data-jdbc="schemaSaveMode">${selectOptions(['CREATE_SCHEMA_WHEN_NOT_EXIST','RECREATE_SCHEMA','ERROR_WHEN_SCHEMA_NOT_EXIST'], d.schemaSaveMode)}</select></div>
+          <div class="field"><label class="label-help">数据处理（data_save_mode）${modeHelp}</label><select data-jdbc="dataSaveMode">${selectOptions(['APPEND_DATA','DROP_DATA','ERROR_WHEN_DATA_EXISTS','CUSTOM_PROCESSING'], d.dataSaveMode)}</select></div>
+          <div class="field"><label class="label-help">字段名处理（field_ide）<span class="help-icon" tabindex="0">!</span><span class="help-popover">MySQL 通常保持 ORIGINAL；Oracle 常见表字段大写，建议默认 UPPERCASE，避免字段匹配失败。</span></label><select data-jdbc="fieldIde">${selectOptions(['ORIGINAL','LOWERCASE','UPPERCASE'], d.fieldIde)}</select></div>
+          <div class="field"><label>启用 Upsert（enable_upsert）</label><select data-jdbc="enableUpsert">${boolOptions(d.enableUpsert)}</select></div>
+          <div class="field"><label>自动生成写入 SQL</label><select data-jdbc="generateSinkSql">${boolOptions(d.generateSinkSql)}</select></div>
+        </div>
+        <div class="field full3 ${customSqlActive ? '' : 'hidden'}" data-testid="jdbc-custom-sql-field">
+          <label>同步前 SQL（custom_sql）</label>
+          <textarea data-jdbc="customSql">${escapeHtml(d.customSql)}</textarea>
+        </div>
+      `,
+      throughput: `
+        <div class="sink-section-title"><span>吞吐与事务</span><span class="badge">JDBC 共有属性</span></div>
+        <div class="grid3">
+          <div class="field"><label>批量行数（batch_size）</label><input data-jdbc="batchSize" value="${escapeHtml(d.batchSize)}" /></div>
+          <div class="field ${target === 'oracle' ? '' : 'hidden'}"><label class="label-help">批量间隔（batch_interval_ms）<span class="help-icon" tabindex="0">!</span><span class="help-popover">Oracle Sink 支持按时间间隔触发批量提交，适合低频写入时避免长时间不落库。</span></label><input data-jdbc="batchIntervalMs" value="${escapeHtml(d.batchIntervalMs || '')}" /></div>
+          <div class="field"><label>最大重试次数（max_retries）</label><input data-jdbc="maxRetries" value="${escapeHtml(d.maxRetries)}" /></div>
+          <div class="field"><label>连接检查超时秒数</label><input data-jdbc="connectionCheckTimeoutSec" value="${escapeHtml(d.connectionCheckTimeoutSec)}" /></div>
+          <div class="field"><label class="label-help">Exactly Once<span class="help-icon" tabindex="0">!</span><span class="help-popover">开启后依赖 XA 数据源和两阶段提交；演示环境可关闭，生产关键链路再按数据库能力启用。</span></label><select data-jdbc="isExactlyOnce">${boolOptions(d.isExactlyOnce)}</select></div>
+          <div class="field"><label>自动提交（auto_commit）</label><select data-jdbc="autoCommit">${boolOptions(d.autoCommit)}</select></div>
+          <div class="field full3 ${exactOnceActive ? '' : 'is-disabled'}"><label class="label-help">XA 数据源类<span class="help-icon" tabindex="0">!</span><span class="help-popover">${target === 'mysql' ? 'MySQL 常用 com.mysql.cj.jdbc.MysqlXADataSource。' : 'Oracle 常用 oracle.jdbc.xa.client.OracleXADataSource。'}只有开启 Exactly Once 时才真正需要。</span></label><input data-jdbc="xaDataSourceClassName" value="${escapeHtml(d.xaDataSourceClassName)}" ${exactOnceActive ? '' : 'disabled'} /></div>
+          <div class="field ${exactOnceActive ? '' : 'is-disabled'}"><label>最大提交尝试次数</label><input data-jdbc="maxCommitAttempts" value="${escapeHtml(d.maxCommitAttempts)}" ${exactOnceActive ? '' : 'disabled'} /></div>
+          <div class="field ${exactOnceActive ? '' : 'is-disabled'}"><label>事务超时秒数</label><input data-jdbc="transactionTimeoutSec" value="${escapeHtml(d.transactionTimeoutSec)}" ${exactOnceActive ? '' : 'disabled'} /></div>
+        </div>
+      `,
+      properties: `
+        <div class="sink-section-title"><span>JDBC 扩展参数</span><span class="badge">properties</span></div>
+        <div class="grid2">
+          <div class="field full"><label class="label-help">连接属性（properties）<span class="help-icon" tabindex="0">!</span><span class="help-popover">${target === 'mysql' ? '按 key=value 每行填写。MySQL 可放 rewriteBatchedStatements、useServerPrepStmts 等驱动参数。' : '按 key=value 每行填写。Oracle 可放 oracle.jdbc.timezoneAsRegion 等驱动参数。'}</span></label><textarea data-jdbc="properties">${escapeHtml(d.properties)}</textarea></div>
+        </div>
+      `
+    };
+
+    mount.innerHTML = `
+      <div class="cardbox" data-testid="jdbc-sink-workbench">
+        ${renderTargetSelector()}
+        <div class="sink-tabs" role="tablist" aria-label="${targetLabel} Sink 配置分组">
+          ${tabs.map(tab => `<button class="sink-tab ${state.jdbcTab === tab.id ? 'active' : ''}" data-jdbc-tab="${tab.id}" type="button">${tab.label}</button>`).join('')}
+        </div>
+        <div class="sink-tab-panel" data-testid="sink-tab-panel">${tabBodies[state.jdbcTab]}</div>
+        <div class="sql-panel">
+          <div class="sql-head"><span>${targetLabel} Sink 配置预览</span><button class="btn" id="copyJdbcConfig" style="height:24px;">复制配置</button></div>
+          <pre id="jdbcConfigText">${escapeHtml(buildJdbcConfigText())}</pre>
+        </div>
+      </div>
+    `;
+
+    mount.querySelectorAll('[data-sink-target]').forEach(btn => {
+      btn.onclick = () => {
+        state.sinkTarget = btn.dataset.sinkTarget;
+        render();
+      };
+    });
+    mount.querySelectorAll('[data-jdbc-tab]').forEach(btn => {
+      btn.onclick = () => {
+        state.jdbcTab = btn.dataset.jdbcTab;
+        render();
+      };
+    });
+    mount.querySelectorAll('[data-jdbc]').forEach(el => {
+      const updateState = () => { currentJdbcSink()[el.dataset.jdbc] = el.value; };
+      if (el.tagName === 'SELECT') {
+        el.onchange = () => { updateState(); render(); };
+        return;
+      }
+      el.oninput = () => {
+        updateState();
+        const config = document.getElementById('jdbcConfigText');
+        if (config) config.textContent = buildJdbcConfigText();
+      };
+      el.onchange = () => { updateState(); render(); };
+    });
+    const copy = document.getElementById('copyJdbcConfig');
+    if (copy) {
+      copy.onclick = async () => {
+        try {
+          await navigator.clipboard.writeText(buildJdbcConfigText());
+          pulse(`${targetLabel} 配置已复制`);
+        } catch {
+          pulse('复制失败，请手动复制');
+        }
+      };
+    }
+  }
+
+  function renderDorisSink(){
+    const mount = document.getElementById('dorisSinkWorkbench');
+    if (!mount) return;
+    if (state.sinkTarget !== 'doris') {
+      renderJdbcSink(mount);
+      return;
+    }
+    const d = state.dorisSink;
+    const customSqlActive = d.dataSaveMode === 'CUSTOM_PROCESSING';
+    const twoPcActive = d.enable2pc === 'true';
+    const jsonMode = d.format === 'json';
+    const tabs = [
+      { id:'base', label:'基础写入配置' },
+      { id:'mode', label:'写入模式' },
+      { id:'throughput', label:'吞吐与提交' },
+      { id:'template', label:'建表模板' },
+      { id:'config', label:'doris.config 参数' }
+    ];
+    if (!tabs.some(tab => tab.id === state.dorisTab)) state.dorisTab = 'base';
+
+    const tabBodies = {
+      base: `
+        <div class="sink-section-title"><span>基础写入配置</span><span class="badge primary">必填</span></div>
+        <div class="grid3">
+          <div class="field"><label>FE HTTP 地址（fenodes）</label><input data-doris="fenodes" value="${escapeHtml(d.fenodes)}" /><div class="field-note">多个 FE 用英文逗号分隔，必须是 HTTP 端口。</div></div>
+          <div class="field"><label>FE MySQL 查询端口（query-port）</label><input data-doris="queryPort" value="${escapeHtml(d.queryPort)}" /></div>
+          <div class="field"><label>数据库（database）</label><input data-doris="database" value="${escapeHtml(d.database)}" /></div>
+          <div class="field"><label>目标表（table）</label><input data-doris="table" value="${escapeHtml(d.table)}" /></div>
+          <div class="field"><label>用户名（username）</label><input data-doris="username" value="${escapeHtml(d.username)}" /></div>
+          <div class="field"><label>密码（password）</label><input data-doris="password" value="${escapeHtml(d.password)}" /></div>
+          <div class="field full3"><label>Label 前缀（sink.label-prefix）</label><input data-doris="labelPrefix" value="${escapeHtml(d.labelPrefix)}" /><div class="field-note">建议按任务编码生成并保持唯一，避免 Stream Load label 冲突。</div></div>
+        </div>
+      `,
+      mode: `
+        <div class="sink-section-title"><span>写入模式</span><span class="badge orange">影响数据覆盖</span></div>
+        <div class="grid3">
+          <div class="field"><label class="label-help">结构处理（schema_save_mode）<span class="help-icon" tabindex="0">?</span><span class="help-popover" data-testid="schema-mode-help"><div><strong>CREATE_SCHEMA_WHEN_NOT_EXIST：</strong>目标表不存在时自动建表，已存在时复用现有表结构。</div><div><strong>RECREATE_SCHEMA：</strong>每次执行前重建目标表，会删除原表结构和数据后再建表。</div><div><strong>ERROR_WHEN_SCHEMA_NOT_EXIST：</strong>目标表不存在就报错，不自动建表，适合生产库禁止任务改结构的场景。</div></span></label><select data-doris="schemaSaveMode">${selectOptions(['CREATE_SCHEMA_WHEN_NOT_EXIST','RECREATE_SCHEMA','ERROR_WHEN_SCHEMA_NOT_EXIST'], d.schemaSaveMode)}</select></div>
+          <div class="field"><label class="label-help">数据处理（data_save_mode）<span class="help-icon" tabindex="0">?</span><span class="help-popover" data-testid="data-save-mode-help"><div><strong>APPEND_DATA：</strong>保留目标表原数据，直接追加本次同步数据。</div><div><strong>DROP_DATA：</strong>写入前清空目标表数据，再写入本次同步结果。</div><div><strong>ERROR_WHEN_DATA_EXISTS：</strong>目标表已有数据时直接报错，避免误覆盖或重复写入。</div><div><strong>CUSTOM_PROCESSING：</strong>执行自定义 custom_sql 后再写入，适合按分区、日期或业务条件清理旧数据。</div></span></label><select data-doris="dataSaveMode">${selectOptions(['APPEND_DATA','DROP_DATA','ERROR_WHEN_DATA_EXISTS','CUSTOM_PROCESSING'], d.dataSaveMode)}</select></div>
+          <div class="field"><label>大小写敏感（case_sensitive）</label><select data-doris="caseSensitive">${boolOptions(d.caseSensitive)}</select></div>
+          <div class="field"><label>分布式事务（sink.enable-2pc）</label><select data-doris="enable2pc">${boolOptions(d.enable2pc)}</select></div>
+          <div class="field"><label>删除事件（sink.enable-delete）</label><select data-doris="enableDelete">${boolOptions(d.enableDelete)}</select></div>
+          <div class="field"><label>不支持类型转换</label><select data-doris="needsUnsupportedTypeCasting">${boolOptions(d.needsUnsupportedTypeCasting)}</select></div>
+        </div>
+        <div class="${twoPcActive ? 'notice warn' : 'notice hidden'}" data-testid="two-pc-warning">2PC 开启后提交由 checkpoint 控制，sink.buffer-size 不生效。页面已将该项置灰，避免误以为行数阈值仍会触发提交。</div>
+        <div class="field full3 ${customSqlActive ? '' : 'hidden'}" data-testid="custom-sql-field">
+          <label>同步前 SQL（custom_sql）</label>
+          <textarea data-doris="customSql">${escapeHtml(d.customSql)}</textarea>
+          <div class="field-note">该 SQL 隶属于 data_save_mode = CUSTOM_PROCESSING，不属于建表模板配置。</div>
+        </div>
+      `,
+      throughput: `
+        <div class="sink-section-title"><span>吞吐与提交</span><span class="badge">高级</span></div>
+        <div class="${twoPcActive ? 'notice warn' : 'notice hidden'}" data-testid="two-pc-warning">当前 2PC 开启，sink.buffer-size 不生效；切到“写入模式”关闭 2PC 后可编辑。</div>
+        <div class="grid3">
+          <div class="field ${twoPcActive ? 'is-disabled' : ''}" data-testid="buffer-size-field"><label>单批行数（sink.buffer-size）</label><input data-doris="bufferSize" value="${escapeHtml(d.bufferSize)}" ${twoPcActive ? 'disabled' : ''} /><div class="field-note">${twoPcActive ? '当前 2PC 开启，此项在配置预览中自动排除。' : '2PC 关闭时用于控制单批写入行数。'}</div></div>
+          <div class="field"><label>缓冲区数量（sink.buffer-count）</label><input data-doris="bufferCount" value="${escapeHtml(d.bufferCount)}" /></div>
+          <div class="field"><label>HTTP 批量行数（doris.batch.size）</label><input data-doris="batchSize" value="${escapeHtml(d.batchSize)}" /></div>
+          <div class="field"><label>刷新间隔（sink.check-interval ms）</label><input data-doris="checkInterval" value="${escapeHtml(d.checkInterval)}" /></div>
+          <div class="field"><label>最大重试次数（sink.max-retries）</label><input data-doris="maxRetries" value="${escapeHtml(d.maxRetries)}" /></div>
+          <div class="field"><label>Stream Load 格式</label><select data-doris="format">${selectOptions(['json','csv'], d.format)}</select></div>
+        </div>
+      `,
+      template: `
+        <div class="sink-section-title"><span>建表模板</span><span class="badge">SaveMode</span></div>
+        <div class="notice">这里只维护 save_mode_create_template，用于新建 Doris 表时生成 DDL。同步前 SQL 已移到“写入模式”，跟随 data_save_mode = CUSTOM_PROCESSING 展示。</div>
+        <div class="grid2">
+          <div class="field full"><label>建表模板（save_mode_create_template）</label><textarea class="sql-template" data-doris="saveModeCreateTemplate">${escapeHtml(d.saveModeCreateTemplate)}</textarea><div class="field-note">支持 ${'${database}'}、${'${table_name}'}、${'${rowtype_fields}'}、${'${rowtype_primary_key}'}、${'${rowtype_unique_key}'}、${'${comment}'} 占位符。</div></div>
+        </div>
+      `,
+      config: `
+        <div class="sink-section-title"><span>doris.config 参数</span><span class="badge">按格式联动</span></div>
+        <div class="grid3">
+          <div class="field"><label class="label-help">Stream Load 格式<span class="help-icon" tabindex="0">!</span><span class="help-popover" data-testid="format-help">决定传给 Doris Stream Load 的数据格式。JSON 适合结构化字段，CSV 适合分隔符文本。</span></label><select data-doris="format">${selectOptions(['json','csv'], d.format)}</select></div>
+          <div class="field ${jsonMode ? '' : 'hidden'}" data-testid="json-read-line-field"><label class="label-help">read_json_by_line<span class="help-icon" tabindex="0">!</span><span class="help-popover" data-testid="read-json-help">JSON 每行一条记录时设为 true。常规同步建议保持 true。</span></label><select data-doris="readJsonByLine">${boolOptions(d.readJsonByLine)}</select></div>
+          <div class="field ${jsonMode ? '' : 'hidden'}" data-testid="json-strip-field"><label class="label-help">strip_outer_array<span class="help-icon" tabindex="0">!</span><span class="help-popover" data-testid="strip-array-help">JSON 外层是数组时设为 true，让 Doris 拆开数组逐行写入。</span></label><select data-doris="stripOuterArray">${boolOptions(d.stripOuterArray)}</select></div>
+          <div class="field ${jsonMode ? 'hidden' : ''}" data-testid="csv-separator-field"><label class="label-help">column_separator<span class="help-icon" tabindex="0">!</span><span class="help-popover" data-testid="column-separator-help">CSV 字段分隔符，必须和 SeaTunnel 输出字段顺序一致。</span></label><input data-doris="columnSeparator" value="${escapeHtml(d.columnSeparator)}" /></div>
+          <div class="field"><label class="label-help">load_to_single_tablet<span class="help-icon" tabindex="0">!</span><span class="help-popover" data-testid="single-tablet-help">是否写入单个 tablet。默认 false 更适合分布式写入，true 只适合小表或特殊调试。</span></label><select data-doris="loadToSingleTablet">${boolOptions(d.loadToSingleTablet)}</select></div>
+        </div>
+      `
+    };
+
+    mount.innerHTML = `
+      <div class="cardbox" data-testid="doris-sink-workbench">
+        ${renderTargetSelector()}
+        <div class="sink-tabs" role="tablist" aria-label="Doris Sink 配置分组">
+          ${tabs.map(tab => `<button class="sink-tab ${state.dorisTab === tab.id ? 'active' : ''}" data-sink-tab="${tab.id}" type="button">${tab.label}</button>`).join('')}
+        </div>
+        <div class="sink-tab-panel" data-testid="sink-tab-panel">
+          ${tabBodies[state.dorisTab]}
+        </div>
+
+        <div class="sql-panel">
+          <div class="sql-head">
+            <span>Doris Sink 配置预览</span>
+            <button class="btn" id="copyDorisConfig" style="height:24px;">复制配置</button>
+          </div>
+          <pre id="dorisConfigText">${escapeHtml(buildDorisConfigText())}</pre>
+        </div>
+      </div>
+    `;
+
+    mount.querySelectorAll('[data-sink-target]').forEach(btn => {
+      btn.onclick = () => {
+        state.sinkTarget = btn.dataset.sinkTarget;
+        render();
+      };
+    });
+    mount.querySelectorAll('[data-doris]').forEach(el => {
+      const updateState = () => {
+        state.dorisSink[el.dataset.doris] = el.value;
+      };
+      if (el.tagName === 'SELECT') {
+        el.onchange = () => {
+          updateState();
+          render();
+        };
+        return;
+      }
+      el.oninput = () => {
+        updateState();
+        const config = document.getElementById('dorisConfigText');
+        if (config) config.textContent = buildDorisConfigText();
+      };
+      el.onchange = () => {
+        updateState();
+        render();
+      };
+    });
+    mount.querySelectorAll('[data-sink-tab]').forEach(btn => {
+      btn.onclick = () => {
+        state.dorisTab = btn.dataset.sinkTab;
+        render();
+      };
+    });
+    const copy = document.getElementById('copyDorisConfig');
+    if (copy) {
+      copy.onclick = async () => {
+        try {
+          await navigator.clipboard.writeText(buildDorisConfigText());
+          pulse('Doris 配置已复制');
+        } catch {
+          pulse('复制失败，请手动复制');
+        }
+      };
+    }
+  }
+
   function renderPanel(){
     const m = modules.find(item => item.id === state.current);
     document.getElementById('moduleTitle').textContent = m.name;
@@ -530,6 +1027,7 @@
     document.getElementById('moduleChip').className = `chip ${m.id === 'mapping' ? 'good' : m.id === 'filter' ? 'warn' : ''}`;
     document.getElementById('moduleBody').innerHTML = m.body;
     if (m.id === 'filter') renderFilter();
+    if (m.id === 'sink') renderDorisSink();
   }
 
   function pulse(msg){

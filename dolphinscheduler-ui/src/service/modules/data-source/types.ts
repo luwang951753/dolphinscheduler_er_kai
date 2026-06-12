@@ -159,6 +159,7 @@ interface IDataPreviewQueryResult {
   pageNo: number
   pageSize: number
   rowCount: number
+  totalCount?: number
   elapsedMs: number
   executedAt: string
   warnings: string[]

@@ -1,0 +1,1338 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="icon" href="data:," />
+  <title>数据探查与找数找字段原型</title>
+  <style>
+    :root {
+      --bg: #f4f7fb;
+      --panel: #fff;
+      --panel-soft: #f8fafc;
+      --line: #dbe3ef;
+      --line-strong: #cbd5e1;
+      --text: #1f2937;
+      --muted: #667085;
+      --faint: #98a2b3;
+      --blue: #1769e0;
+      --blue-soft: #eaf2ff;
+      --green: #0f766e;
+      --green-soft: #e7f6f2;
+      --amber: #b86b00;
+      --amber-soft: #fff6df;
+      --red: #c2410c;
+      --red-soft: #fff0e8;
+      --purple: #6941c6;
+      --purple-soft: #f2edff;
+      --shadow: 0 10px 24px rgba(15, 23, 42, 0.07);
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      height: 100vh;
+      overflow: hidden;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      font-size: 13px;
+    }
+    button, input, select { font: inherit; }
+    button { cursor: pointer; }
+
+    .app {
+      height: 100vh;
+      display: grid;
+      grid-template-rows: 54px minmax(0, 1fr);
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      padding: 0 18px;
+      border-bottom: 1px solid var(--line);
+      background: #fff;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 210px;
+      font-weight: 800;
+      font-size: 16px;
+    }
+    .brand-mark {
+      width: 30px;
+      height: 30px;
+      border-radius: 7px;
+      background: #1769e0;
+      color: #fff;
+      display: grid;
+      place-items: center;
+      font-weight: 900;
+    }
+    .nav {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      overflow: hidden;
+    }
+    .nav-item {
+      height: 34px;
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 0 10px;
+      color: #344054;
+      border-radius: 6px;
+      white-space: nowrap;
+    }
+    .nav-item.active {
+      color: var(--blue);
+      background: var(--blue-soft);
+      font-weight: 750;
+    }
+    .nav-ico {
+      width: 16px;
+      height: 16px;
+      border: 1.8px solid currentColor;
+      border-radius: 4px;
+    }
+    .user {
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
+    .page {
+      min-height: 0;
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+      gap: 12px;
+      padding: 16px 18px;
+    }
+
+    .search-hero {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      box-shadow: var(--shadow);
+      padding: 18px;
+      display: grid;
+      grid-template-columns: minmax(420px, 1fr) 330px;
+      gap: 18px;
+      align-items: center;
+    }
+    .hero-title {
+      margin: 0 0 12px;
+      font-size: 22px;
+      line-height: 30px;
+      letter-spacing: 0;
+    }
+    .search-box {
+      height: 46px;
+      display: grid;
+      grid-template-columns: 42px minmax(0, 1fr) auto;
+      align-items: center;
+      border: 2px solid #bcd1f7;
+      border-radius: 8px;
+      background: #fff;
+      overflow: hidden;
+    }
+    .search-icon {
+      color: var(--blue);
+      font-size: 18px;
+      text-align: center;
+    }
+    .search-box input {
+      min-width: 0;
+      height: 100%;
+      border: none;
+      outline: none;
+      font-size: 15px;
+      color: var(--text);
+    }
+    .search-box button {
+      height: 100%;
+      border: none;
+      background: var(--blue);
+      color: #fff;
+      padding: 0 18px;
+      font-weight: 750;
+    }
+    .quick-words {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      flex-wrap: wrap;
+      margin-top: 10px;
+      color: var(--muted);
+    }
+    .quick-word {
+      border: 1px solid var(--line);
+      background: var(--panel-soft);
+      color: #344054;
+      border-radius: 999px;
+      padding: 4px 9px;
+      cursor: pointer;
+    }
+    .quick-word:hover {
+      border-color: #9bbbf0;
+      color: var(--blue);
+      background: var(--blue-soft);
+    }
+    .hero-metrics {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .metric-card {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      background: var(--panel-soft);
+    }
+    .metric-num {
+      font-size: 22px;
+      font-weight: 850;
+      line-height: 28px;
+    }
+    .metric-label {
+      margin-top: 3px;
+      color: var(--muted);
+    }
+
+    .workbench {
+      min-height: 0;
+      display: grid;
+      grid-template-columns: 270px minmax(0, 1fr) 390px;
+      gap: 12px;
+    }
+    .panel {
+      min-height: 0;
+      min-width: 0;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+    }
+    .panel-head {
+      min-height: 46px;
+      padding: 10px 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      border-bottom: 1px solid var(--line);
+      background: #fbfcfe;
+    }
+    .panel-title {
+      font-weight: 800;
+      color: var(--text);
+    }
+    .panel-body {
+      min-height: 0;
+      overflow: auto;
+    }
+
+    .filters {
+      padding: 12px;
+      display: grid;
+      gap: 12px;
+    }
+    .filter-group {
+      display: grid;
+      gap: 7px;
+    }
+    .filter-title {
+      color: #344054;
+      font-size: 12px;
+      font-weight: 800;
+    }
+    .check-row {
+      min-height: 28px;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      color: var(--muted);
+    }
+    .check-row input { accent-color: var(--blue); }
+    .mini-select {
+      height: 30px;
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #fff;
+      color: #344054;
+      padding: 0 8px;
+    }
+
+    .results {
+      min-height: 0;
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+      overflow: hidden;
+    }
+    .result-toolbar {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--line);
+      background: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .tabs {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: var(--panel-soft);
+    }
+    .tab {
+      height: 30px;
+      border: none;
+      border-radius: 5px;
+      background: transparent;
+      color: var(--muted);
+      padding: 0 11px;
+      font-weight: 700;
+    }
+    .tab.active {
+      background: #fff;
+      color: var(--blue);
+      box-shadow: 0 2px 8px rgba(15, 23, 42, .08);
+    }
+    .result-count {
+      color: var(--muted);
+      white-space: nowrap;
+    }
+    .result-list {
+      min-height: 0;
+      overflow: auto;
+      padding: 10px;
+      display: grid;
+      align-content: start;
+      gap: 10px;
+      background: #f8fafc;
+    }
+    .field-card,
+    .table-card {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      padding: 12px;
+      display: grid;
+      gap: 10px;
+      cursor: pointer;
+    }
+    .field-card:hover,
+    .table-card:hover,
+    .field-card.active,
+    .table-card.active {
+      border-color: #9bbbf0;
+      box-shadow: 0 8px 20px rgba(23, 105, 224, .08);
+    }
+    .card-head {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 10px;
+      align-items: start;
+    }
+    .name-line {
+      min-width: 0;
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .main-name {
+      color: #111827;
+      font-size: 15px;
+      font-weight: 850;
+    }
+    .cn-name {
+      color: var(--muted);
+      font-weight: 650;
+    }
+    .path {
+      margin-top: 4px;
+      color: var(--faint);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .score {
+      min-width: 62px;
+      text-align: center;
+      border-radius: 7px;
+      padding: 5px 7px;
+      background: var(--green-soft);
+      color: var(--green);
+      font-weight: 850;
+    }
+    .score.warn {
+      background: var(--amber-soft);
+      color: var(--amber);
+    }
+    .meta-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+    }
+    .meta {
+      min-width: 0;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 7px 8px;
+      background: #fbfcfe;
+    }
+    .meta-label {
+      color: var(--faint);
+      font-size: 12px;
+    }
+    .meta-value {
+      margin-top: 2px;
+      color: #344054;
+      font-weight: 750;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .sample-values {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .reason-box,
+    .verdict-box {
+      border: 1px solid #bfd7ff;
+      border-radius: 7px;
+      background: var(--blue-soft);
+      padding: 8px 10px;
+      color: #1649b8;
+      line-height: 1.5;
+    }
+    .verdict-box.good {
+      border-color: #b7e4d2;
+      background: var(--green-soft);
+      color: var(--green);
+    }
+    .verdict-box.warn {
+      border-color: #f6d28f;
+      background: var(--amber-soft);
+      color: var(--amber);
+    }
+    .reason-list {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .quality-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 7px;
+    }
+    .quality-mini {
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #fbfcfe;
+      padding: 7px;
+    }
+    .quality-mini span {
+      display: block;
+      color: var(--faint);
+      font-size: 11px;
+    }
+    .quality-mini strong {
+      display: block;
+      margin-top: 2px;
+      color: #344054;
+      font-size: 13px;
+    }
+    .card-actions {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      flex-wrap: wrap;
+      padding-top: 2px;
+    }
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      padding: 2px 7px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: var(--panel-soft);
+      color: #475467;
+      white-space: nowrap;
+    }
+    .chip.sensitive {
+      border-color: #fed7aa;
+      background: var(--red-soft);
+      color: var(--red);
+    }
+    .chip.good {
+      border-color: #b7e4d2;
+      background: var(--green-soft);
+      color: var(--green);
+    }
+    .chip.blue {
+      border-color: #bfd7ff;
+      background: var(--blue-soft);
+      color: var(--blue);
+    }
+    .chip.purple {
+      border-color: #d6bbfb;
+      background: var(--purple-soft);
+      color: var(--purple);
+    }
+
+    .detail {
+      min-height: 0;
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+    }
+    .detail-body {
+      min-height: 0;
+      overflow: auto;
+      padding: 12px;
+      display: grid;
+      gap: 12px;
+      align-content: start;
+    }
+    .detail-title {
+      min-width: 0;
+      display: grid;
+      gap: 3px;
+    }
+    .detail-title strong {
+      font-size: 15px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .detail-title span {
+      color: var(--muted);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .detail-section {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      overflow: hidden;
+    }
+    .section-head {
+      min-height: 38px;
+      padding: 9px 10px;
+      border-bottom: 1px solid var(--line);
+      background: #fbfcfe;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .section-body {
+      padding: 10px;
+      display: grid;
+      gap: 10px;
+    }
+    .kv-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+    .kv {
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 8px;
+      background: var(--panel-soft);
+    }
+    .kv span {
+      display: block;
+      color: var(--faint);
+      font-size: 12px;
+    }
+    .kv strong {
+      display: block;
+      margin-top: 3px;
+      color: #344054;
+      font-size: 14px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .quality-row {
+      display: grid;
+      grid-template-columns: 78px minmax(0, 1fr) 46px;
+      gap: 8px;
+      align-items: center;
+      min-height: 28px;
+    }
+    .bar {
+      height: 8px;
+      border-radius: 999px;
+      background: #edf2f7;
+      overflow: hidden;
+    }
+    .bar > i {
+      display: block;
+      height: 100%;
+      width: var(--w);
+      background: var(--c, var(--blue));
+      border-radius: inherit;
+    }
+    .mini-table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      font-size: 12px;
+    }
+    .mini-table th,
+    .mini-table td {
+      border-right: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+      padding: 7px 8px;
+      text-align: left;
+      white-space: nowrap;
+    }
+    .mini-table th {
+      background: #f1f5f9;
+      color: #344054;
+      font-weight: 800;
+    }
+    .mini-table th:first-child,
+    .mini-table td:first-child { border-left: 1px solid var(--line); }
+    .mini-table tr:first-child th { border-top: 1px solid var(--line); }
+    .mini-table th:first-child { border-top-left-radius: 6px; }
+    .mini-table th:last-child { border-top-right-radius: 6px; }
+    .preview-wrap {
+      overflow: auto;
+      max-height: 210px;
+    }
+    .masked {
+      color: var(--red);
+      background: var(--red-soft);
+      border-radius: 4px;
+      padding: 1px 4px;
+    }
+    .dist {
+      display: grid;
+      gap: 8px;
+    }
+    .dist-row {
+      display: grid;
+      grid-template-columns: 110px minmax(0, 1fr) 42px;
+      gap: 8px;
+      align-items: center;
+    }
+    .same-field {
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 8px;
+      display: grid;
+      gap: 4px;
+      background: #fff;
+    }
+    .same-field strong {
+      color: #344054;
+    }
+    .same-field span {
+      color: var(--faint);
+    }
+    .action-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+    .action-card {
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      padding: 9px;
+      background: #fff;
+      color: #344054;
+      text-align: left;
+    }
+    .action-card strong {
+      display: block;
+      margin-bottom: 3px;
+    }
+    .action-card span {
+      color: var(--faint);
+      font-size: 12px;
+      line-height: 1.4;
+    }
+    .drawer-mask {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, .28);
+      display: none;
+      z-index: 30;
+    }
+    .drawer-mask.open { display: block; }
+    .compare-drawer {
+      position: fixed;
+      top: 0;
+      right: 0;
+      width: 760px;
+      max-width: 92vw;
+      height: 100vh;
+      background: #fff;
+      box-shadow: -18px 0 36px rgba(15, 23, 42, .18);
+      display: grid;
+      grid-template-rows: 58px minmax(0, 1fr);
+      z-index: 31;
+      transform: translateX(100%);
+      transition: transform .18s ease;
+    }
+    .compare-drawer.open { transform: translateX(0); }
+    .drawer-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 16px;
+      border-bottom: 1px solid var(--line);
+      background: #fbfcfe;
+    }
+    .drawer-title {
+      font-weight: 850;
+      font-size: 15px;
+    }
+    .drawer-body {
+      min-height: 0;
+      overflow: auto;
+      padding: 14px;
+      display: grid;
+      gap: 12px;
+      align-content: start;
+    }
+    .compare-note {
+      border: 1px solid #b7e4d2;
+      border-radius: 8px;
+      background: var(--green-soft);
+      color: var(--green);
+      padding: 10px;
+      line-height: 1.5;
+    }
+    .actions {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      flex-wrap: wrap;
+    }
+    .btn {
+      height: 30px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #fff;
+      color: #344054;
+      padding: 0 10px;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      white-space: nowrap;
+    }
+    .btn.primary {
+      border-color: var(--blue);
+      background: var(--blue);
+      color: #fff;
+      font-weight: 750;
+    }
+    .btn.ghost {
+      background: var(--panel-soft);
+    }
+    .field-tools {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    .field-tools input {
+      flex: 1;
+      min-width: 0;
+      height: 30px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 0 8px;
+    }
+    .hide { display: none !important; }
+
+    @media (max-width: 1280px) {
+      .search-hero { grid-template-columns: 1fr; }
+      .workbench { grid-template-columns: 240px minmax(0, 1fr); }
+      .detail-panel { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand"><div class="brand-mark">DF</div><span>DataFlow</span></div>
+      <nav class="nav">
+        <div class="nav-item"><span class="nav-ico"></span>首页</div>
+        <div class="nav-item"><span class="nav-ico"></span>同步任务</div>
+        <div class="nav-item active"><span class="nav-ico"></span>数据探查</div>
+        <div class="nav-item"><span class="nav-ico"></span>主题库</div>
+        <div class="nav-item"><span class="nav-ico"></span>数据治理</div>
+        <div class="nav-item"><span class="nav-ico"></span>Magic API</div>
+        <div class="nav-item"><span class="nav-ico"></span>数据回传</div>
+      </nav>
+      <div class="user">admin</div>
+    </header>
+
+    <main class="page">
+      <section class="search-hero">
+        <div>
+          <h1 class="hero-title">数据探查</h1>
+          <div class="search-box">
+            <div class="search-icon">⌕</div>
+            <input id="searchInput" value="身份证" placeholder="搜索表名、字段名、字段中文名、字段描述、库名、数据源" />
+            <button id="searchBtn">搜索</button>
+          </div>
+          <div class="quick-words">
+            <span>常搜：</span>
+            <span class="quick-word" data-word="客户号">客户号</span>
+            <span class="quick-word" data-word="身份证">身份证</span>
+            <span class="quick-word" data-word="交易金额">交易金额</span>
+            <span class="quick-word" data-word="登录 IP">登录 IP</span>
+            <span class="quick-word" data-word="手机号">手机号</span>
+          </div>
+        </div>
+        <div class="hero-metrics">
+          <div class="metric-card"><div class="metric-num">12,684</div><div class="metric-label">可检索字段</div></div>
+          <div class="metric-card"><div class="metric-num">1,236</div><div class="metric-label">可探查数据表</div></div>
+          <div class="metric-card"><div class="metric-num">96.4%</div><div class="metric-label">近 7 日更新正常</div></div>
+          <div class="metric-card"><div class="metric-num">38</div><div class="metric-label">敏感字段已脱敏</div></div>
+        </div>
+      </section>
+
+      <section class="workbench">
+        <aside class="panel">
+          <div class="panel-head"><span class="panel-title">筛选</span><button class="btn ghost" id="resetFilter">重置</button></div>
+          <div class="panel-body filters">
+            <div class="filter-group">
+              <div class="filter-title">数据源</div>
+              <label class="check-row"><input type="checkbox" checked /> MySQL 业务库</label>
+              <label class="check-row"><input type="checkbox" checked /> Oracle 警综库</label>
+              <label class="check-row"><input type="checkbox" /> Doris 明细库</label>
+              <label class="check-row"><input type="checkbox" /> Hive 离线库</label>
+            </div>
+            <div class="filter-group">
+              <div class="filter-title">库名</div>
+              <select class="mini-select">
+                <option>全部库</option>
+                <option>ods_case</option>
+                <option>dwd_trade</option>
+                <option>c3_return</option>
+              </select>
+            </div>
+            <div class="filter-group">
+              <div class="filter-title">字段类型</div>
+              <label class="check-row"><input type="checkbox" checked /> 字符串</label>
+              <label class="check-row"><input type="checkbox" checked /> 数值</label>
+              <label class="check-row"><input type="checkbox" checked /> 时间</label>
+            </div>
+            <div class="filter-group">
+              <div class="filter-title">质量与安全</div>
+              <label class="check-row"><input type="checkbox" /> 仅看低空值率</label>
+              <label class="check-row"><input type="checkbox" /> 仅看敏感字段</label>
+              <label class="check-row"><input type="checkbox" /> 排除高空值字段</label>
+            </div>
+            <div class="filter-group">
+              <div class="filter-title">更新时间</div>
+              <select class="mini-select">
+                <option>近 7 天</option>
+                <option>近 30 天</option>
+                <option>近 90 天</option>
+                <option>全部</option>
+              </select>
+            </div>
+          </div>
+        </aside>
+
+        <section class="panel results">
+          <div class="result-toolbar">
+            <div class="tabs">
+              <button class="tab active" data-tab="fields">字段结果 <span id="fieldCount">18</span></button>
+              <button class="tab" data-tab="tables">表结果 <span id="tableCount">7</span></button>
+            </div>
+            <div class="result-count" id="resultSummary">搜索“身份证”，优先展示字段命中</div>
+          </div>
+          <div class="result-list" id="fieldResults"></div>
+          <div class="result-list hide" id="tableResults"></div>
+        </section>
+
+        <aside class="panel detail-panel">
+          <div class="panel-head">
+            <div class="detail-title">
+              <strong id="detailName">person_idcard</strong>
+              <span id="detailPath">ods_case.case_suspect · Oracle 警综库</span>
+            </div>
+            <div class="actions">
+              <button class="btn primary" id="openTableBtn">看表</button>
+            </div>
+          </div>
+          <div class="detail-body" id="detailBody"></div>
+        </aside>
+      </section>
+    </main>
+  </div>
+  <div class="drawer-mask" id="drawerMask"></div>
+  <aside class="compare-drawer" id="compareDrawer">
+    <div class="drawer-head">
+      <div>
+        <div class="drawer-title">同类字段对比</div>
+        <div class="path">帮用户判断应该选哪个字段</div>
+      </div>
+      <button class="btn" id="closeCompare">关闭</button>
+    </div>
+    <div class="drawer-body" id="compareBody"></div>
+  </aside>
+
+  <script>
+    const fieldData = [
+      {
+        name: 'person_idcard', cn: '身份证号', table: 'case_suspect', db: 'ods_case', source: 'Oracle 警综库',
+        type: 'VARCHAR(18)', sample: ['110***********031X', '320***********8842', '440***********2419'],
+        nullRate: '0.8%', unique: '186,420', updated: '2026-06-08 02:10', sensitive: true, score: 96,
+        verdict: '推荐使用', permission: '结构可见 · 统计可见 · 脱敏预览 · 明文需授权',
+        reason: ['字段中文名命中“身份证”', '样例值符合 18 位证件号形态', '近 24 小时更新且空值率低'],
+        quality: { completeness: 99, uniqueness: 96, freshness: 98, stability: 94 },
+        meaning: '嫌疑人登记证件号码，主要用于案件人员身份识别和跨表关联。',
+        usage: '适合用于嫌疑人检索、案件人员合并、警综库回传前身份校验。',
+        caution: '可能包含身份证、护照等证件，严谨场景需配合 cert_type 或证件类型字段判断。',
+        min: '-', max: '-', avg: '-', top: [['110***********031X', 18], ['320***********8842', 15], ['440***********2419', 12]],
+        same: ['c3_return.return_person.idcard', 'dwd_case.suspect_wide.id_card', 'ods_population.person.cert_no']
+      },
+      {
+        name: 'id_card_no', cn: '证件号码', table: 'population_person', db: 'ods_population', source: 'MySQL 业务库',
+        type: 'VARCHAR(32)', sample: ['510***********6721', '420***********0914', '610***********3308'],
+        nullRate: '1.7%', unique: '2,842,901', updated: '2026-06-07 23:48', sensitive: true, score: 93,
+        verdict: '推荐使用', permission: '结构可见 · 统计可见 · 脱敏预览 · 明文需授权',
+        reason: ['字段名命中 id_card', '覆盖人口基础库', '唯一值数量高，适合身份去重'],
+        quality: { completeness: 98, uniqueness: 99, freshness: 92, stability: 91 },
+        meaning: '人口基础信息中的证件号码字段，覆盖范围比案件表更大。',
+        usage: '适合用于人员基础信息补全、跨系统人员匹配、身份唯一性校验。',
+        caution: '字段长度为 32，可能混入非身份证证件号，使用前建议过滤证件类型。',
+        min: '-', max: '-', avg: '-', top: [['510***********6721', 9], ['420***********0914', 8], ['610***********3308', 7]],
+        same: ['ods_case.case_suspect.person_idcard', 'c3_return.person_basic.cert_no']
+      },
+      {
+        name: 'trade_amount', cn: '交易金额', table: 'bank_trade_detail', db: 'dwd_trade', source: 'Doris 明细库',
+        type: 'DECIMAL(18,2)', sample: ['128.50', '8600.00', '240000.00'],
+        nullRate: '0.0%', unique: '423,118', updated: '2026-06-08 01:30', sensitive: false, score: 98,
+        verdict: '推荐使用', permission: '结构可见 · 统计可见 · 明文可预览',
+        reason: ['字段中文名命中“交易金额”', '数值分布完整', '空值率 0，适合统计聚合'],
+        quality: { completeness: 100, uniqueness: 95, freshness: 98, stability: 97 },
+        meaning: '银行卡交易流水中的交易发生金额。',
+        usage: '适合用于涉案资金统计、异常大额交易识别、资金流向分析。',
+        caution: '需结合借贷方向、币种和交易状态字段判断正负含义。',
+        min: '0.01', max: '980000.00', avg: '1328.42', top: [['0-100', 42], ['100-1000', 31], ['1000-10000', 20], ['10000+', 7]],
+        same: ['ads_risk.trade_feature.total_amount', 'ods_bank.trade.amount']
+      },
+      {
+        name: 'login_ip', cn: '登录 IP', table: 'app_login_log', db: 'ods_log', source: 'Hive 离线库',
+        type: 'VARCHAR(64)', sample: ['10.**.18.24', '172.**.5.80', '221.**.19.6'],
+        nullRate: '6.4%', unique: '91,205', updated: '2026-06-06 04:00', sensitive: true, score: 84,
+        verdict: '谨慎使用', permission: '结构可见 · 统计可见 · 脱敏预览',
+        reason: ['字段中文名命中“登录 IP”', '更新时间超过 24 小时', '空值率偏高，需结合登录时间判断'],
+        quality: { completeness: 94, uniqueness: 88, freshness: 72, stability: 83 },
+        meaning: '应用登录日志中记录的访问 IP 地址。',
+        usage: '适合用于账号异常登录排查、同 IP 聚集分析、登录地异常判断。',
+        caution: '内网 IP、代理 IP、NAT 场景较多，不能单独作为人员位置判断依据。',
+        min: '-', max: '-', avg: '-', top: [['10.**.18.24', 1240], ['172.**.5.80', 992], ['221.**.19.6', 621]],
+        same: ['ods_access.web_login.ip_addr', 'dwd_user.user_login.last_ip']
+      }
+    ]
+
+    const tableData = [
+      {
+        name: 'case_suspect', db: 'ods_case', source: 'Oracle 警综库', fields: 86, rows: '186.4 万',
+        updated: '2026-06-08 02:10', size: '12.8 GB', score: 94,
+        sampleFields: ['case_no 案件编号', 'suspect_name 嫌疑人姓名', 'person_idcard 身份证号', 'phone 手机号'],
+        stats: { nullFields: 6, highCard: 12, latest: '2026-06-08 02:10' },
+        verdict: '适合用于嫌疑人基础信息查询、案件人员关联、回传前身份核验。',
+        notFor: '不适合做实时轨迹分析，原因是数据按批次同步，非秒级更新。',
+        risk: '手机号字段空值率偏高，身份证字段明文查看需要权限授权。'
+      },
+      {
+        name: 'bank_trade_detail', db: 'dwd_trade', source: 'Doris 明细库', fields: 124, rows: '4,920 万',
+        updated: '2026-06-08 01:30', size: '286 GB', score: 97,
+        sampleFields: ['card_no 银行卡号', 'trade_amount 交易金额', 'trade_time 交易时间', 'opposite_account 对手账号'],
+        stats: { nullFields: 4, highCard: 28, latest: '2026-06-08 01:30' },
+        verdict: '适合用于资金流水探查、交易金额统计、涉案账户上下游分析。',
+        notFor: '不适合直接做人名检索，需要先通过银行卡或账户关系关联人员表。',
+        risk: '银行卡号、对手账号属于敏感字段，默认只能脱敏预览。'
+      },
+      {
+        name: 'app_login_log', db: 'ods_log', source: 'Hive 离线库', fields: 42, rows: '8,213 万',
+        updated: '2026-06-06 04:00', size: '512 GB', score: 82,
+        sampleFields: ['user_id 用户编号', 'login_ip 登录 IP', 'login_time 登录时间', 'device_id 设备号'],
+        stats: { nullFields: 11, highCard: 9, latest: '2026-06-06 04:00' },
+        verdict: '适合用于登录行为排查和账号风险辅助分析。',
+        notFor: '不适合单独判定真实人员位置，IP 可能受代理、内网、NAT 影响。',
+        risk: '最近更新时间较旧，部分字段空值率较高，演示时应标记为谨慎使用。'
+      }
+    ]
+
+    const fieldResults = document.getElementById('fieldResults')
+    const tableResults = document.getElementById('tableResults')
+    const detailName = document.getElementById('detailName')
+    const detailPath = document.getElementById('detailPath')
+    const detailBody = document.getElementById('detailBody')
+    const drawerMask = document.getElementById('drawerMask')
+    const compareDrawer = document.getElementById('compareDrawer')
+    const compareBody = document.getElementById('compareBody')
+    let activeField = fieldData[0]
+    let activeTable = tableData[0]
+    let currentTab = 'fields'
+
+    function renderFieldCards() {
+      fieldResults.innerHTML = fieldData.map((f, index) => `
+        <article class="field-card ${f.name === activeField.name && currentTab === 'fields' ? 'active' : ''}" data-field="${index}">
+          <div class="card-head">
+            <div>
+              <div class="name-line"><span class="main-name">${f.name}</span><span class="cn-name">${f.cn}</span>${f.sensitive ? '<span class="chip sensitive">敏感已脱敏</span>' : '<span class="chip good">可明文预览</span>'}</div>
+              <div class="path">${f.db}.${f.table} · ${f.source}</div>
+            </div>
+            <div class="score ${f.score < 90 ? 'warn' : ''}">${f.score}分</div>
+          </div>
+          <div class="verdict-box ${f.score >= 90 ? 'good' : 'warn'}">${f.verdict}：${f.usage}</div>
+          <div class="reason-list">${f.reason.map(v => `<span class="chip blue">${v}</span>`).join('')}</div>
+          <div class="meta-grid">
+            <div class="meta"><div class="meta-label">字段类型</div><div class="meta-value">${f.type}</div></div>
+            <div class="meta"><div class="meta-label">空值率</div><div class="meta-value">${f.nullRate}</div></div>
+            <div class="meta"><div class="meta-label">唯一值</div><div class="meta-value">${f.unique}</div></div>
+            <div class="meta"><div class="meta-label">更新时间</div><div class="meta-value">${f.updated}</div></div>
+          </div>
+          <div class="quality-grid">
+            <div class="quality-mini"><span>完整性</span><strong>${f.quality.completeness}%</strong></div>
+            <div class="quality-mini"><span>唯一性</span><strong>${f.quality.uniqueness}%</strong></div>
+            <div class="quality-mini"><span>及时性</span><strong>${f.quality.freshness}%</strong></div>
+            <div class="quality-mini"><span>稳定性</span><strong>${f.quality.stability}%</strong></div>
+          </div>
+          <div class="sample-values"><span class="chip purple">${f.permission}</span></div>
+          <div class="sample-values">${f.sample.map(v => `<span class="chip">${v}</span>`).join('')}</div>
+          <div class="card-actions">
+            <button class="btn ghost" data-compare="${index}">加入对比</button>
+            <button class="btn ghost" data-copy-path="${f.db}.${f.table}.${f.name}">复制字段路径</button>
+          </div>
+        </article>
+      `).join('')
+    }
+
+    function renderTableCards() {
+      tableResults.innerHTML = tableData.map((t, index) => `
+        <article class="table-card ${t.name === activeTable.name && currentTab === 'tables' ? 'active' : ''}" data-table="${index}">
+          <div class="card-head">
+            <div>
+              <div class="name-line"><span class="main-name">${t.name}</span><span class="cn-name">${t.db}</span></div>
+              <div class="path">${t.source} · ${t.updated}</div>
+            </div>
+            <div class="score ${t.score < 90 ? 'warn' : ''}">${t.score}分</div>
+          </div>
+          <div class="verdict-box ${t.score >= 90 ? 'good' : 'warn'}">${t.verdict}</div>
+          <div class="meta-grid">
+            <div class="meta"><div class="meta-label">字段数</div><div class="meta-value">${t.fields}</div></div>
+            <div class="meta"><div class="meta-label">行数</div><div class="meta-value">${t.rows}</div></div>
+            <div class="meta"><div class="meta-label">存储大小</div><div class="meta-value">${t.size}</div></div>
+            <div class="meta"><div class="meta-label">质量概览</div><div class="meta-value">${t.stats.nullFields} 个空值字段</div></div>
+          </div>
+          <div class="reason-list">
+            <span class="chip good">适合：${t.verdict}</span>
+            <span class="chip sensitive">风险：${t.risk}</span>
+          </div>
+          <div class="sample-values">${t.sampleFields.map(v => `<span class="chip blue">${v}</span>`).join('')}</div>
+        </article>
+      `).join('')
+    }
+
+    function fieldDetail(f) {
+      detailName.textContent = `${f.name} · ${f.cn}`
+      detailPath.textContent = `${f.db}.${f.table} · ${f.source}`
+      detailBody.innerHTML = `
+        <section class="detail-section">
+          <div class="section-head">为什么推荐这个字段 <span class="chip ${f.score >= 90 ? 'good' : 'sensitive'}">${f.verdict}</span></div>
+          <div class="section-body">
+            <div class="verdict-box ${f.score >= 90 ? 'good' : 'warn'}">${f.usage}</div>
+            <div class="reason-list">${f.reason.map(v => `<span class="chip blue">${v}</span>`).join('')}</div>
+            <div class="reason-box"><strong>权限状态：</strong>${f.permission}</div>
+          </div>
+        </section>
+        <section class="detail-section">
+          <div class="section-head">业务含义确认</div>
+          <div class="section-body">
+            <div class="same-field"><strong>业务解释</strong><span>${f.meaning}</span></div>
+            <div class="same-field"><strong>典型用途</strong><span>${f.usage}</span></div>
+            <div class="same-field"><strong>注意事项</strong><span>${f.caution}</span></div>
+          </div>
+        </section>
+        <section class="detail-section">
+          <div class="section-head">字段可用性判断 <span class="chip ${f.score >= 90 ? 'good' : ''}">${f.score >= 90 ? '推荐使用' : '谨慎使用'}</span></div>
+          <div class="section-body">
+            <div class="quality-grid">
+              <div class="quality-mini"><span>完整性</span><strong>${f.quality.completeness}%</strong></div>
+              <div class="quality-mini"><span>唯一性</span><strong>${f.quality.uniqueness}%</strong></div>
+              <div class="quality-mini"><span>及时性</span><strong>${f.quality.freshness}%</strong></div>
+              <div class="quality-mini"><span>稳定性</span><strong>${f.quality.stability}%</strong></div>
+            </div>
+            <div class="kv-grid">
+              <div class="kv"><span>字段类型</span><strong>${f.type}</strong></div>
+              <div class="kv"><span>空值率</span><strong>${f.nullRate}</strong></div>
+              <div class="kv"><span>唯一值数量</span><strong>${f.unique}</strong></div>
+              <div class="kv"><span>更新时间</span><strong>${f.updated}</strong></div>
+              <div class="kv"><span>最小值</span><strong>${f.min}</strong></div>
+              <div class="kv"><span>最大值</span><strong>${f.max}</strong></div>
+              <div class="kv"><span>平均值</span><strong>${f.avg}</strong></div>
+              <div class="kv"><span>预览权限</span><strong>${f.sensitive ? '脱敏可见' : '明文可见'}</strong></div>
+            </div>
+          </div>
+        </section>
+        <section class="detail-section">
+          <div class="section-head">${f.type.includes('DECIMAL') ? '数值区间分布' : 'TopN 高频值分布'}</div>
+          <div class="section-body dist">
+            ${f.top.map((item, idx) => `<div class="dist-row"><span>${item[0]}</span><div class="bar"><i style="--w:${Math.max(12, 80 - idx * 16)}%;--c:${idx === 0 ? '#1769e0' : '#8bb7ff'}"></i></div><strong>${item[1]}</strong></div>`).join('')}
+          </div>
+        </section>
+        <section class="detail-section">
+          <div class="section-head">样例值与异常样例</div>
+          <div class="section-body">
+            <div class="sample-values">
+              <span class="chip good">正常样例 ${f.sample[0]}</span>
+              <span class="chip">${f.sample[1]}</span>
+              <span class="chip sensitive">异常样例 ${f.type.includes('DECIMAL') ? '-999999.00' : '000000000000000000'}</span>
+              <span class="chip">空值占比 ${f.nullRate}</span>
+            </div>
+          </div>
+        </section>
+        <section class="detail-section">
+          <div class="section-head">同类字段出现位置</div>
+          <div class="section-body">${f.same.map(v => `<div class="same-field"><strong>${v}</strong><span>可点击后继续探查字段分布与样例值</span></div>`).join('')}</div>
+        </section>
+        <section class="detail-section">
+          <div class="section-head">下一步动作</div>
+          <div class="section-body action-grid">
+            <button class="action-card"><strong>预览所在表</strong><span>进入 ${f.table} 查看前 100 行脱敏数据</span></button>
+            <button class="action-card"><strong>复制字段路径</strong><span>${f.db}.${f.table}.${f.name}</span></button>
+            <button class="action-card"><strong>加入数据预览</strong><span>带着该字段跳转到数据预览模块</span></button>
+            <button class="action-card"><strong>生成查询 SQL</strong><span>生成 SELECT ${f.name} FROM ${f.table}</span></button>
+          </div>
+        </section>
+      `
+    }
+
+    function tableDetail(t) {
+      detailName.textContent = t.name
+      detailPath.textContent = `${t.db} · ${t.source}`
+      detailBody.innerHTML = `
+        <section class="detail-section">
+          <div class="section-head">这张表能不能用 <span class="chip ${t.score >= 90 ? 'good' : 'sensitive'}">${t.score >= 90 ? '推荐使用' : '谨慎使用'}</span></div>
+          <div class="section-body">
+            <div class="verdict-box ${t.score >= 90 ? 'good' : 'warn'}">${t.verdict}</div>
+            <div class="same-field"><strong>不适合用于</strong><span>${t.notFor}</span></div>
+            <div class="same-field"><strong>使用风险</strong><span>${t.risk}</span></div>
+          </div>
+        </section>
+        <section class="detail-section">
+          <div class="section-head">表基础信息 <span class="chip ${t.score >= 90 ? 'good' : ''}">${t.score}分</span></div>
+          <div class="section-body">
+            <div class="kv-grid">
+              <div class="kv"><span>表名</span><strong>${t.name}</strong></div>
+              <div class="kv"><span>库名</span><strong>${t.db}</strong></div>
+              <div class="kv"><span>数据源</span><strong>${t.source}</strong></div>
+              <div class="kv"><span>行数</span><strong>${t.rows}</strong></div>
+              <div class="kv"><span>字段数</span><strong>${t.fields}</strong></div>
+              <div class="kv"><span>存储大小</span><strong>${t.size}</strong></div>
+            </div>
+          </div>
+        </section>
+        <section class="detail-section">
+          <div class="section-head">表级统计</div>
+          <div class="section-body">
+            <div class="quality-row"><span>完整性</span><div class="bar"><i style="--w:${t.score}%;--c:#0f766e"></i></div><strong>${t.score}%</strong></div>
+            <div class="quality-row"><span>空值字段</span><div class="bar"><i style="--w:${Math.min(90, t.stats.nullFields * 7)}%;--c:#b86b00"></i></div><strong>${t.stats.nullFields}</strong></div>
+            <div class="quality-row"><span>高基数字段</span><div class="bar"><i style="--w:${Math.min(90, t.stats.highCard * 3)}%;--c:#1769e0"></i></div><strong>${t.stats.highCard}</strong></div>
+          </div>
+        </section>
+        <section class="detail-section">
+          <div class="section-head">字段列表 <span class="chip">可搜索 / 排序 / 筛选</span></div>
+          <div class="section-body">
+            <div class="field-tools"><input value="身份证" /><button class="btn">字段筛选</button></div>
+            <table class="mini-table">
+              <tr><th>字段名</th><th>类型</th><th>空值率</th><th>唯一值</th></tr>
+              <tr><td>person_idcard</td><td>VARCHAR</td><td>0.8%</td><td>186,420</td></tr>
+              <tr><td>suspect_name</td><td>VARCHAR</td><td>0.1%</td><td>98,211</td></tr>
+              <tr><td>phone</td><td>VARCHAR</td><td>12.4%</td><td>142,905</td></tr>
+              <tr><td>case_no</td><td>VARCHAR</td><td>0.0%</td><td>81,406</td></tr>
+            </table>
+          </div>
+        </section>
+        <section class="detail-section">
+          <div class="section-head">数据预览 <span class="chip sensitive">敏感字段脱敏</span></div>
+          <div class="section-body preview-wrap">
+            <table class="mini-table">
+              <tr><th>case_no</th><th>suspect_name</th><th>person_idcard</th><th>phone</th></tr>
+              <tr><td>AJ20260518001</td><td>张某</td><td><span class="masked">110***********031X</span></td><td><span class="masked">138****6241</span></td></tr>
+              <tr><td>AJ20260518002</td><td>李某</td><td><span class="masked">320***********8842</span></td><td><span class="masked">151****9077</span></td></tr>
+              <tr><td>AJ20260518003</td><td>王某</td><td><span class="masked">440***********2419</span></td><td><span class="masked">186****1209</span></td></tr>
+            </table>
+          </div>
+        </section>
+        <section class="detail-section">
+          <div class="section-head">下一步动作</div>
+          <div class="section-body action-grid">
+            <button class="action-card"><strong>进入数据预览</strong><span>查看前 50/100 行数据并继续筛选</span></button>
+            <button class="action-card"><strong>复制表路径</strong><span>${t.db}.${t.name}</span></button>
+            <button class="action-card"><strong>生成查询 SQL</strong><span>生成 SELECT 字段清单和 LIMIT 100</span></button>
+            <button class="action-card"><strong>申请明文权限</strong><span>对敏感字段发起授权申请</span></button>
+          </div>
+        </section>
+      `
+    }
+
+    function openCompare(seedField) {
+      const rows = fieldData
+        .filter(item => item.cn.includes(seedField.cn.slice(0, 2)) || item.same.join('|').includes(seedField.name) || item.sensitive === seedField.sensitive)
+        .slice(0, 4)
+      compareBody.innerHTML = `
+        <div class="compare-note">
+          推荐优先使用 <strong>${seedField.db}.${seedField.table}.${seedField.name}</strong>。
+          原因是命中解释清楚、更新时间近、空值率低，并且权限边界可说明。
+        </div>
+        <section class="detail-section">
+          <div class="section-head">字段选择对比</div>
+          <div class="section-body preview-wrap">
+            <table class="mini-table">
+              <tr>
+                <th>字段路径</th>
+                <th>中文含义</th>
+                <th>空值率</th>
+                <th>唯一值</th>
+                <th>更新时间</th>
+                <th>权限</th>
+                <th>结论</th>
+              </tr>
+              ${rows.map(item => `
+                <tr>
+                  <td>${item.db}.${item.table}.${item.name}</td>
+                  <td>${item.cn}</td>
+                  <td>${item.nullRate}</td>
+                  <td>${item.unique}</td>
+                  <td>${item.updated}</td>
+                  <td>${item.sensitive ? '脱敏预览' : '明文可见'}</td>
+                  <td>${item.verdict}</td>
+                </tr>
+              `).join('')}
+            </table>
+          </div>
+        </section>
+        <section class="detail-section">
+          <div class="section-head">选择建议</div>
+          <div class="section-body">
+            <div class="same-field"><strong>查案件嫌疑人</strong><span>优先选 ods_case.case_suspect.person_idcard，案件关联更直接。</span></div>
+            <div class="same-field"><strong>查人口基础信息</strong><span>优先选 ods_population.population_person.id_card_no，覆盖范围更大。</span></div>
+            <div class="same-field"><strong>做统计分析</strong><span>优先选空值率低、更新时间近、唯一值稳定的字段。</span></div>
+          </div>
+        </section>
+      `
+      drawerMask.classList.add('open')
+      compareDrawer.classList.add('open')
+    }
+
+    function closeCompare() {
+      drawerMask.classList.remove('open')
+      compareDrawer.classList.remove('open')
+    }
+
+    function bind() {
+      document.querySelectorAll('[data-tab]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          currentTab = btn.dataset.tab
+          document.querySelectorAll('[data-tab]').forEach(item => item.classList.toggle('active', item === btn))
+          fieldResults.classList.toggle('hide', currentTab !== 'fields')
+          tableResults.classList.toggle('hide', currentTab !== 'tables')
+          document.getElementById('resultSummary').textContent = currentTab === 'fields'
+            ? `搜索“${document.getElementById('searchInput').value}”，优先展示字段命中`
+            : `搜索“${document.getElementById('searchInput').value}”，展示相关数据表`
+          currentTab === 'fields' ? fieldDetail(activeField) : tableDetail(activeTable)
+          renderFieldCards()
+          renderTableCards()
+        })
+      })
+
+      fieldResults.addEventListener('click', (event) => {
+        const compareButton = event.target.closest('[data-compare]')
+        if (compareButton) {
+          event.stopPropagation()
+          openCompare(fieldData[Number(compareButton.dataset.compare)])
+          return
+        }
+        const copyButton = event.target.closest('[data-copy-path]')
+        if (copyButton) {
+          event.stopPropagation()
+          document.getElementById('resultSummary').textContent = `已复制字段路径：${copyButton.dataset.copyPath}`
+          return
+        }
+        const card = event.target.closest('[data-field]')
+        if (!card) return
+        activeField = fieldData[Number(card.dataset.field)]
+        currentTab = 'fields'
+        renderFieldCards()
+        fieldDetail(activeField)
+      })
+
+      tableResults.addEventListener('click', (event) => {
+        const card = event.target.closest('[data-table]')
+        if (!card) return
+        activeTable = tableData[Number(card.dataset.table)]
+        currentTab = 'tables'
+        renderTableCards()
+        tableDetail(activeTable)
+      })
+
+      document.querySelectorAll('.quick-word').forEach(item => {
+        item.addEventListener('click', () => {
+          document.getElementById('searchInput').value = item.dataset.word
+          document.getElementById('resultSummary').textContent = `搜索“${item.dataset.word}”，优先展示字段命中`
+        })
+      })
+
+      document.getElementById('searchBtn').addEventListener('click', () => {
+        const word = document.getElementById('searchInput').value || '身份证'
+        document.getElementById('resultSummary').textContent = currentTab === 'fields'
+          ? `搜索“${word}”，优先展示字段命中`
+          : `搜索“${word}”，展示相关数据表`
+      })
+
+      document.getElementById('openTableBtn').addEventListener('click', () => {
+        currentTab = 'tables'
+        document.querySelector('[data-tab="tables"]').click()
+        activeTable = tableData.find(t => t.name === activeField.table) || tableData[0]
+        renderTableCards()
+        tableDetail(activeTable)
+      })
+
+      document.getElementById('closeCompare').addEventListener('click', closeCompare)
+      drawerMask.addEventListener('click', closeCompare)
+    }
+
+    renderFieldCards()
+    renderTableCards()
+    fieldDetail(activeField)
+    bind()
+  </script>
+</body>
+</html>

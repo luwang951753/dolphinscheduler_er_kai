@@ -28,9 +28,9 @@ import org.apache.dolphinscheduler.dao.mapper.DataSourceMapper;
 import org.apache.dolphinscheduler.spi.datasource.BaseConnectionParam;
 import org.apache.dolphinscheduler.spi.enums.DbType;
 
+import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
@@ -146,7 +146,8 @@ public class DataSourceServiceImplTest {
                 String.class);
         method.setAccessible(true);
 
-        Assertions.assertEquals("DEMO_ORDERS", method.invoke(new DataSourceServiceImpl(), DbType.ORACLE, "demo_orders"));
+        Assertions.assertEquals("DEMO_ORDERS",
+                method.invoke(new DataSourceServiceImpl(), DbType.ORACLE, "demo_orders"));
         Assertions.assertEquals("demo_orders", method.invoke(new DataSourceServiceImpl(), DbType.MYSQL, "demo_orders"));
     }
 
@@ -277,6 +278,112 @@ public class DataSourceServiceImplTest {
         Assertions.assertTrue(sql.contains("`RYBH` LIKE ? ESCAPE '\\\\'"), sql);
         Assertions.assertFalse(sql.contains("\"RYBH\""), sql);
         Assertions.assertTrue(sql.endsWith("LIMIT 50 OFFSET 0"), sql);
+    }
+
+    @Test
+    public void buildPreviewSqlResolvesFilterAndSortFieldsCaseInsensitively() throws Exception {
+        DataPreviewQueryRequest request = new DataPreviewQueryRequest();
+        request.setDatabase("case_workbench");
+        request.setTableName("ajxx_tab");
+
+        DataPreviewQueryRequest.Filter filter = new DataPreviewQueryRequest.Filter();
+        filter.setField("case_no");
+        filter.setOperator("CONTAINS");
+        filter.setValue("AJ");
+        request.setFilters(Arrays.asList(filter));
+
+        DataPreviewQueryRequest.Sort sort = new DataPreviewQueryRequest.Sort();
+        sort.setField("case_id");
+        sort.setDirection("DESC");
+        request.setSorts(Arrays.asList(sort));
+
+        Method method = DataSourceServiceImpl.class.getDeclaredMethod(
+                "buildPreviewSql",
+                DbType.class,
+                DataPreviewQueryRequest.class,
+                java.util.Set.class,
+                int.class,
+                int.class);
+        method.setAccessible(true);
+
+        String sql = (String) method.invoke(
+                new DataSourceServiceImpl(),
+                DbType.MYSQL,
+                request,
+                new LinkedHashSet<>(Arrays.asList("CASE_ID", "CASE_NO", "CASE_NAME")),
+                1,
+                50);
+
+        Assertions.assertTrue(sql.contains("WHERE `CASE_NO` LIKE ? ESCAPE '\\\\'"), sql);
+        Assertions.assertTrue(sql.contains("ORDER BY `CASE_ID` DESC"), sql);
+    }
+
+    @Test
+    public void buildDorisPreviewSqlUsesMysqlCompatibleTableReference() throws Exception {
+        DataPreviewQueryRequest request = new DataPreviewQueryRequest();
+        request.setDatabase("ods");
+        request.setTableName("ajxx_tab");
+
+        Method method = DataSourceServiceImpl.class.getDeclaredMethod(
+                "buildPreviewSql",
+                DbType.class,
+                DataPreviewQueryRequest.class,
+                java.util.Set.class,
+                int.class,
+                int.class);
+        method.setAccessible(true);
+
+        String sql = (String) method.invoke(
+                new DataSourceServiceImpl(),
+                DbType.DORIS,
+                request,
+                new LinkedHashSet<>(Arrays.asList("case_id", "case_type")),
+                1,
+                50);
+
+        Assertions.assertTrue(sql.contains("FROM `ods`.`ajxx_tab`"), sql);
+        Assertions.assertTrue(sql.endsWith("LIMIT 50 OFFSET 0"), sql);
+        Assertions.assertFalse(sql.contains("\"ajxx_tab\""), sql);
+    }
+
+    @Test
+    public void dataPreviewSupportIncludesDoris() throws Exception {
+        Method method = DataSourceServiceImpl.class.getDeclaredMethod(
+                "isSupportedPreviewDataSourceType",
+                DbType.class);
+        method.setAccessible(true);
+
+        Assertions.assertEquals(true, method.invoke(new DataSourceServiceImpl(), DbType.DORIS));
+    }
+
+    @Test
+    public void buildDorisPreviewDdlUsesOlapEngineFallback() throws Exception {
+        Method method = DataSourceServiceImpl.class.getDeclaredMethod(
+                "buildPreviewDdl",
+                DbType.class,
+                String.class,
+                String.class,
+                List.class,
+                java.util.Set.class);
+        method.setAccessible(true);
+
+        org.apache.dolphinscheduler.api.dto.DataPreviewTableStructureResult.Column id =
+                new org.apache.dolphinscheduler.api.dto.DataPreviewTableStructureResult.Column();
+        id.setName("case_id");
+        id.setType("BIGINT");
+        id.setNullable(false);
+
+        String ddl = (String) method.invoke(
+                new DataSourceServiceImpl(),
+                DbType.DORIS,
+                "ajxx_tab",
+                "案件表",
+                Arrays.asList(id),
+                new LinkedHashSet<>(Arrays.asList("case_id")));
+
+        Assertions.assertTrue(ddl.contains("CREATE TABLE `ajxx_tab`"), ddl);
+        Assertions.assertTrue(ddl.contains("ENGINE=OLAP"), ddl);
+        Assertions.assertTrue(ddl.contains("PRIMARY KEY (`case_id`)"), ddl);
     }
 
     @Test

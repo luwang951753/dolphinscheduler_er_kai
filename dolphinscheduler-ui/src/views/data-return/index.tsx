@@ -20,18 +20,13 @@ import {
   NButton,
   NDataTable,
   NEmpty,
-  NIcon,
   NInput,
-  NModal,
   NTag,
   NTabs,
   NTabPane,
   type DataTableColumns
 } from 'naive-ui'
-import {
-  SearchOutlined,
-  SettingOutlined
-} from '@vicons/antd'
+import { SearchOutlined } from '@vicons/antd'
 import {
   queryDataReturn,
   queryDataReturnParamMapping
@@ -170,7 +165,12 @@ const buildTargetTabLabel = (
   targetState: TargetState
 ) => {
   const label = targetState.title || tab.label
-  return `${label}${targetState.queried ? ` (${targetState.total})` : ''}`
+  return (
+    <span class={styles.targetTabLabel} title={`${label}${targetState.queried ? ` (${targetState.total})` : ''}`}>
+      <span class={styles.targetTabText}>{label}</span>
+      {targetState.queried ? <span class={styles.targetTabCount}>({targetState.total})</span> : null}
+    </span>
+  )
 }
 
 const normalizeResult = (
@@ -206,11 +206,9 @@ export default defineComponent({
       caseName: ''
     })
     const paramMapping = reactive<ParamMappingState>(createDefaultParamMapping())
-    const editingParamMapping = reactive<ParamMappingState>(createDefaultParamMapping())
     const state = reactive({
       activeTarget: 'TIANDI_MIDDLE' as DataReturnTarget,
       lastQueryText: '',
-      mappingModalVisible: false,
       targetData: {
         TIANDI_MIDDLE: createTargetState(),
         C3_RETURN: createTargetState(),
@@ -331,24 +329,6 @@ export default defineComponent({
       }
     }
 
-    const openMappingModal = () => {
-      queryFieldMeta.forEach(({ key }) => {
-        editingParamMapping[key] = paramMapping[key]
-      })
-      state.mappingModalVisible = true
-    }
-
-    const closeMappingModal = () => {
-      state.mappingModalVisible = false
-    }
-
-    const saveMappingModal = () => {
-      queryFieldMeta.forEach(({ key }) => {
-        paramMapping[key] = editingParamMapping[key].trim() || key
-      })
-      closeMappingModal()
-    }
-
     const loadParamMapping = async () => {
       try {
         const result = await queryDataReturnParamMapping()
@@ -358,13 +338,11 @@ export default defineComponent({
         const normalized = normalizeParamMapping(remoteMapping)
         queryFieldMeta.forEach(({ key }) => {
           paramMapping[key] = normalized[key]
-          editingParamMapping[key] = normalized[key]
         })
       } catch {
         const defaults = createDefaultParamMapping()
         queryFieldMeta.forEach(({ key }) => {
           paramMapping[key] = defaults[key]
-          editingParamMapping[key] = defaults[key]
         })
       }
     }
@@ -395,40 +373,6 @@ export default defineComponent({
       </label>
     )
 
-    const renderMappingModal = () => (
-      <NModal
-        show={state.mappingModalVisible}
-        preset='card'
-        title='参数映射'
-        class={styles.mappingModal}
-        maskClosable
-        onClose={closeMappingModal}
-        onMaskClick={closeMappingModal}
-      >
-        <p class={styles.mappingTip}>
-          配置来自 Magic API 参数映射脚本。这里修改后会应用到当前页面，永久调整请修改对应 Magic API 脚本。
-        </p>
-        <div class={styles.mappingList}>
-          {queryFieldMeta.map((field) => (
-            <label class={styles.mappingRow} key={field.key}>
-              <span>{field.label}</span>
-              <NInput
-                v-model:value={editingParamMapping[field.key]}
-                placeholder='请输入请求参数名'
-                onKeyup={(event: KeyboardEvent) => {
-                  if (event.key === 'Enter') saveMappingModal()
-                }}
-              />
-            </label>
-          ))}
-        </div>
-        <div class={styles.modalActions}>
-          <NButton onClick={closeMappingModal}>取消</NButton>
-          <NButton type='primary' onClick={saveMappingModal}>应用</NButton>
-        </div>
-      </NModal>
-    )
-
     return () => {
       const current = state.targetData[state.activeTarget]
       const tableColumns = buildTableColumns(current.columns)
@@ -449,15 +393,9 @@ export default defineComponent({
                 {renderSearchField('caseNo', '案件编号', '输入案件编号')}
                 {renderSearchField('caseName', '案件名称', '输入案件名称')}
                 <div class={styles.actions}>
-                  <NButton onClick={openMappingModal}>
-                    {{
-                      icon: () => <NIcon><SettingOutlined /></NIcon>,
-                      default: () => '参数映射'
-                    }}
-                  </NButton>
                   <NButton type='primary' onClick={handleSearch} loading={current.loading}>
                     {{
-                      icon: () => <NIcon><SearchOutlined /></NIcon>,
+                      icon: () => <SearchOutlined />,
                       default: () => '查询'
                     }}
                   </NButton>
@@ -473,6 +411,7 @@ export default defineComponent({
               </div>
 
               <NTabs
+                class={styles.targetTabs}
                 value={state.activeTarget}
                 type='line'
                 animated
@@ -518,7 +457,6 @@ export default defineComponent({
                 })}
               </NTabs>
             </section>
-            {renderMappingModal()}
           </div>
         </main>
       )

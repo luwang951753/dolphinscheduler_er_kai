@@ -984,4 +984,159 @@ public final class DataGovernanceDtos {
             this.status = status;
         }
     }
+
+    public static class SqlLineageParseRequest {
+
+        private String sql;
+
+        public String getSql() {
+            return sql;
+        }
+
+        public void setSql(String sql) {
+            this.sql = sql;
+        }
+    }
+
+    public static class SqlLineage {
+
+        private List<SqlLineageTable> tables = new ArrayList<>();
+        private List<SqlLineageEdge> edges = new ArrayList<>();
+        private List<String> warnings = new ArrayList<>();
+
+        public List<SqlLineageTable> getTables() {
+            return tables;
+        }
+
+        public void setTables(List<SqlLineageTable> tables) {
+            this.tables = tables;
+        }
+
+        public List<SqlLineageEdge> getEdges() {
+            return edges;
+        }
+
+        public void setEdges(List<SqlLineageEdge> edges) {
+            this.edges = edges;
+        }
+
+        public List<String> getWarnings() {
+            return warnings;
+        }
+
+        public void setWarnings(List<String> warnings) {
+            this.warnings = warnings;
+        }
+    }
+
+    public static class SqlLineageTable {
+
+        private String id;
+        private String name;
+        private String schema;
+        private List<SqlLineageColumn> columns = new ArrayList<>();
+
+        public String getId() {
+            return id;
+        }
+
+        public void setId(String id) {
+            this.id = id;
+        }
+
+        public String getName() {
+            return name;
+        }
+
+        public void setName(String name) {
+            this.name = name;
+        }
+
+        public String getSchema() {
+            return schema;
+        }
+
+        public void setSchema(String schema) {
+            this.schema = schema;
+        }
+
+        public List<SqlLineageColumn> getColumns() {
+            return columns;
+        }
+
+        public void setColumns(List<SqlLineageColumn> columns) {
+            this.columns = columns;
+        }
+    }
+
+    public static class SqlLineageColumn {
+
+        private String name;
+        private String type;
+
+        public String getName() {
+            return name;
+        }
+
+        public void setName(String name) {
+            this.name = name;
+        }
+
+        public String getType() {
+            return type;
+        }
+
+        public void setType(String type) {
+            this.type = type;
+        }
+    }
+
+    public static class SqlLineageEdge {
+
+        private String sourceTable;
+        private String sourceColumn;
+        private String targetTable;
+        private String targetColumn;
+        private String lineageType;
+
+        public String getSourceTable() {
+            return sourceTable;
+        }
+
+        public void setSourceTable(String sourceTable) {
+            this.sourceTable = sourceTable;
+        }
+
+        public String getSourceColumn() {
+            return sourceColumn;
+        }
+
+        public void setSourceColumn(String sourceColumn) {
+            this.sourceColumn = sourceColumn;
+        }
+
+        public String getTargetTable() {
+            return targetTable;
+        }
+
+        public void setTargetTable(String targetTable) {
+            this.targetTable = targetTable;
+        }
+
+        public String getTargetColumn() {
+            return targetColumn;
+        }
+
+        public void setTargetColumn(String targetColumn) {
+            this.targetColumn = targetColumn;
+        }
+
+        public String getLineageType() {
+            return lineageType;
+        }
+
+        public void setLineageType(String lineageType) {
+            this.lineageType = lineageType;
+        }
+    }
 }

@@ -1494,8 +1494,8 @@
     })
 
     window.addEventListener('resize', () => requestAnimationFrame(renderLines))
-    sourceTableWrap.addEventListener('scroll', () => requestAnimationFrame(renderLines))
-    targetTableWrap.addEventListener('scroll', () => requestAnimationFrame(renderLines))
+    sourceTableWrap?.addEventListener('scroll', () => requestAnimationFrame(renderLines))
+    targetTableWrap?.addEventListener('scroll', () => requestAnimationFrame(renderLines))
 
     bindToolbarEvents()
     rebuildTargetsForMode()

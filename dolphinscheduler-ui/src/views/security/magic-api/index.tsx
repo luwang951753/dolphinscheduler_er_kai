@@ -15,10 +15,8 @@
  * limitations under the License.
  */
 
-import { defineComponent, nextTick, ref } from 'vue'
-import cookies from 'js-cookie'
-import { NButton } from 'naive-ui'
-import { useUserStore } from '@/store/user/user'
+import { defineComponent, ref } from 'vue'
+import { NButton, NSpace } from 'naive-ui'
 import styles from './index.module.scss'
 
 const magicApiUrl = '/dolphinscheduler/magic/web/index.html'
@@ -26,34 +24,49 @@ const magicApiUrl = '/dolphinscheduler/magic/web/index.html'
 export default defineComponent({
   name: 'magic-api',
   setup() {
-    const userStore = useUserStore()
-    const ready = ref(false)
-    const sessionId = userStore.getSessionId || cookies.get('sessionId')
+    const loaded = ref(false)
 
-    if (sessionId) {
-      cookies.set('sessionId', sessionId, { path: '/' })
+    const loadEditor = () => {
+      loaded.value = true
     }
-    nextTick(() => {
-      ready.value = true
-    })
 
     return () => (
       <div class={styles.page}>
-        <NButton
-          class={styles.openButton}
-          size='small'
-          secondary
-          onClick={() => window.open(magicApiUrl, '_blank')}
-        >
-          新窗口打开
-        </NButton>
-        {ready.value ? (
+        {loaded.value ? (
+          <NButton
+            class={styles.openButton}
+            size='small'
+            secondary
+            onClick={() => window.open(magicApiUrl, '_blank')}
+          >
+            新窗口打开
+          </NButton>
+        ) : null}
+        {loaded.value ? (
           <iframe
             class={styles.frame}
             src={magicApiUrl}
             title='magic-api'
           />
-        ) : null}
+        ) : (
+          <div class={styles.entry}>
+            <div class={styles.entryPanel}>
+              <div class={styles.eyebrow}>Magic API</div>
+              <h2>接口开发</h2>
+              <p>
+                Magic API 编辑器会加载完整 IDE 资源。进入菜单时先展示轻量入口，避免拖慢安全中心页面。
+              </p>
+              <NSpace>
+                <NButton type='primary' onClick={loadEditor}>
+                  在当前页加载
+                </NButton>
+                <NButton secondary onClick={() => window.open(magicApiUrl, '_blank')}>
+                  新窗口打开
+                </NButton>
+              </NSpace>
+            </div>
+          </div>
+        )}
       </div>
     )
   }

@@ -43,13 +43,36 @@
 
 .assetToolbar {
   display: grid;
-  grid-template-columns: minmax(260px, 1fr) 150px 130px 130px 130px auto;
-  gap: 8px;
+  grid-template-columns: minmax(320px, 1.4fr) minmax(150px, 0.75fr) minmax(150px, 0.75fr) minmax(130px, 0.6fr) minmax(130px, 0.6fr) auto;
+  align-items: end;
+  gap: 10px;
   padding: 12px;
   border: 1px solid #e3e8f2;
   border-radius: 10px;
   background: #fff;
   box-shadow: 0 10px 24px rgba(25, 40, 74, 0.06);
+}
+
+.assetFilterField {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.assetFilterField span {
+  color: var(--n-text-color-3);
+  font-size: 12px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.assetKeywordField {
+  min-width: 0;
+}
+
+.assetToolbarReset {
+  min-width: 68px;
 }
 
 .assetNameCell,
@@ -835,6 +858,104 @@
   align-items: flex-start;
 }
 
+.sinkTabs {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  border-bottom: 1px solid #e5ebf4;
+}
+
+.sinkTab {
+  height: 34px;
+  padding: 0 10px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--n-text-color-2);
+  cursor: pointer;
+  font: inherit;
+  white-space: nowrap;
+}
+
+.sinkTabActive {
+  color: #2f6bff;
+  border-bottom-color: #2f6bff;
+  font-weight: 700;
+}
+
+.sinkTabPanel {
+  padding: 12px;
+  border: 1px solid #e5ebf4;
+  border-top: 0;
+  border-radius: 0 0 8px 8px;
+  background: #fff;
+}
+
+.sinkFormGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.processingRuleList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.processingRuleCard {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid #e5ebf4;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.processingRuleHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.processingMappingList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.processingMappingRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.processingMappingRow span {
+  color: var(--n-text-color-3);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.sinkHelpIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  margin-left: 5px;
+  border: 1px solid #b9c7dd;
+  border-radius: 50%;
+  background: #fff;
+  color: #667085;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: help;
+}
+
 .summaryGridAside {
   display: grid;
   grid-template-columns: 1fr;
@@ -1259,6 +1380,24 @@
   text-decoration: underline;
 }
 
+.runSettingsModal {
+  width: min(880px, calc(100vw - 48px));
+}
+
+.runSettingsForm {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  max-height: min(70vh, 720px);
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.required {
+  margin-left: 3px;
+  color: #d92d20;
+}
+
 @media (max-width: 1200px) {
   .grid,
   .formGrid,
@@ -1307,7 +1446,27 @@
     flex-wrap: wrap;
   }
 
+  .assetMetrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .assetToolbar {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .assetKeywordField {
+    grid-column: span 2;
+  }
+
+  .assetToolbarReset {
+    width: 100%;
+  }
+
   .fieldBlockSpan2 {
     grid-column: span 1;
+  }
+
+  .runSettingsForm {
+    grid-template-columns: 1fr;
   }
 }

@@ -144,8 +144,8 @@ public class UsersController extends BaseController {
     @GetMapping(value = {"/module-permissions", "/{userId}/module-permissions"})
     @ResponseStatus(HttpStatus.OK)
     public Result<List<String>> queryModulePermissions(
-            @Parameter(hidden = true) @RequestAttribute(value = Constants.SESSION_USER) User loginUser,
-            @PathVariable(value = "userId", required = false) Integer userId) {
+                                                       @Parameter(hidden = true) @RequestAttribute(value = Constants.SESSION_USER) User loginUser,
+                                                       @PathVariable(value = "userId", required = false) Integer userId) {
         return Result.success(userModulePermissionService.queryModulePermissions(loginUser, userId));
     }
 
@@ -153,9 +153,9 @@ public class UsersController extends BaseController {
     @PutMapping(value = "/{userId}/module-permissions")
     @ResponseStatus(HttpStatus.OK)
     public Result<List<String>> saveModulePermissions(
-            @Parameter(hidden = true) @RequestAttribute(value = Constants.SESSION_USER) User loginUser,
-            @PathVariable("userId") Integer userId,
-            @RequestBody List<String> moduleKeys) {
+                                                      @Parameter(hidden = true) @RequestAttribute(value = Constants.SESSION_USER) User loginUser,
+                                                      @PathVariable("userId") Integer userId,
+                                                      @RequestBody List<String> moduleKeys) {
         return Result.success(userModulePermissionService.saveModulePermissions(loginUser, userId, moduleKeys));
     }
 

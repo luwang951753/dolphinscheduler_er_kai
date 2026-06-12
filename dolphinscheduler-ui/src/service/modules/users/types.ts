@@ -102,6 +102,7 @@ type ModulePermissionKey =
   | 'sync-task:view'
   | 'data-preview:view'
   | 'theme-library:view'
+  | 'whitepaper:view'
   | 'data-governance:view'
   | 'monitor:view'
   | 'resources:view'

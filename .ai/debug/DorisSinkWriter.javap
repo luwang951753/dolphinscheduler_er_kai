@@ -1,0 +1,637 @@
+Compiled from "DorisSinkWriter.java"
+public class org.apache.seatunnel.connectors.doris.sink.writer.DorisSinkWriter implements org.apache.seatunnel.api.sink.SinkWriter<org.apache.seatunnel.api.table.type.SeaTunnelRow, org.apache.seatunnel.connectors.doris.sink.committer.DorisCommitInfo, org.apache.seatunnel.connectors.doris.sink.writer.DorisSinkState> {
+  private static final org.slf4j.Logger log;
+
+  private static final int INITIAL_DELAY;
+
+  private static final int CONNECT_TIMEOUT;
+
+  private static final java.util.List<java.lang.String> DORIS_SUCCESS_STATUS;
+
+  private long lastCheckpointId;
+
+  private org.apache.seatunnel.connectors.doris.sink.writer.DorisStreamLoad dorisStreamLoad;
+
+  volatile boolean loading;
+
+  private final org.apache.seatunnel.connectors.doris.config.DorisConfig dorisConfig;
+
+  private final java.lang.String labelPrefix;
+
+  private final org.apache.seatunnel.connectors.doris.sink.writer.LabelGenerator labelGenerator;
+
+  private final int intervalTime;
+
+  private final org.apache.seatunnel.connectors.doris.sink.writer.DorisSinkState dorisSinkState;
+
+  private final org.apache.seatunnel.connectors.doris.serialize.DorisSerializer serializer;
+
+  private final transient java.util.concurrent.ScheduledExecutorService scheduledExecutorService;
+
+  private transient java.lang.Thread executorThread;
+
+  private volatile transient java.lang.Exception loadException;
+
+  private java.util.List<org.apache.seatunnel.connectors.doris.rest.models.BackendV2$BackendRowV2> backends;
+
+  private long pos;
+
+  public org.apache.seatunnel.connectors.doris.sink.writer.DorisSinkWriter(org.apache.seatunnel.api.sink.SinkWriter$Context, java.util.List<org.apache.seatunnel.connectors.doris.sink.writer.DorisSinkState>, org.apache.seatunnel.api.table.type.SeaTunnelRowType, org.apache.seatunnel.shade.com.typesafe.config.Config, java.lang.String);
+    Code:
+       0: aload_0
+       1: invokespecial #1                  // Method java/lang/Object."<init>":()V
+       4: aload_0
+       5: aconst_null
+       6: putfield      #2                  // Field loadException:Ljava/lang/Exception;
+       9: aload_0
+      10: aload         4
+      12: invokestatic  #3                  // Method org/apache/seatunnel/connectors/doris/config/DorisConfig.loadConfig:(Lorg/apache/seatunnel/shade/com/typesafe/config/Config;)Lorg/apache/seatunnel/connectors/doris/config/DorisConfig;
+      15: putfield      #4                  // Field dorisConfig:Lorg/apache/seatunnel/connectors/doris/config/DorisConfig;
+      18: aload_0
+      19: aload_2
+      20: invokeinterface #5,  1            // InterfaceMethod java/util/List.size:()I
+      25: ifeq          44
+      28: aload_2
+      29: iconst_0
+      30: invokeinterface #6,  2            // InterfaceMethod java/util/List.get:(I)Ljava/lang/Object;
+      35: checkcast     #7                  // class org/apache/seatunnel/connectors/doris/sink/writer/DorisSinkState
+      38: invokevirtual #8                  // Method org/apache/seatunnel/connectors/doris/sink/writer/DorisSinkState.getCheckpointId:()J
+      41: goto          45
+      44: lconst_0
+      45: putfield      #9                  // Field lastCheckpointId:J
+      48: getstatic     #10                 // Field log:Lorg/slf4j/Logger;
+      51: ldc           #11                 // String restore checkpointId {}
+      53: aload_0
+      54: getfield      #9                  // Field lastCheckpointId:J
+      57: invokestatic  #12                 // Method java/lang/Long.valueOf:(J)Ljava/lang/Long;
+      60: invokeinterface #13,  3           // InterfaceMethod org/slf4j/Logger.info:(Ljava/lang/String;Ljava/lang/Object;)V
+      65: getstatic     #10                 // Field log:Lorg/slf4j/Logger;
+      68: new           #14                 // class java/lang/StringBuilder
+      71: dup
+      72: invokespecial #15                 // Method java/lang/StringBuilder."<init>":()V
+      75: ldc           #16                 // String labelPrefix
+      77: invokevirtual #17                 // Method java/lang/StringBuilder.append:(Ljava/lang/String;)Ljava/lang/StringBuilder;
+      80: aload_0
+      81: getfield      #4                  // Field dorisConfig:Lorg/apache/seatunnel/connectors/doris/config/DorisConfig;
+      84: invokevirtual #18                 // Method org/apache/seatunnel/connectors/doris/config/DorisConfig.getLabelPrefix:()Ljava/lang/String;
+      87: invokevirtual #17                 // Method java/lang/StringBuilder.append:(Ljava/lang/String;)Ljava/lang/StringBuilder;
+      90: invokevirtual #19                 // Method java/lang/StringBuilder.toString:()Ljava/lang/String;
+      93: invokeinterface #20,  2           // InterfaceMethod org/slf4j/Logger.info:(Ljava/lang/String;)V
+      98: aload_0
+      99: new           #7                  // class org/apache/seatunnel/connectors/doris/sink/writer/DorisSinkState
+     102: dup
+     103: aload_0
+     104: getfield      #4                  // Field dorisConfig:Lorg/apache/seatunnel/connectors/doris/config/DorisConfig;
+     107: invokevirtual #18                 // Method org/apache/seatunnel/connectors/doris/config/DorisConfig.getLabelPrefix:()Ljava/lang/String;
+     110: aload_0
+     111: getfield      #9                  // Field lastCheckpointId:J
+     114: invokespecial #21                 // Method org/apache/seatunnel/connectors/doris/sink/writer/DorisSinkState."<init>":(Ljava/lang/String;J)V
+     117: putfield      #22                 // Field dorisSinkState:Lorg/apache/seatunnel/connectors/doris/sink/writer/DorisSinkState;
+     120: aload_0
+     121: new           #14                 // class java/lang/StringBuilder
+     124: dup
+     125: invokespecial #15                 // Method java/lang/StringBuilder."<init>":()V
+     128: aload_0
+     129: getfield      #4                  // Field dorisConfig:Lorg/apache/seatunnel/connectors/doris/config/DorisConfig;
+     132: invokevirtual #18                 // Method org/apache/seatunnel/connectors/doris/config/DorisConfig.getLabelPrefix:()Ljava/lang/String;
+     135: invokevirtual #17                 // Method java/lang/StringBuilder.append:(Ljava/lang/String;)Ljava/lang/StringBuilder;
+     138: ldc           #23                 // String _
+     140: invokevirtual #17                 // Method java/lang/StringBuilder.append:(Ljava/lang/String;)Ljava/lang/StringBuilder;
+     143: aload         5
+     145: invokevirtual #17                 // Method java/lang/StringBuilder.append:(Ljava/lang/String;)Ljava/lang/StringBuilder;
+     148: ldc           #23                 // String _
+     150: invokevirtual #17                 // Method java/lang/StringBuilder.append:(Ljava/lang/String;)Ljava/lang/StringBuilder;
+     153: aload_1
+     154: invokeinterface #24,  1           // InterfaceMethod org/apache/seatunnel/api/sink/SinkWriter$Context.getIndexOfSubtask:()I
+     159: invokevirtual #25                 // Method java/lang/StringBuilder.append:(I)Ljava/lang/StringBuilder;
+     162: invokevirtual #19                 // Method java/lang/StringBuilder.toString:()Ljava/lang/String;
+     165: putfield      #26                 // Field labelPrefix:Ljava/lang/String;
+     168: aload_0
+     169: new           #27                 // class org/apache/seatunnel/connectors/doris/sink/writer/LabelGenerator
+     172: dup
+     173: aload_0
+     174: getfield      #26                 // Field labelPrefix:Ljava/lang/String;
+     177: aload_0
+     178: getfield      #4                  // Field dorisConfig:Lorg/apache/seatunnel/connectors/doris/config/DorisConfig;
+     181: invokevirtual #28                 // Method org/apache/seatunnel/connectors/doris/config/DorisConfig.getEnable2PC:()Ljava/lang/Boolean;
+     184: invokevirtual #29                 // Method java/lang/Boolean.booleanValue:()Z
+     187: invokespecial #30                 // Method org/apache/seatunnel/connectors/doris/sink/writer/LabelGenerator."<init>":(Ljava/lang/String;Z)V
+     190: putfield      #31                 // Field labelGenerator:Lorg/apache/seatunnel/connectors/doris/sink/writer/LabelGenerator;
+     193: aload_0
+     194: new           #32                 // class java/util/concurrent/ScheduledThreadPoolExecutor
+     197: dup
+     198: iconst_1
+     199: new           #33                 // class com/google/common/util/concurrent/ThreadFactoryBuilder
+     202: dup
+     203: invokespecial #34                 // Method com/google/common/util/concurrent/ThreadFactoryBuilder."<init>":()V
+     206: ldc           #35                 // String stream-load-check
+     208: invokevirtual #36                 // Method com/google/common/util/concurrent/ThreadFactoryBuilder.setNameFormat:(Ljava/lang/String;)Lcom/google/common/util/concurrent/ThreadFactoryBuilder;
+     211: invokevirtual #37                 // Method com/google/common/util/concurrent/ThreadFactoryBuilder.build:()Ljava/util/concurrent/ThreadFactory;
+     214: invokespecial #38                 // Method java/util/concurrent/ScheduledThreadPoolExecutor."<init>":(ILjava/util/concurrent/ThreadFactory;)V
+     217: putfield      #39                 // Field scheduledExecutorService:Ljava/util/concurrent/ScheduledExecutorService;
+     220: aload_0
+     221: aload_0
+     222: aload_0
+     223: getfield      #4                  // Field dorisConfig:Lorg/apache/seatunnel/connectors/doris/config/DorisConfig;
+     226: aload_3
+     227: invokespecial #40                 // Method createSerializer:(Lorg/apache/seatunnel/connectors/doris/config/DorisConfig;Lorg/apache/seatunnel/api/table/type/SeaTunnelRowType;)Lorg/apache/seatunnel/connectors/doris/serialize/DorisSerializer;
+     230: putfield      #41                 // Field serializer:Lorg/apache/seatunnel/connectors/doris/serialize/DorisSerializer;
+     233: aload_0
+     234: aload_0
+     235: getfield      #4                  // Field dorisConfig:Lorg/apache/seatunnel/connectors/doris/config/DorisConfig;
+     238: invokevirtual #42                 // Method org/apache/seatunnel/connectors/doris/config/DorisConfig.getCheckInterval:()Ljava/lang/Integer;
+     241: invokevirtual #43                 // Method java/lang/Integer.intValue:()I
+     244: putfield      #44                 // Field intervalTime:I
+     247: aload_0
+     248: iconst_0
+     249: putfield      #45                 // Field loading:Z
+     252: return
+
+  public void initializeLoad(java.util.List<org.apache.seatunnel.connectors.doris.sink.writer.DorisSinkState>) throws java.io.IOException;
+    Code:
+       0: aload_0
+       1: aload_0
+       2: getfield      #4                  // Field dorisConfig:Lorg/apache/seatunnel/connectors/doris/config/DorisConfig;
+       5: getstatic     #10                 // Field log:Lorg/slf4j/Logger;
+       8: invokestatic  #46                 // Method org/apache/seatunnel/connectors/doris/rest/RestService.getBackendsV2:(Lorg/apache/seatunnel/connectors/doris/config/DorisConfig;Lorg/slf4j/Logger;)Ljava/util/List;
+      11: putfield      #47                 // Field backends:Ljava/util/List;
+      14: aload_0
+      15: invokevirtual #48                 // Method getAvailableBackend:()Ljava/lang/String;
+      18: astore_2
+      19: aload_0
+      20: new           #49                 // class org/apache/seatunnel/connectors/doris/sink/writer/DorisStreamLoad
+      23: dup
+      24: aload_2
+      25: aload_0
+      26: getfield      #4                  // Field dorisConfig:Lorg/apache/seatunnel/connectors/doris/config/DorisConfig;
+      29: aload_0
+      30: getfield      #31                 // Field labelGenerator:Lorg/apache/seatunnel/connectors/doris/sink/writer/LabelGenerator;
+      33: new           #50                 // class org/apache/seatunnel/connectors/doris/util/HttpUtil
+      36: dup
+      37: invokespecial #51                 // Method org/apache/seatunnel/connectors/doris/util/HttpUtil."<init>":()V
+      40: invokevirtual #52                 // Method org/apache/seatunnel/connectors/doris/util/HttpUtil.getHttpClient:()Lorg/apache/http/impl/client/CloseableHttpClient;
+      43: invokespecial #53                 // Method org/apache/seatunnel/connectors/doris/sink/writer/DorisStreamLoad."<init>":(Ljava/lang/String;Lorg/apache/seatunnel/connectors/doris/config/DorisConfig;Lorg/apache/seatunnel/connectors/doris/sink/writer/LabelGenerator;Lorg/apache/http/impl/client/CloseableHttpClient;)V
+      46: putfield      #54                 // Field dorisStreamLoad:Lorg/apache/seatunnel/connectors/doris/sink/writer/DorisStreamLoad;
+      49: aload_0
+      50: getfield      #4                  // Field dorisConfig:Lorg/apache/seatunnel/connectors/doris/config/DorisConfig;
+      53: invokevirtual #28                 // Method org/apache/seatunnel/connectors/doris/config/DorisConfig.getEnable2PC:()Ljava/lang/Boolean;
+      56: invokevirtual #29                 // Method java/lang/Boolean.booleanValue:()Z
+      59: ifeq          79
+      62: aload_0
+      63: getfield      #54                 // Field dorisStreamLoad:Lorg/apache/seatunnel/connectors/doris/sink/writer/DorisStreamLoad;
+      66: aload_0
+      67: getfield      #26                 // Field labelPrefix:Ljava/lang/String;
+      70: aload_0
+      71: getfield      #9                  // Field lastCheckpointId:J
+      74: lconst_1
+      75: ladd
+      76: invokevirtual #55                 // Method org/apache/seatunnel/connectors/doris/sink/writer/DorisStreamLoad.abortPreCommit:(Ljava/lang/String;J)V
+      79: goto          95
+      82: astore_3
+      83: new           #57                 // class org/apache/seatunnel/connectors/doris/exception/DorisConnectorException
+      86: dup
+      87: getstatic     #58                 // Field org/apache/seatunnel/connectors/doris/exception/DorisConnectorErrorCode.STREAM_LOAD_FAILED:Lorg/apache/seatunnel/connectors/doris/exception/DorisConnectorErrorCode;
+      90: aload_3
+      91: invokespecial #59                 // Method org/apache/seatunnel/connectors/doris/exception/DorisConnectorException."<init>":(Lorg/apache/seatunnel/common/exception/SeaTunnelErrorCode;Ljava/lang/Throwable;)V
+      94: athrow
+      95: aload_0
+      96: invokestatic  #60                 // Method java/lang/Thread.currentThread:()Ljava/lang/Thread;
+      99: putfield      #61                 // Field executorThread:Ljava/lang/Thread;
+     102: aload_0
+     103: getfield      #54                 // Field dorisStreamLoad:Lorg/apache/seatunnel/connectors/doris/sink/writer/DorisStreamLoad;
+     106: aload_0
+     107: getfield      #31                 // Field labelGenerator:Lorg/apache/seatunnel/connectors/doris/sink/writer/LabelGenerator;
+     110: aload_0
+     111: getfield      #9                  // Field lastCheckpointId:J
+     114: lconst_1
+     115: ladd
+     116: invokevirtual #62                 // Method org/apache/seatunnel/connectors/doris/sink/writer/LabelGenerator.generateLabel:(J)Ljava/lang/String;
+     119: invokevirtual #63                 // Method org/apache/seatunnel/connectors/doris/sink/writer/DorisStreamLoad.startLoad:(Ljava/lang/String;)V
+     122: aload_0
+     123: getfield      #39                 // Field scheduledExecutorService:Ljava/util/concurrent/ScheduledExecutorService;
+     126: aload_0
+     127: invokedynamic #64,  0             // InvokeDynamic #0:run:(Lorg/apache/seatunnel/connectors/doris/sink/writer/DorisSinkWriter;)Ljava/lang/Runnable;
+     132: ldc2_w        #66                 // long 200l
+     135: aload_0
+     136: getfield      #44                 // Field intervalTime:I
+     139: i2l
+     140: getstatic     #68                 // Field java/util/concurrent/TimeUnit.MILLISECONDS:Ljava/util/concurrent/TimeUnit;
+     143: invokeinterface #69,  7           // InterfaceMethod java/util/concurrent/ScheduledExecutorService.scheduleWithFixedDelay:(Ljava/lang/Runnable;JJLjava/util/concurrent/TimeUnit;)Ljava/util/concurrent/ScheduledFuture;
+     148: pop
+     149: return
+    Exception table:
+       from    to  target type
+          19    79    82   Class java/lang/Exception
+
+  public void write(org.apache.seatunnel.api.table.type.SeaTunnelRow) throws java.io.IOException;
+    Code:
+       0: aload_0
+       1: invokespecial #70                 // Method checkLoadException:()V
+       4: aload_0
+       5: getfield      #41                 // Field serializer:Lorg/apache/seatunnel/connectors/doris/serialize/DorisSerializer;
+       8: aload_1
+       9: invokeinterface #71,  2           // InterfaceMethod org/apache/seatunnel/connectors/doris/serialize/DorisSerializer.serialize:(Lorg/apache/seatunnel/api/table/type/SeaTunnelRow;)[B
+      14: astore_2
+      15: aload_2
+      16: invokestatic  #72                 // Method java/util/Objects.isNull:(Ljava/lang/Object;)Z
+      19: ifeq          23
+      22: return
+      23: aload_0
+      24: getfield      #54                 // Field dorisStreamLoad:Lorg/apache/seatunnel/connectors/doris/sink/writer/DorisStreamLoad;
+      27: aload_2
+      28: invokevirtual #73                 // Method org/apache/seatunnel/connectors/doris/sink/writer/DorisStreamLoad.writeRecord:([B)V
+      31: return
+
+  public java.util.Optional<org.apache.seatunnel.connectors.doris.sink.committer.DorisCommitInfo> prepareCommit() throws java.io.IOException;
+    Code:
+       0: aload_0
+       1: iconst_0
+       2: putfield      #45                 // Field loading:Z
+       5: aload_0
+       6: getfield      #54                 // Field dorisStreamLoad:Lorg/apache/seatunnel/connectors/doris/sink/writer/DorisStreamLoad;
+       9: ifnull        16
+      12: iconst_1
+      13: goto          17
+      16: iconst_0
+      17: invokestatic  #74                 // Method com/google/common/base/Preconditions.checkState:(Z)V
+      20: aload_0
+      21: getfield      #54                 // Field dorisStreamLoad:Lorg/apache/seatunnel/connectors/doris/sink/writer/DorisStreamLoad;
+      24: invokevirtual #75                 // Method org/apache/seatunnel/connectors/doris/sink/writer/DorisStreamLoad.stopLoad:()Lorg/apache/seatunnel/connectors/doris/rest/models/RespContent;
+      27: astore_1
+      28: getstatic     #76                 // Field DORIS_SUCCESS_STATUS:Ljava/util/List;
+      31: aload_1
+      32: invokevirtual #77                 // Method org/apache/seatunnel/connectors/doris/rest/models/RespContent.getStatus:()Ljava/lang/String;
+      35: invokeinterface #78,  2           // InterfaceMethod java/util/List.contains:(Ljava/lang/Object;)Z
+      40: ifne          79
+      43: ldc           #79                 // String stream load error: %s, see more in %s
+      45: iconst_2
+      46: anewarray     #80                 // class java/lang/Object
+      49: dup
+      50: iconst_0
+      51: aload_1
+      52: invokevirtual #81                 // Method org/apache/seatunnel/connectors/doris/rest/models/RespContent.getMessage:()Ljava/lang/String;
+      55: aastore
+      56: dup
+      57: iconst_1
+      58: aload_1
+      59: invokevirtual #82                 // Method org/apache/seatunnel/connectors/doris/rest/models/RespContent.getErrorURL:()Ljava/lang/String;
+      62: aastore
+      63: invokestatic  #83                 // Method java/lang/String.format:(Ljava/lang/String;[Ljava/lang/Object;)Ljava/lang/String;
+      66: astore_2
+      67: new           #57                 // class org/apache/seatunnel/connectors/doris/exception/DorisConnectorException
+      70: dup
+      71: getstatic     #58                 // Field org/apache/seatunnel/connectors/doris/exception/DorisConnectorErrorCode.STREAM_LOAD_FAILED:Lorg/apache/seatunnel/connectors/doris/exception/DorisConnectorErrorCode;
+      74: aload_2
+      75: invokespecial #84                 // Method org/apache/seatunnel/connectors/doris/exception/DorisConnectorException."<init>":(Lorg/apache/seatunnel/common/exception/SeaTunnelErrorCode;Ljava/lang/String;)V
+      78: athrow
+      79: aload_0
+      80: getfield      #4                  // Field dorisConfig:Lorg/apache/seatunnel/connectors/doris/config/DorisConfig;
+      83: invokevirtual #28                 // Method org/apache/seatunnel/connectors/doris/config/DorisConfig.getEnable2PC:()Ljava/lang/Boolean;
+      86: invokevirtual #29                 // Method java/lang/Boolean.booleanValue:()Z
+      89: ifne          96
+      92: invokestatic  #85                 // Method java/util/Optional.empty:()Ljava/util/Optional;
+      95: areturn
+      96: aload_1
+      97: invokevirtual #86                 // Method org/apache/seatunnel/connectors/doris/rest/models/RespContent.getTxnId:()J
+     100: lstore_2
+     101: new           #87                 // class org/apache/seatunnel/connectors/doris/sink/committer/DorisCommitInfo
+     104: dup
+     105: aload_0
+     106: getfield      #54                 // Field dorisStreamLoad:Lorg/apache/seatunnel/connectors/doris/sink/writer/DorisStreamLoad;
+     109: invokevirtual #88                 // Method org/apache/seatunnel/connectors/doris/sink/writer/DorisStreamLoad.getHostPort:()Ljava/lang/String;
+     112: aload_0
+     113: getfield      #54                 // Field dorisStreamLoad:Lorg/apache/seatunnel/connectors/doris/sink/writer/DorisStreamLoad;
+     116: invokevirtual #89                 // Method org/apache/seatunnel/connectors/doris/sink/writer/DorisStreamLoad.getDb:()Ljava/lang/String;
+     119: lload_2
+     120: invokespecial #90                 // Method org/apache/seatunnel/connectors/doris/sink/committer/DorisCommitInfo."<init>":(Ljava/lang/String;Ljava/lang/String;J)V
+     123: invokestatic  #91                 // Method java/util/Optional.of:(Ljava/lang/Object;)Ljava/util/Optional;
+     126: areturn
+
+  public java.util.List<org.apache.seatunnel.connectors.doris.sink.writer.DorisSinkState> snapshotState(long) throws java.io.IOException;
+    Code:
+       0: aload_0
+       1: getfield      #54                 // Field dorisStreamLoad:Lorg/apache/seatunnel/connectors/doris/sink/writer/DorisStreamLoad;
+       4: ifnull        11
+       7: iconst_1
+       8: goto          12
+      11: iconst_0
+      12: invokestatic  #74                 // Method com/google/common/base/Preconditions.checkState:(Z)V
+      15: aload_0
+      16: getfield      #54                 // Field dorisStreamLoad:Lorg/apache/seatunnel/connectors/doris/sink/writer/DorisStreamLoad;
+      19: aload_0
+      20: invokevirtual #48                 // Method getAvailableBackend:()Ljava/lang/String;
+      23: invokevirtual #92                 // Method org/apache/seatunnel/connectors/doris/sink/writer/DorisStreamLoad.setHostPort:(Ljava/lang/String;)V
+      26: aload_0
+      27: getfield      #54                 // Field dorisStreamLoad:Lorg/apache/seatunnel/connectors/doris/sink/writer/DorisStreamLoad;
+      30: aload_0
+      31: getfield      #31                 // Field labelGenerator:Lorg/apache/seatunnel/connectors/doris/sink/writer/LabelGenerator;
+      34: lload_1
+      35: lconst_1
+      36: ladd
+      37: invokevirtual #62                 // Method org/apache/seatunnel/connectors/doris/sink/writer/LabelGenerator.generateLabel:(J)Ljava/lang/String;
+      40: invokevirtual #63                 // Method org/apache/seatunnel/connectors/doris/sink/writer/DorisStreamLoad.startLoad:(Ljava/lang/String;)V
+      43: aload_0
+      44: iconst_1
+      45: putfield      #45                 // Field loading:Z
+      48: aload_0
+      49: lload_1
+      50: putfield      #9                  // Field lastCheckpointId:J
+      53: new           #7                  // class org/apache/seatunnel/connectors/doris/sink/writer/DorisSinkState
+      56: dup
+      57: aload_0
+      58: getfield      #26                 // Field labelPrefix:Ljava/lang/String;
+      61: aload_0
+      62: getfield      #9                  // Field lastCheckpointId:J
+      65: invokespecial #21                 // Method org/apache/seatunnel/connectors/doris/sink/writer/DorisSinkState."<init>":(Ljava/lang/String;J)V
+      68: invokestatic  #93                 // Method java/util/Collections.singletonList:(Ljava/lang/Object;)Ljava/util/List;
+      71: areturn
+
+  public void abortPrepare();
+    Code:
+       0: aload_0
+       1: getfield      #4                  // Field dorisConfig:Lorg/apache/seatunnel/connectors/doris/config/DorisConfig;
+       4: invokevirtual #28                 // Method org/apache/seatunnel/connectors/doris/config/DorisConfig.getEnable2PC:()Ljava/lang/Boolean;
+       7: invokevirtual #29                 // Method java/lang/Boolean.booleanValue:()Z
+      10: ifeq          43
+      13: aload_0
+      14: getfield      #54                 // Field dorisStreamLoad:Lorg/apache/seatunnel/connectors/doris/sink/writer/DorisStreamLoad;
+      17: aload_0
+      18: getfield      #26                 // Field labelPrefix:Ljava/lang/String;
+      21: aload_0
+      22: getfield      #9                  // Field lastCheckpointId:J
+      25: lconst_1
+      26: ladd
+      27: invokevirtual #55                 // Method org/apache/seatunnel/connectors/doris/sink/writer/DorisStreamLoad.abortPreCommit:(Ljava/lang/String;J)V
+      30: goto          43
+      33: astore_1
+      34: new           #94                 // class java/lang/RuntimeException
+      37: dup
+      38: aload_1
+      39: invokespecial #95                 // Method java/lang/RuntimeException."<init>":(Ljava/lang/Throwable;)V
+      42: athrow
+      43: return
+    Exception table:
+       from    to  target type
+          13    30    33   Class java/lang/Exception
+
+  private void checkDone();
+    Code:
+       0: getstatic     #10                 // Field log:Lorg/slf4j/Logger;
+       3: ldc           #96                 // String start timer checker, interval {} ms
+       5: aload_0
+       6: getfield      #44                 // Field intervalTime:I
+       9: invokestatic  #97                 // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+      12: invokeinterface #98,  3           // InterfaceMethod org/slf4j/Logger.debug:(Ljava/lang/String;Ljava/lang/Object;)V
+      17: aload_0
+      18: getfield      #54                 // Field dorisStreamLoad:Lorg/apache/seatunnel/connectors/doris/sink/writer/DorisStreamLoad;
+      21: invokevirtual #99                 // Method org/apache/seatunnel/connectors/doris/sink/writer/DorisStreamLoad.getPendingLoadFuture:()Ljava/util/concurrent/Future;
+      24: ifnull        130
+      27: aload_0
+      28: getfield      #54                 // Field dorisStreamLoad:Lorg/apache/seatunnel/connectors/doris/sink/writer/DorisStreamLoad;
+      31: invokevirtual #99                 // Method org/apache/seatunnel/connectors/doris/sink/writer/DorisStreamLoad.getPendingLoadFuture:()Ljava/util/concurrent/Future;
+      34: invokeinterface #100,  1          // InterfaceMethod java/util/concurrent/Future.isDone:()Z
+      39: ifeq          130
+      42: aload_0
+      43: getfield      #45                 // Field loading:Z
+      46: ifne          60
+      49: getstatic     #10                 // Field log:Lorg/slf4j/Logger;
+      52: ldc           #101                // String not loading, skip timer checker
+      54: invokeinterface #102,  2          // InterfaceMethod org/slf4j/Logger.debug:(Ljava/lang/String;)V
+      59: return
+      60: aload_0
+      61: getfield      #54                 // Field dorisStreamLoad:Lorg/apache/seatunnel/connectors/doris/sink/writer/DorisStreamLoad;
+      64: aload_0
+      65: getfield      #54                 // Field dorisStreamLoad:Lorg/apache/seatunnel/connectors/doris/sink/writer/DorisStreamLoad;
+      68: invokevirtual #99                 // Method org/apache/seatunnel/connectors/doris/sink/writer/DorisStreamLoad.getPendingLoadFuture:()Ljava/util/concurrent/Future;
+      71: invokeinterface #103,  1          // InterfaceMethod java/util/concurrent/Future.get:()Ljava/lang/Object;
+      76: checkcast     #104                // class org/apache/http/client/methods/CloseableHttpResponse
+      79: invokevirtual #105                // Method org/apache/seatunnel/connectors/doris/sink/writer/DorisStreamLoad.handlePreCommitResponse:(Lorg/apache/http/client/methods/CloseableHttpResponse;)Lorg/apache/seatunnel/connectors/doris/rest/models/RespContent;
+      82: astore_2
+      83: aload_2
+      84: invokevirtual #81                 // Method org/apache/seatunnel/connectors/doris/rest/models/RespContent.getMessage:()Ljava/lang/String;
+      87: astore_1
+      88: goto          97
+      91: astore_2
+      92: aload_2
+      93: invokevirtual #106                // Method java/lang/Exception.getMessage:()Ljava/lang/String;
+      96: astore_1
+      97: aload_0
+      98: new           #57                 // class org/apache/seatunnel/connectors/doris/exception/DorisConnectorException
+     101: dup
+     102: getstatic     #58                 // Field org/apache/seatunnel/connectors/doris/exception/DorisConnectorErrorCode.STREAM_LOAD_FAILED:Lorg/apache/seatunnel/connectors/doris/exception/DorisConnectorErrorCode;
+     105: aload_1
+     106: invokespecial #84                 // Method org/apache/seatunnel/connectors/doris/exception/DorisConnectorException."<init>":(Lorg/apache/seatunnel/common/exception/SeaTunnelErrorCode;Ljava/lang/String;)V
+     109: putfield      #2                  // Field loadException:Ljava/lang/Exception;
+     112: getstatic     #10                 // Field log:Lorg/slf4j/Logger;
+     115: ldc           #107                // String stream load finished unexpectedly, interrupt worker thread! {}
+     117: aload_1
+     118: invokeinterface #108,  3          // InterfaceMethod org/slf4j/Logger.error:(Ljava/lang/String;Ljava/lang/Object;)V
+     123: aload_0
+     124: getfield      #61                 // Field executorThread:Ljava/lang/Thread;
+     127: invokevirtual #109                // Method java/lang/Thread.interrupt:()V
+     130: return
+    Exception table:
+       from    to  target type
+          60    88    91   Class java/lang/Exception
+
+  private void checkLoadException();
+    Code:
+       0: aload_0
+       1: getfield      #2                  // Field loadException:Ljava/lang/Exception;
+       4: ifnull        21
+       7: new           #94                 // class java/lang/RuntimeException
+      10: dup
+      11: ldc           #110                // String error while loading data.
+      13: aload_0
+      14: getfield      #2                  // Field loadException:Ljava/lang/Exception;
+      17: invokespecial #111                // Method java/lang/RuntimeException."<init>":(Ljava/lang/String;Ljava/lang/Throwable;)V
+      20: athrow
+      21: return
+
+  public boolean isLoading();
+    Code:
+       0: aload_0
+       1: getfield      #45                 // Field loading:Z
+       4: ireturn
+
+  public void setDorisStreamLoad(org.apache.seatunnel.connectors.doris.sink.writer.DorisStreamLoad);
+    Code:
+       0: aload_0
+       1: aload_1
+       2: putfield      #54                 // Field dorisStreamLoad:Lorg/apache/seatunnel/connectors/doris/sink/writer/DorisStreamLoad;
+       5: return
+
+  public void setBackends(java.util.List<org.apache.seatunnel.connectors.doris.rest.models.BackendV2$BackendRowV2>);
+    Code:
+       0: aload_0
+       1: aload_1
+       2: putfield      #47                 // Field backends:Ljava/util/List;
+       5: return
+
+  public void close() throws java.io.IOException;
+    Code:
+       0: aload_0
+       1: getfield      #39                 // Field scheduledExecutorService:Ljava/util/concurrent/ScheduledExecutorService;
+       4: ifnull        17
+       7: aload_0
+       8: getfield      #39                 // Field scheduledExecutorService:Ljava/util/concurrent/ScheduledExecutorService;
+      11: invokeinterface #112,  1          // InterfaceMethod java/util/concurrent/ScheduledExecutorService.shutdownNow:()Ljava/util/List;
+      16: pop
+      17: aload_0
+      18: getfield      #54                 // Field dorisStreamLoad:Lorg/apache/seatunnel/connectors/doris/sink/writer/DorisStreamLoad;
+      21: ifnull        31
+      24: aload_0
+      25: getfield      #54                 // Field dorisStreamLoad:Lorg/apache/seatunnel/connectors/doris/sink/writer/DorisStreamLoad;
+      28: invokevirtual #113                // Method org/apache/seatunnel/connectors/doris/sink/writer/DorisStreamLoad.close:()V
+      31: return
+
+  public java.lang.String getAvailableBackend();
+    Code:
+       0: aload_0
+       1: getfield      #114                // Field pos:J
+       4: aload_0
+       5: getfield      #47                 // Field backends:Ljava/util/List;
+       8: invokeinterface #5,  1            // InterfaceMethod java/util/List.size:()I
+      13: i2l
+      14: ladd
+      15: lstore_1
+      16: aload_0
+      17: getfield      #114                // Field pos:J
+      20: lload_1
+      21: lcmp
+      22: ifge          85
+      25: aload_0
+      26: getfield      #47                 // Field backends:Ljava/util/List;
+      29: aload_0
+      30: getfield      #114                // Field pos:J
+      33: aload_0
+      34: getfield      #47                 // Field backends:Ljava/util/List;
+      37: invokeinterface #5,  1            // InterfaceMethod java/util/List.size:()I
+      42: i2l
+      43: lrem
+      44: l2i
+      45: invokeinterface #6,  2            // InterfaceMethod java/util/List.get:(I)Ljava/lang/Object;
+      50: checkcast     #115                // class org/apache/seatunnel/connectors/doris/rest/models/BackendV2$BackendRowV2
+      53: astore_3
+      54: aload_3
+      55: invokevirtual #116                // Method org/apache/seatunnel/connectors/doris/rest/models/BackendV2$BackendRowV2.toBackendString:()Ljava/lang/String;
+      58: astore        4
+      60: aload_0
+      61: aload         4
+      63: invokevirtual #117                // Method tryHttpConnection:(Ljava/lang/String;)Z
+      66: ifeq          82
+      69: aload_0
+      70: dup
+      71: getfield      #114                // Field pos:J
+      74: lconst_1
+      75: ladd
+      76: putfield      #114                // Field pos:J
+      79: aload         4
+      81: areturn
+      82: goto          16
+      85: ldc           #118                // String no available backend.
+      87: astore_3
+      88: new           #57                 // class org/apache/seatunnel/connectors/doris/exception/DorisConnectorException
+      91: dup
+      92: getstatic     #58                 // Field org/apache/seatunnel/connectors/doris/exception/DorisConnectorErrorCode.STREAM_LOAD_FAILED:Lorg/apache/seatunnel/connectors/doris/exception/DorisConnectorErrorCode;
+      95: aload_3
+      96: invokespecial #84                 // Method org/apache/seatunnel/connectors/doris/exception/DorisConnectorException."<init>":(Lorg/apache/seatunnel/common/exception/SeaTunnelErrorCode;Ljava/lang/String;)V
+      99: athrow
+
+  public boolean tryHttpConnection(java.lang.String);
+    Code:
+       0: new           #14                 // class java/lang/StringBuilder
+       3: dup
+       4: invokespecial #15                 // Method java/lang/StringBuilder."<init>":()V
+       7: ldc           #119                // String http://
+       9: invokevirtual #17                 // Method java/lang/StringBuilder.append:(Ljava/lang/String;)Ljava/lang/StringBuilder;
+      12: aload_1
+      13: invokevirtual #17                 // Method java/lang/StringBuilder.append:(Ljava/lang/String;)Ljava/lang/StringBuilder;
+      16: invokevirtual #19                 // Method java/lang/StringBuilder.toString:()Ljava/lang/String;
+      19: astore_1
+      20: new           #120                // class java/net/URL
+      23: dup
+      24: aload_1
+      25: invokespecial #121                // Method java/net/URL."<init>":(Ljava/lang/String;)V
+      28: astore_2
+      29: aload_2
+      30: invokevirtual #122                // Method java/net/URL.openConnection:()Ljava/net/URLConnection;
+      33: checkcast     #123                // class java/net/HttpURLConnection
+      36: astore_3
+      37: aload_3
+      38: sipush        1000
+      41: invokevirtual #124                // Method java/net/HttpURLConnection.setConnectTimeout:(I)V
+      44: aload_3
+      45: invokevirtual #125                // Method java/net/HttpURLConnection.connect:()V
+      48: aload_3
+      49: invokevirtual #126                // Method java/net/HttpURLConnection.disconnect:()V
+      52: iconst_1
+      53: ireturn
+      54: astore_2
+      55: getstatic     #10                 // Field log:Lorg/slf4j/Logger;
+      58: ldc           #127                // String Failed to connect to backend:{}
+      60: aload_1
+      61: aload_2
+      62: invokeinterface #128,  4          // InterfaceMethod org/slf4j/Logger.warn:(Ljava/lang/String;Ljava/lang/Object;Ljava/lang/Object;)V
+      67: aload_0
+      68: dup
+      69: getfield      #114                // Field pos:J
+      72: lconst_1
+      73: ladd
+      74: putfield      #114                // Field pos:J
+      77: iconst_0
+      78: ireturn
+    Exception table:
+       from    to  target type
+           0    53    54   Class java/lang/Exception
+
+  private org.apache.seatunnel.connectors.doris.serialize.DorisSerializer createSerializer(org.apache.seatunnel.connectors.doris.config.DorisConfig, org.apache.seatunnel.api.table.type.SeaTunnelRowType);
+    Code:
+       0: new           #129                // class org/apache/seatunnel/connectors/doris/serialize/SeaTunnelRowSerializer
+       3: dup
+       4: aload_1
+       5: invokevirtual #130                // Method org/apache/seatunnel/connectors/doris/config/DorisConfig.getStreamLoadProps:()Ljava/util/Properties;
+       8: ldc           #132                // String format
+      10: invokevirtual #133                // Method java/util/Properties.getProperty:(Ljava/lang/String;)Ljava/lang/String;
+      13: invokevirtual #134                // Method java/lang/String.toLowerCase:()Ljava/lang/String;
+      16: aload_2
+      17: aload_1
+      18: invokevirtual #130                // Method org/apache/seatunnel/connectors/doris/config/DorisConfig.getStreamLoadProps:()Ljava/util/Properties;
+      21: ldc           #135                // String column_separator
+      23: invokevirtual #133                // Method java/util/Properties.getProperty:(Ljava/lang/String;)Ljava/lang/String;
+      26: aload_1
+      27: invokevirtual #136                // Method org/apache/seatunnel/connectors/doris/config/DorisConfig.getEnableDelete:()Ljava/lang/Boolean;
+      30: invokevirtual #29                 // Method java/lang/Boolean.booleanValue:()Z
+      33: invokespecial #137                // Method org/apache/seatunnel/connectors/doris/serialize/SeaTunnelRowSerializer."<init>":(Ljava/lang/String;Lorg/apache/seatunnel/api/table/type/SeaTunnelRowType;Ljava/lang/String;Z)V
+      36: areturn
+
+  public void write(java.lang.Object) throws java.io.IOException;
+    Code:
+       0: aload_0
+       1: aload_1
+       2: checkcast     #138                // class org/apache/seatunnel/api/table/type/SeaTunnelRow
+       5: invokevirtual #139                // Method write:(Lorg/apache/seatunnel/api/table/type/SeaTunnelRow;)V
+       8: return
+
+  static {};
+    Code:
+       0: ldc           #65                 // class org/apache/seatunnel/connectors/doris/sink/writer/DorisSinkWriter
+       2: invokestatic  #140                // Method org/slf4j/LoggerFactory.getLogger:(Ljava/lang/Class;)Lorg/slf4j/Logger;
+       5: putstatic     #10                 // Field log:Lorg/slf4j/Logger;
+       8: new           #141                // class java/util/ArrayList
+      11: dup
+      12: iconst_2
+      13: anewarray     #142                // class java/lang/String
+      16: dup
+      17: iconst_0
+      18: ldc           #144                // String Success
+      20: aastore
+      21: dup
+      22: iconst_1
+      23: ldc           #145                // String Publish Timeout
+      25: aastore
+      26: invokestatic  #146                // Method java/util/Arrays.asList:([Ljava/lang/Object;)Ljava/util/List;
+      29: invokespecial #147                // Method java/util/ArrayList."<init>":(Ljava/util/Collection;)V
+      32: putstatic     #76                 // Field DORIS_SUCCESS_STATUS:Ljava/util/List;
+      35: return
+}

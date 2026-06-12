@@ -81,6 +81,7 @@ public class DataPreviewQueryService extends BaseServiceImpl {
 
     @FunctionalInterface
     private interface DdlFallback {
+
         String build();
     }
 
@@ -106,7 +107,7 @@ public class DataPreviewQueryService extends BaseServiceImpl {
         ResultSet indexRs = null;
         try {
             DatabaseMetaData metaData = connection.getMetaData();
-            String catalog = dataSource.getType() == DbType.ORACLE ? null : database;
+            String catalog = getCatalog(dataSource.getType(), database);
             String schemaPattern = getDbSchemaPattern(dataSource.getType(), schema, connectionParam);
             String normalizedTableName = normalizeMetadataTableName(dataSource.getType(), tableName);
             Set<String> primaryKeys = new LinkedHashSet<>();
@@ -145,7 +146,8 @@ public class DataPreviewQueryService extends BaseServiceImpl {
                 column.setNullable(columnRs.getInt("NULLABLE") == DatabaseMetaData.columnNullable);
                 column.setPrimaryKey(primaryKeys.contains(columnName));
                 column.setDefaultValue(safeGetMetadataString(columnRs, "COLUMN_DEF"));
-                column.setComment(normalizeMetadataText(safeGetMetadataString(columnRs, "REMARKS")));
+                column.setComment(resolveColumnComment(connection, dataSource.getType(), schemaPattern,
+                        normalizedTableName, columnName, safeGetMetadataString(columnRs, "REMARKS")));
                 column.setIndexName(firstIndexByColumn.get(columnName));
                 columns.add(column);
             }
@@ -165,7 +167,7 @@ public class DataPreviewQueryService extends BaseServiceImpl {
             if (StringUtils.isBlank(summary.getTableComment())) {
                 summary.setTableComment("");
             }
-            summary.setEngine(dataSource.getType() == DbType.MYSQL ? "InnoDB / metadata" : "heap / metadata");
+            summary.setEngine(resolvePreviewEngine(dataSource.getType()));
 
             DataPreviewTableStructureResult result = new DataPreviewTableStructureResult();
             result.setSummary(summary);
@@ -176,10 +178,12 @@ public class DataPreviewQueryService extends BaseServiceImpl {
                     : Collections.singletonList("PRIMARY KEY (" + String.join(", ", primaryKeys) + ")"));
             result.setDdl(resolveRealTableDdl(connection, dataSource.getType(), catalog, schemaPattern,
                     normalizedTableName, summary.getTableType(),
-                    () -> buildPreviewDdl(dataSource.getType(), normalizedTableName, summary.getTableComment(), columns, primaryKeys)));
+                    () -> buildPreviewDdl(dataSource.getType(), normalizedTableName, summary.getTableComment(), columns,
+                            primaryKeys)));
             return result;
         } catch (Exception ex) {
-            log.error("Query data preview table structure error, datasourceId:{} table:{}.", datasourceId, tableName, ex);
+            log.error("Query data preview table structure error, datasourceId:{} table:{}.", datasourceId, tableName,
+                    ex);
             throw new ServiceException(Status.DATA_PREVIEW_QUERY_ERROR);
         } finally {
             closeResult(tableRs);
@@ -221,15 +225,21 @@ public class DataPreviewQueryService extends BaseServiceImpl {
             throw new ServiceException(Status.DATASOURCE_CONNECT_FAILED);
         }
         try {
-            applyPreviewSqlConnectionContext(connection, dataSource.getType(), request.getDatabase(), request.getSchema());
+            applyPreviewSqlConnectionContext(connection, dataSource.getType(), request.getDatabase(),
+                    request.getSchema());
             DataPreviewQueryResult lastResult = null;
             for (String rawStatement : statements) {
                 String statementSql = normalizePreviewReadonlySql(rawStatement);
+                if (explain && dataSource.getType() == DbType.ORACLE) {
+                    lastResult = executeOracleExplainPlan(connection, statementSql, timeoutSeconds, pageSize);
+                    continue;
+                }
                 if (explain && !StringUtils.startsWithIgnoreCase(statementSql, "EXPLAIN")) {
                     statementSql = "EXPLAIN " + statementSql;
                 }
+                boolean userLimited = containsReadonlySqlResultLimit(dataSource.getType(), statementSql);
                 String executableSql = appendReadonlySqlLimit(dataSource.getType(), statementSql, pageSize);
-                lastResult = executeReadonlySql(connection, executableSql, timeoutSeconds, pageSize);
+                lastResult = executeReadonlySql(connection, executableSql, timeoutSeconds, userLimited ? 0 : pageSize);
             }
             if (lastResult == null) {
                 throw new ServiceException(Status.DATA_PREVIEW_QUERY_ERROR);
@@ -246,6 +256,21 @@ public class DataPreviewQueryService extends BaseServiceImpl {
         } finally {
             releaseConnection(connection);
         }
+    }
+
+    private DataPreviewQueryResult executeOracleExplainPlan(Connection connection,
+                                                            String sql,
+                                                            int timeoutSeconds,
+                                                            int pageSize) throws SQLException {
+        String explainSql = "EXPLAIN PLAN FOR " + sql;
+        try (Statement statement = connection.createStatement()) {
+            statement.setQueryTimeout(timeoutSeconds);
+            statement.execute(explainSql);
+        }
+        return executeReadonlySql(connection,
+                "SELECT PLAN_TABLE_OUTPUT FROM TABLE(DBMS_XPLAN.DISPLAY())",
+                timeoutSeconds,
+                pageSize);
     }
 
     private void validatePreviewScope(User loginUser,
@@ -286,8 +311,7 @@ public class DataPreviewQueryService extends BaseServiceImpl {
         if (dataSource == null) {
             throw new ServiceException(Status.RESOURCE_NOT_EXIST);
         }
-        if (dataSource.getType() != DbType.MYSQL && dataSource.getType() != DbType.POSTGRESQL
-                && dataSource.getType() != DbType.ORACLE) {
+        if (!isSupportedPreviewDataSourceType(dataSource.getType())) {
             throw new ServiceException(Status.DATA_PREVIEW_QUERY_ERROR);
         }
         if (!canOperatorPermissions(loginUser, new Object[]{datasourceId}, AuthorizationType.DATASOURCE,
@@ -313,7 +337,7 @@ public class DataPreviewQueryService extends BaseServiceImpl {
                                                   String database,
                                                   String schema) {
         try {
-            if (dbType == DbType.MYSQL && StringUtils.isNotBlank(database)) {
+            if ((dbType == DbType.MYSQL || dbType == DbType.DORIS) && StringUtils.isNotBlank(database)) {
                 connection.setCatalog(database);
             }
             if (dbType == DbType.POSTGRESQL && StringUtils.isNotBlank(schema)) {
@@ -403,9 +427,20 @@ public class DataPreviewQueryService extends BaseServiceImpl {
         return masked.matches("[\\s\\S]*\\b(fetch\\s+next|rownum)\\b[\\s\\S]*");
     }
 
+    private boolean containsReadonlySqlResultLimit(DbType dbType, String sql) {
+        if ("explain".equals(firstSqlTokenText(sql))) {
+            return true;
+        }
+        if (dbType == DbType.ORACLE) {
+            return containsOracleReadonlySqlLimit(sql);
+        }
+        return containsReadonlySqlLimit(sql);
+    }
+
     private boolean containsForbiddenReadonlySqlKeyword(String sql) {
         String masked = maskSqlCommentsAndLiterals(sql).toLowerCase(Locale.ROOT);
-        return masked.matches("[\\s\\S]*\\b(insert|update|delete|drop|truncate|alter|create|grant|revoke|merge|replace|call)\\b[\\s\\S]*");
+        return masked.matches(
+                "[\\s\\S]*\\b(insert|update|delete|drop|truncate|alter|create|grant|revoke|merge|replace|call)\\b[\\s\\S]*");
     }
 
     private String firstSqlTokenText(String sql) {
@@ -522,7 +557,7 @@ public class DataPreviewQueryService extends BaseServiceImpl {
             }
             return "SELECT * FROM (" + sql + ") WHERE ROWNUM <= " + pageSize;
         }
-        if (dbType == DbType.MYSQL || dbType == DbType.POSTGRESQL) {
+        if (dbType == DbType.MYSQL || dbType == DbType.DORIS || dbType == DbType.POSTGRESQL) {
             return sql + " LIMIT " + pageSize;
         }
         throw new ServiceException(Status.DATA_PREVIEW_QUERY_ERROR);
@@ -536,7 +571,9 @@ public class DataPreviewQueryService extends BaseServiceImpl {
         List<DatasourceColumnDto> columns = new ArrayList<>();
         try (Statement statement = connection.createStatement()) {
             statement.setQueryTimeout(timeoutSeconds);
-            statement.setMaxRows(pageSize);
+            if (pageSize > 0) {
+                statement.setMaxRows(pageSize);
+            }
             try (ResultSet resultSet = statement.executeQuery(sql)) {
                 ResultSetMetaData metaData = resultSet.getMetaData();
                 int columnCount = metaData.getColumnCount();
@@ -576,6 +613,27 @@ public class DataPreviewQueryService extends BaseServiceImpl {
         return null;
     }
 
+    private boolean isSupportedPreviewDataSourceType(DbType dbType) {
+        return dbType == DbType.MYSQL
+                || dbType == DbType.DORIS
+                || dbType == DbType.POSTGRESQL
+                || dbType == DbType.ORACLE;
+    }
+
+    private String getCatalog(DbType dbType, String database) {
+        return dbType == DbType.ORACLE ? null : database;
+    }
+
+    private String resolvePreviewEngine(DbType dbType) {
+        if (dbType == DbType.MYSQL) {
+            return "InnoDB / metadata";
+        }
+        if (dbType == DbType.DORIS) {
+            return "Doris / metadata";
+        }
+        return "heap / metadata";
+    }
+
     private String normalizeMetadataTableName(DbType dbType, String tableName) {
         if (dbType == DbType.ORACLE) {
             return upperCaseOracleIdentifier(tableName);
@@ -601,9 +659,9 @@ public class DataPreviewQueryService extends BaseServiceImpl {
             return normalizedJdbcRemark;
         }
         try {
-            if (dbType == DbType.MYSQL) {
-                return queryMysqlTableComment(connection, catalog, tableName);
-            }
+        if (dbType == DbType.MYSQL || dbType == DbType.DORIS) {
+            return queryMysqlTableComment(connection, catalog, tableName);
+        }
             if (dbType == DbType.ORACLE) {
                 return queryOracleTableComment(connection, schema, tableName);
             }
@@ -624,7 +682,8 @@ public class DataPreviewQueryService extends BaseServiceImpl {
         }
     }
 
-    private String queryMysqlTableComment(Connection connection, String database, String tableName) throws SQLException {
+    private String queryMysqlTableComment(Connection connection, String database,
+                                          String tableName) throws SQLException {
         if (StringUtils.isBlank(database)) {
             return "";
         }
@@ -660,6 +719,51 @@ public class DataPreviewQueryService extends BaseServiceImpl {
         return "";
     }
 
+    private String resolveColumnComment(Connection connection,
+                                        DbType dbType,
+                                        String schema,
+                                        String tableName,
+                                        String columnName,
+                                        String jdbcRemark) {
+        String normalizedJdbcRemark = normalizeMetadataText(jdbcRemark);
+        if (StringUtils.isNotBlank(normalizedJdbcRemark)) {
+            return normalizedJdbcRemark;
+        }
+        if (dbType != DbType.ORACLE) {
+            return "";
+        }
+        try {
+            return queryOracleColumnComment(connection, schema, tableName, columnName);
+        } catch (Exception ex) {
+            log.warn("Resolve oracle column comment failed, schema:{} table:{} column:{}.",
+                    schema, tableName, columnName, ex);
+            return "";
+        }
+    }
+
+    private String queryOracleColumnComment(Connection connection,
+                                            String schema,
+                                            String tableName,
+                                            String columnName) throws SQLException {
+        String sql = StringUtils.isBlank(schema)
+                ? "SELECT COMMENTS FROM USER_COL_COMMENTS WHERE TABLE_NAME = ? AND COLUMN_NAME = ?"
+                : "SELECT COMMENTS FROM ALL_COL_COMMENTS WHERE OWNER = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?";
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            int index = 1;
+            if (StringUtils.isNotBlank(schema)) {
+                statement.setString(index++, upperCaseOracleIdentifier(schema));
+            }
+            statement.setString(index++, upperCaseOracleIdentifier(tableName));
+            statement.setString(index, upperCaseOracleIdentifier(columnName));
+            try (ResultSet resultSet = statement.executeQuery()) {
+                if (resultSet.next()) {
+                    return normalizeMetadataText(resultSet.getString("COMMENTS"));
+                }
+            }
+        }
+        return "";
+    }
+
     private void validateIdentifier(String identifier) {
         if (StringUtils.isBlank(identifier) || !identifier.matches("[A-Za-z0-9_.$-]+")) {
             throw new ServiceException(Status.DATA_PREVIEW_QUERY_ERROR);
@@ -668,7 +772,7 @@ public class DataPreviewQueryService extends BaseServiceImpl {
 
     private String quoteIdentifier(DbType dbType, String identifier) {
         validateIdentifier(identifier);
-        if (dbType == DbType.MYSQL) {
+        if (dbType == DbType.MYSQL || dbType == DbType.DORIS) {
             return "`" + identifier.replace("`", "``") + "`";
         }
         if (dbType == DbType.ORACLE) {
@@ -699,7 +803,7 @@ public class DataPreviewQueryService extends BaseServiceImpl {
             if (StringUtils.isNotBlank(column.getDefaultValue())) {
                 line.append(" DEFAULT ").append(column.getDefaultValue());
             }
-            if (StringUtils.isNotBlank(column.getComment()) && dbType == DbType.MYSQL) {
+            if (StringUtils.isNotBlank(column.getComment()) && (dbType == DbType.MYSQL || dbType == DbType.DORIS)) {
                 line.append(" COMMENT '").append(column.getComment().replace("'", "''")).append("'");
             }
             lines.add(line.toString());
@@ -718,6 +822,8 @@ public class DataPreviewQueryService extends BaseServiceImpl {
             if (StringUtils.isNotBlank(tableComment)) {
                 ddl.append(" COMMENT='").append(tableComment.replace("'", "''")).append("'");
             }
+        } else if (dbType == DbType.DORIS) {
+            ddl.append(" ENGINE=OLAP");
         }
         ddl.append(";");
         return ddl.toString();
@@ -732,7 +838,7 @@ public class DataPreviewQueryService extends BaseServiceImpl {
                                        DdlFallback fallback) {
         try {
             String ddl = "";
-            if (dbType == DbType.MYSQL) {
+            if (dbType == DbType.MYSQL || dbType == DbType.DORIS) {
                 ddl = queryMysqlTableDdl(connection, catalog, tableName);
             } else if (dbType == DbType.ORACLE) {
                 ddl = queryOracleTableDdl(connection, schema, tableName, tableType);
@@ -753,8 +859,9 @@ public class DataPreviewQueryService extends BaseServiceImpl {
         String tableReference = StringUtils.isBlank(database)
                 ? "`" + escapeMysqlIdentifier(tableName) + "`"
                 : "`" + escapeMysqlIdentifier(database) + "`.`" + escapeMysqlIdentifier(tableName) + "`";
-        try (Statement statement = connection.createStatement();
-             ResultSet resultSet = statement.executeQuery("SHOW CREATE TABLE " + tableReference)) {
+        try (
+                Statement statement = connection.createStatement();
+                ResultSet resultSet = statement.executeQuery("SHOW CREATE TABLE " + tableReference)) {
             if (resultSet.next()) {
                 return resultSet.getString(2);
             }
@@ -763,13 +870,14 @@ public class DataPreviewQueryService extends BaseServiceImpl {
     }
 
     private String queryOracleTableDdl(Connection connection,
-                                      String schema,
-                                      String tableName,
-                                      String tableType) throws SQLException {
+                                       String schema,
+                                       String tableName,
+                                       String tableType) throws SQLException {
         String metadataType = StringUtils.equalsIgnoreCase(tableType, VIEW) ? "VIEW" : "TABLE";
-        try (PreparedStatement transform = connection.prepareStatement(
-                "BEGIN DBMS_METADATA.SET_TRANSFORM_PARAM(DBMS_METADATA.SESSION_TRANSFORM, 'SQLTERMINATOR', TRUE); "
-                        + "DBMS_METADATA.SET_TRANSFORM_PARAM(DBMS_METADATA.SESSION_TRANSFORM, 'PRETTY', TRUE); END;")) {
+        try (
+                PreparedStatement transform = connection.prepareStatement(
+                        "BEGIN DBMS_METADATA.SET_TRANSFORM_PARAM(DBMS_METADATA.SESSION_TRANSFORM, 'SQLTERMINATOR', TRUE); "
+                                + "DBMS_METADATA.SET_TRANSFORM_PARAM(DBMS_METADATA.SESSION_TRANSFORM, 'PRETTY', TRUE); END;")) {
             transform.execute();
         }
         String sql = StringUtils.isBlank(schema)
@@ -847,8 +955,8 @@ public class DataPreviewQueryService extends BaseServiceImpl {
     }
 
     private boolean containsHan(String value) {
-        return value.codePoints().anyMatch(codePoint ->
-                Character.UnicodeScript.of(codePoint) == Character.UnicodeScript.HAN);
+        return value.codePoints()
+                .anyMatch(codePoint -> Character.UnicodeScript.of(codePoint) == Character.UnicodeScript.HAN);
     }
 
     private static void releaseConnection(Connection connection) {

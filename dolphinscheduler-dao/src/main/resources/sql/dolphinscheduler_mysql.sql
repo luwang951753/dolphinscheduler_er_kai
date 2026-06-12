@@ -881,6 +881,31 @@ CREATE TABLE `t_ds_data_governance_lineage` (
 ) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE = utf8mb4_bin;
 
 -- ----------------------------
+-- Table structure for t_ds_dataflow_sync_instance_stat
+-- ----------------------------
+DROP TABLE IF EXISTS `t_ds_dataflow_sync_instance_stat`;
+CREATE TABLE `t_ds_dataflow_sync_instance_stat` (
+  `id` int(11) NOT NULL AUTO_INCREMENT COMMENT 'key',
+  `project_code` bigint(20) NOT NULL COMMENT 'project code',
+  `workflow_definition_code` bigint(20) NOT NULL COMMENT 'workflow definition code',
+  `workflow_instance_id` int(11) NOT NULL COMMENT 'workflow instance id',
+  `task_instance_id` int(11) DEFAULT NULL COMMENT 'task instance id',
+  `read_rows` bigint(20) DEFAULT NULL COMMENT 'read rows',
+  `write_rows` bigint(20) DEFAULT NULL COMMENT 'write rows',
+  `failed_rows` bigint(20) DEFAULT NULL COMMENT 'failed rows',
+  `duration_seconds` int(11) DEFAULT NULL COMMENT 'duration seconds',
+  `run_status` varchar(64) DEFAULT NULL COMMENT 'run status',
+  `stat_source` varchar(64) DEFAULT NULL COMMENT 'stat source',
+  `payload_json` text DEFAULT NULL COMMENT 'stat payload json',
+  `create_time` datetime DEFAULT NULL COMMENT 'create time',
+  `update_time` datetime DEFAULT NULL COMMENT 'update time',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_dataflow_sync_instance` (`project_code`, `workflow_definition_code`, `workflow_instance_id`),
+  KEY `idx_dataflow_sync_workflow` (`project_code`, `workflow_definition_code`),
+  KEY `idx_dataflow_sync_task_instance` (`task_instance_id`)
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE = utf8mb4_bin;
+
+-- ----------------------------
 -- Table structure for t_ds_relation_workflow_instance
 -- ----------------------------
 DROP TABLE IF EXISTS `t_ds_relation_workflow_instance`;

@@ -105,6 +105,7 @@ const Content = defineComponent({
       '/home',
       '/data-preview',
       '/theme-library',
+      '/whitepaper',
       '/data-return',
       '/data-issue',
       '/security/magic-api'

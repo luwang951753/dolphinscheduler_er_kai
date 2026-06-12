@@ -1,0 +1,331 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SQL 表级血缘 Demo</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: #f4f6fa;
+      color: #1f2937;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    .page {
+      display: grid;
+      grid-template-rows: auto 1fr;
+      min-height: 100vh;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 16px 20px;
+      border-bottom: 1px solid #dce4ef;
+      background: #fff;
+    }
+
+    .title {
+      margin: 0;
+      font-size: 20px;
+      line-height: 28px;
+    }
+
+    .subtitle {
+      margin-top: 4px;
+      color: #667085;
+      font-size: 13px;
+    }
+
+    .actions {
+      display: flex;
+      gap: 8px;
+      white-space: nowrap;
+    }
+
+    button {
+      height: 34px;
+      padding: 0 14px;
+      border: 1px solid #cfd8e6;
+      border-radius: 6px;
+      background: #fff;
+      color: #344054;
+      cursor: pointer;
+      font-size: 13px;
+    }
+
+    button.primary {
+      border-color: #1769e0;
+      background: #1769e0;
+      color: #fff;
+    }
+
+    .workspace {
+      display: grid;
+      grid-template-columns: minmax(360px, 0.85fr) minmax(620px, 1.35fr);
+      gap: 14px;
+      min-height: 0;
+      padding: 14px;
+    }
+
+    .panel {
+      display: grid;
+      grid-template-rows: auto 1fr;
+      min-height: 0;
+      overflow: hidden;
+      border: 1px solid #dce4ef;
+      border-radius: 8px;
+      background: #fff;
+    }
+
+    .panel-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      min-height: 48px;
+      padding: 0 14px;
+      border-bottom: 1px solid #e5eaf3;
+      font-weight: 700;
+    }
+
+    .editor {
+      width: 100%;
+      height: 100%;
+      min-height: 520px;
+      padding: 16px;
+      border: 0;
+      outline: none;
+      resize: none;
+      color: #d1e3ff;
+      background: #101828;
+      font: 13px/1.65 Menlo, Monaco, Consolas, monospace;
+    }
+
+    .graph {
+      position: relative;
+      min-height: 560px;
+      overflow: auto;
+      background:
+        linear-gradient(#f0f3f8 1px, transparent 1px),
+        linear-gradient(90deg, #f0f3f8 1px, transparent 1px);
+      background-size: 24px 24px;
+    }
+
+    .graph-inner {
+      position: relative;
+      width: 980px;
+      height: 560px;
+    }
+
+    svg {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+
+    .edge {
+      fill: none;
+      stroke: #98a2b3;
+      stroke-width: 2;
+    }
+
+    .edge.active {
+      stroke: #1769e0;
+      stroke-width: 3;
+    }
+
+    .table-card {
+      position: absolute;
+      width: 260px;
+      border: 1px solid #cdd8ea;
+      border-radius: 8px;
+      background: #fff;
+      box-shadow: 0 12px 24px rgba(17, 24, 39, 0.08);
+      cursor: pointer;
+    }
+
+    .table-card.active {
+      border-color: #1769e0;
+      box-shadow: 0 14px 28px rgba(23, 105, 224, 0.18);
+    }
+
+    .source {
+      left: 70px;
+    }
+
+    .target {
+      left: 660px;
+      top: 222px;
+      border-color: #85b8ff;
+    }
+
+    .table-head {
+      padding: 12px;
+      border-bottom: 1px solid #e5eaf3;
+      background: #f8fbff;
+    }
+
+    .name {
+      font-weight: 800;
+      font-size: 14px;
+    }
+
+    .schema {
+      margin-top: 3px;
+      color: #667085;
+      font-size: 12px;
+    }
+
+    .meta {
+      display: grid;
+      gap: 8px;
+      padding: 12px;
+      color: #475467;
+      font-size: 12px;
+    }
+
+    .tag {
+      display: inline-flex;
+      width: fit-content;
+      padding: 3px 8px;
+      border-radius: 999px;
+      background: #eaf2ff;
+      color: #1769e0;
+      font-weight: 700;
+    }
+
+    .summary {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      color: #667085;
+      font-size: 12px;
+    }
+
+    @media (max-width: 980px) {
+      .workspace {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header class="topbar">
+      <div>
+        <h1 class="title">在线 SQL 数据血缘解析 - 表级血缘 Demo</h1>
+        <div class="subtitle">模拟 Dolphin 二开接口返回结果，展示来源表到目标表的流向。</div>
+      </div>
+      <div class="actions">
+        <button id="resetBtn">重置 SQL</button>
+        <button class="primary" id="parseBtn">解析</button>
+      </div>
+    </header>
+
+    <main class="workspace">
+      <section class="panel">
+        <div class="panel-head">SQL 编辑器</div>
+        <textarea class="editor" id="sqlEditor"></textarea>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <span>表级血缘图</span>
+          <span class="summary" id="summary">等待解析</span>
+        </div>
+        <div class="graph">
+          <div class="graph-inner" id="graph"></div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    const sql = `INSERT INTO money_laundering.money_laundering_feature (
+  card_id,
+  suspect_id,
+  total_amount
+)
+SELECT
+  bc.card_id,
+  s.suspect_id,
+  SUM(tx.amount) AS total_amount
+FROM money_laundering.bank_card bc
+JOIN money_laundering.suspect s
+  ON bc.owner_id = s.suspect_id
+JOIN money_laundering.transaction_detail tx
+  ON bc.card_id = tx.card_id
+GROUP BY bc.card_id, s.suspect_id;`;
+
+    const lineage = {
+      tables: [
+        { id: 'money_laundering.bank_card', name: 'bank_card', schema: 'money_laundering', columns: [{ name: 'card_id' }, { name: 'owner_id' }] },
+        { id: 'money_laundering.suspect', name: 'suspect', schema: 'money_laundering', columns: [{ name: 'suspect_id' }] },
+        { id: 'money_laundering.transaction_detail', name: 'transaction_detail', schema: 'money_laundering', columns: [{ name: 'card_id' }, { name: 'amount' }] },
+        { id: 'money_laundering.money_laundering_feature', name: 'money_laundering_feature', schema: 'money_laundering', columns: [{ name: 'card_id' }, { name: 'suspect_id' }, { name: 'total_amount' }] }
+      ],
+      edges: [
+        { sourceTable: 'money_laundering.bank_card', targetTable: 'money_laundering.money_laundering_feature', lineageType: 'TABLE' },
+        { sourceTable: 'money_laundering.suspect', targetTable: 'money_laundering.money_laundering_feature', lineageType: 'TABLE' },
+        { sourceTable: 'money_laundering.transaction_detail', targetTable: 'money_laundering.money_laundering_feature', lineageType: 'TABLE' }
+      ]
+    };
+
+    const editor = document.getElementById('sqlEditor');
+    const graph = document.getElementById('graph');
+    const summary = document.getElementById('summary');
+    editor.value = sql;
+
+    function render(activeId = '') {
+      const targetId = 'money_laundering.money_laundering_feature';
+      const sources = lineage.tables.filter((table) => table.id !== targetId);
+      const target = lineage.tables.find((table) => table.id === targetId);
+      graph.innerHTML = '<svg id="lines"></svg>';
+      const svg = document.getElementById('lines');
+
+      sources.forEach((table, index) => {
+        const top = 58 + index * 156;
+        graph.appendChild(createCard(table, 70, top, 'source', activeId));
+        svg.innerHTML += `<path class="edge ${activeId === table.id || activeId === target.id ? 'active' : ''}" d="M 330 ${top + 58} C 450 ${top + 58}, 540 280, 660 280" />`;
+      });
+      graph.appendChild(createCard(target, 660, 222, 'target', activeId));
+      summary.textContent = `${lineage.tables.length} 张表 / ${lineage.edges.length} 条表级血缘`;
+    }
+
+    function createCard(table, left, top, type, activeId) {
+      const el = document.createElement('div');
+      el.className = `table-card ${type} ${activeId === table.id ? 'active' : ''}`;
+      el.style.left = `${left}px`;
+      el.style.top = `${top}px`;
+      el.innerHTML = `
+        <div class="table-head">
+          <div class="name">${table.name}</div>
+          <div class="schema">${table.schema}</div>
+        </div>
+        <div class="meta">
+          <span class="tag">${type === 'target' ? '目标表' : '来源表'}</span>
+          <span>${table.columns.length} 个关键字段</span>
+        </div>
+      `;
+      el.addEventListener('click', () => render(table.id));
+      return el;
+    }
+
+    document.getElementById('parseBtn').addEventListener('click', () => render());
+    document.getElementById('resetBtn').addEventListener('click', () => {
+      editor.value = sql;
+      graph.innerHTML = '';
+      summary.textContent = '等待解析';
+    });
+  </script>
+</body>
+</html>

@@ -30,7 +30,10 @@ export function queryDataIssue(
   return axios({
     url: `${dataIssueMagicPrefix}/query`,
     method: 'get',
-    params,
+    params: {
+      ...params,
+      _queryAt: Date.now()
+    },
     acceptMagicApiSuccess: true,
     suppressErrorMessage: true
   } as any) as any

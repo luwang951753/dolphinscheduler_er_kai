@@ -17,6 +17,7 @@
 
 import {
   defineComponent,
+  getCurrentInstance,
   nextTick,
   onBeforeUnmount,
   onMounted,
@@ -47,13 +48,36 @@ import {
   NSteps,
   NStep,
   NDescriptions,
-  NDescriptionsItem
+  NDescriptionsItem,
+  NSwitch,
+  NTooltip,
+  NIcon,
+  NPopconfirm
 } from 'naive-ui'
 import type { DataTableColumns, SelectOption } from 'naive-ui'
+import {
+  ApartmentOutlined,
+  ArrowDownOutlined,
+  ArrowUpOutlined,
+  ClockCircleOutlined,
+  CopyOutlined,
+  DeleteOutlined,
+  DownloadOutlined,
+  FormOutlined,
+  InfoCircleFilled,
+  PlayCircleOutlined,
+  UploadOutlined
+} from '@vicons/antd'
 import { format } from 'date-fns'
 import Card from '@/components/card'
 import MonacoEditor from '@/components/monaco-editor'
+import NodeDetailModal from '@/views/projects/task/components/node/detail-modal'
 import TimingModal from './timing-modal'
+import { formatParams } from '@/views/projects/task/components/node/format-data'
+import type {
+  INodeData,
+  ITaskData
+} from '@/views/projects/task/components/node/types'
 import utils from '@/utils'
 import {
   queryDataSourceList,
@@ -76,6 +100,7 @@ import {
 import { genTaskCodeList } from '@/service/modules/task-definition'
 import { startWorkflowInstance } from '@/service/modules/executors'
 import {
+  offline,
   online,
   queryScheduleListPaging
 } from '@/service/modules/schedules'
@@ -85,7 +110,11 @@ import {
   queryTaskListByWorkflowId
 } from '@/service/modules/workflow-instances'
 import { queryLog } from '@/service/modules/log'
-import { registerGovernanceSyncTaskLineage } from '@/service/modules/data-governance'
+import {
+  registerGovernanceSyncTaskLineage,
+  queryDataFlowSyncInstanceStats,
+  upsertDataFlowSyncInstanceStat
+} from '@/service/modules/data-governance'
 import styles from './index.module.scss'
 
 type SyncDatasourceType = 'MYSQL' | 'POSTGRESQL' | 'ORACLE' | 'DORIS'
@@ -96,8 +125,104 @@ type TargetNameRule = 'KEEP_SOURCE' | 'LOWERCASE' | 'UPPERCASE'
 type SyncSolutionModule = 'MAPPING' | 'FILTER' | 'SINK' | 'PROCESSING'
 type SyncTaskViewMode = 'LIST' | 'WIZARD'
 type SyncTaskAssetStatus = 'SUCCESS' | 'FAILED' | 'RUNNING' | 'DRAFT' | 'OFFLINE'
-type SyncTaskDetailTab = 'OVERVIEW' | 'CONFIG' | 'HISTORY' | 'LOGS' | 'CHANGES'
+type SyncTaskDetailTab = 'OVERVIEW' | 'CONFIG' | 'HISTORY' | 'LOGS'
 type SyncTaskAssetSource = 'REAL' | 'LOCAL'
+type SinkConfigTab = 'BASE' | 'MODE' | 'THROUGHPUT' | 'TEMPLATE' | 'CONFIG'
+type SeaTunnelDeployMode = 'cluster' | 'client' | 'local'
+type DataProcessingRuleType = 'VALUE_TRANSLATE'
+
+type SyncTaskWorkflowActionRow = {
+  code: number | null
+  name: string
+  releaseState: 'ONLINE' | 'OFFLINE'
+  scheduleReleaseState: 'ONLINE' | 'OFFLINE'
+  schedule: Record<string, any> | null
+}
+
+interface DataProcessingMapping {
+  key: string
+  sourceValue: string
+  targetValue: string
+}
+
+interface DataProcessingRule {
+  key: string
+  enabled: boolean
+  type: DataProcessingRuleType
+  sourceField: string
+  targetField: string
+  defaultMode: 'KEEP_SOURCE' | 'EMPTY'
+  mappings: DataProcessingMapping[]
+}
+
+interface SinkOptions {
+  tab: SinkConfigTab
+  schemaSaveMode: string
+  dataSaveMode: string
+  customSql: string
+  generateSinkSql: string
+  enableUpsert: string
+  fieldIde: string
+  batchSize: string
+  maxRetries: string
+  connectionCheckTimeoutSec: string
+  isExactlyOnce: string
+  xaDataSourceClassName: string
+  maxCommitAttempts: string
+  transactionTimeoutSec: string
+  autoCommit: string
+  batchIntervalMs: string
+  jdbcProperties: string
+  jdbcQuery: string
+  dorisFenodes: string
+  dorisQueryPort: string
+  dorisLabelPrefix: string
+  dorisEnable2pc: string
+  dorisEnableDelete: string
+  dorisBufferSize: string
+  dorisBufferCount: string
+  dorisBatchSize: string
+  dorisCheckInterval: string
+  dorisMaxRetries: string
+  dorisFormat: string
+  dorisReadJsonByLine: string
+  dorisStripOuterArray: string
+  dorisColumnSeparator: string
+  dorisLoadToSingleTablet: string
+  dorisNeedsUnsupportedTypeCasting: string
+  dorisCaseSensitive: string
+  dorisSaveModeCreateTemplate: string
+}
+
+interface SeaTunnelRunSettings {
+  nodeName: string
+  runFlag: 'YES' | 'NO'
+  description: string
+  taskPriority: string
+  workerGroup: string
+  environmentCode: number | null
+  taskGroupName: string
+  taskGroupPriority: string
+  failRetryTimes: string
+  failRetryInterval: string
+  delayTime: string
+  cpuQuota: string
+  memoryMax: string
+  timeoutFlag: boolean
+  timeoutNotifyStrategy: string
+  timeout: string
+  startupScript: string
+  runMode: string
+  others: string
+  deployMode: SeaTunnelDeployMode
+  master: string
+  masterUrl: string
+  useCustom: boolean
+  rawScript: string
+  resourceList: string[]
+  localParams: string
+  taskGroupId: number | null
+}
 
 interface DatasourceOption extends SelectOption {
   value: number
@@ -212,6 +337,7 @@ interface SyncTaskAsset {
   workflowCode: number | null
   workflowName: string
   workflowVersion: number
+  workflowReleaseState?: 'ONLINE' | 'OFFLINE' | string
   lastRunTime: string
   lastInstanceId: number | null
   readRows: number | null
@@ -222,25 +348,20 @@ interface SyncTaskAsset {
   errorMessage: string
   sourceFilters: SourceFilterRule[]
   sinkCustomSql: string
+  sinkOptions: SinkOptions
+  dataProcessingRules: DataProcessingRule[]
   fieldRows: FieldDesignRow[]
   sourceColumns: ColumnItem[]
   targetColumns: ColumnItem[]
   configText: string
-  history: Array<{
-    id: string
-    status: SyncTaskAssetStatus
-    trigger: string
-    startTime: string
-    endTime: string
-    duration: string
-    rows: string
-  }>
+  history: SyncTaskHistoryRow[]
   changes: Array<{
     time: string
     user: string
     action: string
   }>
   source?: SyncTaskAssetSource
+  schedule?: Record<string, any> | null
   logLoading?: boolean
   logLoaded?: boolean
   logError?: string
@@ -264,6 +385,131 @@ const SOURCE_FILTER_OPERATOR_LABELS: Record<SourceFilterOperator, string> = {
 
 const SOURCE_FILTER_MAX_COUNT = 3
 
+const getDefaultDorisCreateTemplate = () => `CREATE TABLE IF NOT EXISTS \`\${database}\`.\`\${table_name}\` (
+  \${rowtype_primary_key},
+  \${rowtype_fields}
+)
+ENGINE=OLAP
+UNIQUE KEY (\${rowtype_primary_key})
+DISTRIBUTED BY HASH (\${rowtype_primary_key})
+PROPERTIES (
+  "replication_allocation" = "tag.location.default: 1"
+);`
+
+const createDefaultSinkOptions = (): SinkOptions => ({
+  tab: 'BASE',
+  schemaSaveMode: 'CREATE_SCHEMA_WHEN_NOT_EXIST',
+  dataSaveMode: 'APPEND_DATA',
+  customSql: '',
+  generateSinkSql: 'false',
+  enableUpsert: 'true',
+  fieldIde: '',
+  batchSize: '1000',
+  maxRetries: '0',
+  connectionCheckTimeoutSec: '30',
+  isExactlyOnce: 'false',
+  xaDataSourceClassName: '',
+  maxCommitAttempts: '3',
+  transactionTimeoutSec: '-1',
+  autoCommit: 'true',
+  batchIntervalMs: '1000',
+  jdbcProperties: '',
+  jdbcQuery: '',
+  dorisFenodes: '',
+  dorisQueryPort: '9030',
+  dorisLabelPrefix: 'dataflow_sync',
+  dorisEnable2pc: 'true',
+  dorisEnableDelete: 'false',
+  dorisBufferSize: '100000',
+  dorisBufferCount: '3',
+  dorisBatchSize: '1024',
+  dorisCheckInterval: '10000',
+  dorisMaxRetries: '3',
+  dorisFormat: 'json',
+  dorisReadJsonByLine: 'true',
+  dorisStripOuterArray: 'false',
+  dorisColumnSeparator: ',',
+  dorisLoadToSingleTablet: 'false',
+  dorisNeedsUnsupportedTypeCasting: 'false',
+  dorisCaseSensitive: 'false',
+  dorisSaveModeCreateTemplate: getDefaultDorisCreateTemplate()
+})
+
+const cloneSinkOptions = (options?: Partial<SinkOptions> | null): SinkOptions => ({
+  ...createDefaultSinkOptions(),
+  ...(options || {})
+})
+
+const createDataProcessingMapping = (
+  seed = Date.now(),
+  sourceValue = '',
+  targetValue = ''
+): DataProcessingMapping => ({
+  key: `processing-map-${seed}-${Math.random().toString(16).slice(2)}`,
+  sourceValue,
+  targetValue
+})
+
+const createDataProcessingRule = (seed = Date.now()): DataProcessingRule => ({
+  key: `processing-rule-${seed}-${Math.random().toString(16).slice(2)}`,
+  enabled: true,
+  type: 'VALUE_TRANSLATE',
+  sourceField: '',
+  targetField: '',
+  defaultMode: 'KEEP_SOURCE',
+  mappings: [
+    createDataProcessingMapping(seed + 1),
+    createDataProcessingMapping(seed + 2)
+  ]
+})
+
+const cloneDataProcessingRules = (
+  rules?: DataProcessingRule[] | null
+): DataProcessingRule[] =>
+  (rules && rules.length ? rules : []).map((rule, index) => ({
+    ...rule,
+    key: rule.key || `processing-rule-clone-${index}-${Date.now()}`,
+    type: rule.type || 'VALUE_TRANSLATE',
+    defaultMode: rule.defaultMode || 'KEEP_SOURCE',
+    mappings: (rule.mappings && rule.mappings.length
+      ? rule.mappings
+      : [createDataProcessingMapping(index)]
+    ).map((mapping, mappingIndex) => ({
+      ...mapping,
+      key: mapping.key || `processing-map-clone-${index}-${mappingIndex}-${Date.now()}`
+    }))
+  }))
+
+const createDefaultRunSettings = (): SeaTunnelRunSettings => ({
+  nodeName: 'sync_task',
+  runFlag: 'YES',
+  description: '',
+  taskPriority: 'MEDIUM',
+  workerGroup: 'default',
+  environmentCode: null,
+  taskGroupName: '',
+  taskGroupPriority: '0',
+  failRetryTimes: '0',
+  failRetryInterval: '1',
+  delayTime: '0',
+  cpuQuota: '-1',
+  memoryMax: '-1',
+  timeoutFlag: false,
+  timeoutNotifyStrategy: 'WARN',
+  timeout: '30',
+  startupScript: 'seatunnel.sh',
+  runMode: 'RUN',
+  others: '',
+  deployMode: 'local',
+  master: 'YARN',
+  masterUrl: '',
+  useCustom: true,
+  rawScript: '',
+  resourceList: [],
+  localParams: '',
+  taskGroupId: null
+})
+
 const solutionModules = [
   {
     key: 'MAPPING',
@@ -286,8 +532,8 @@ const solutionModules = [
   {
     key: 'PROCESSING',
     title: '数据处理',
-    tag: '暂未实现',
-    desc: '预留字符串替换、AI 处理、向量化能力'
+    tag: '可配置',
+    desc: '配置字段翻译、派生字段等 ETL 处理'
   }
 ] as const
 
@@ -312,6 +558,38 @@ const cloneFieldRows = (rows: FieldDesignRow[]): FieldDesignRow[] =>
 const cloneColumns = (columns: ColumnItem[]): ColumnItem[] =>
   columns.map((item) => ({ ...item }))
 
+const buildSourceColumnsFromFieldRows = (rows: FieldDesignRow[]): ColumnItem[] => {
+  const seen = new Set<string>()
+  return rows
+    .filter((item) => item.sourceColumn)
+    .map((item, index) => ({
+      name: item.sourceColumn,
+      type: item.sourceType || 'unknown',
+      key: `${item.sourceColumn}-${index}`,
+      nullable: item.sourceNullable,
+      primaryKey: item.sourcePrimaryKey,
+      comment: item.sourceComment || ''
+    }))
+    .filter((item) => {
+      const key = item.name.toLowerCase()
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+}
+
+const buildTargetColumnsFromFieldRows = (rows: FieldDesignRow[]): ColumnItem[] =>
+  rows
+    .filter((item) => item.targetColumn)
+    .map((item, index) => ({
+      name: item.targetColumn,
+      type: item.targetType || 'unknown',
+      key: item.key || `${item.targetColumn}-${index}`,
+      nullable: item.targetNullable,
+      primaryKey: item.targetPrimaryKey,
+      comment: item.targetComment || ''
+    }))
+
 const formatQualifiedPath = (...parts: Array<string | null | undefined>) =>
   parts
     .map((part) => String(part || '').trim())
@@ -320,268 +598,9 @@ const formatQualifiedPath = (...parts: Array<string | null | undefined>) =>
 
 const SYNC_TASK_ASSET_STORAGE_KEY = 'dolphinscheduler.sync-task.assets.v1'
 
-const createDemoAssetRows = (): FieldDesignRow[] => [
-  {
-    key: 'id',
-    sourceColumn: 'id',
-    sourceType: 'BIGINT',
-    sourceComment: '主键 ID',
-    sourcePrimaryKey: true,
-    sourceNullable: false,
-    targetColumn: 'id',
-    targetType: 'BIGINT',
-    targetComment: '主键 ID',
-    targetPrimaryKey: true,
-    targetNullable: false,
-    sync: true,
-    mappedTargetKey: 'id',
-    mappingKind: 'AUTO',
-    targetColumnTouched: false
-  },
-  {
-    key: 'ajbh',
-    sourceColumn: 'ajbh',
-    sourceType: 'VARCHAR(64)',
-    sourceComment: '案件编号',
-    sourcePrimaryKey: false,
-    sourceNullable: false,
-    targetColumn: 'ajbh',
-    targetType: 'VARCHAR(64)',
-    targetComment: '案件编号',
-    targetPrimaryKey: false,
-    targetNullable: false,
-    sync: true,
-    mappedTargetKey: 'ajbh',
-    mappingKind: 'AUTO',
-    targetColumnTouched: false
-  },
-  {
-    key: 'ajmc',
-    sourceColumn: 'ajmc',
-    sourceType: 'VARCHAR(255)',
-    sourceComment: '案件名称',
-    sourcePrimaryKey: false,
-    sourceNullable: true,
-    targetColumn: 'case_name',
-    targetType: 'VARCHAR(255)',
-    targetComment: '案件名称',
-    targetPrimaryKey: false,
-    targetNullable: true,
-    sync: true,
-    mappedTargetKey: 'ajmc',
-    mappingKind: 'MANUAL',
-    targetColumnTouched: true
-  },
-  {
-    key: 'update_time',
-    sourceColumn: 'update_time',
-    sourceType: 'DATETIME',
-    sourceComment: '更新时间',
-    sourcePrimaryKey: false,
-    sourceNullable: true,
-    targetColumn: 'synced_at',
-    targetType: 'TIMESTAMP',
-    targetComment: '同步时间',
-    targetPrimaryKey: false,
-    targetNullable: true,
-    sync: true,
-    mappedTargetKey: 'update_time',
-    mappingKind: 'MANUAL',
-    targetColumnTouched: true
-  }
-]
-
-const createDemoAssets = (): SyncTaskAsset[] => {
-  const rows = createDemoAssetRows()
-  const sourceColumns = rows.map((item) => ({
-    name: item.sourceColumn,
-    type: item.sourceType,
-    key: item.sourceColumn,
-    nullable: item.sourceNullable,
-    primaryKey: item.sourcePrimaryKey,
-    comment: item.sourceComment
-  }))
-  const targetColumns = rows.map((item) => ({
-    name: item.targetColumn,
-    type: item.targetType,
-    key: item.key,
-    nullable: item.targetNullable,
-    primaryKey: item.targetPrimaryKey,
-    comment: item.targetComment
-  }))
-  return [
-    {
-      id: 'demo-success',
-      name: 'sync_mysql_ajxx_to_pgsql_a6',
-      projectCode: null,
-      projectName: 'test1',
-      status: 'SUCCESS',
-      scheduleStatus: 'ON',
-      sourceType: 'MYSQL',
-      targetType: 'POSTGRESQL',
-      sourceName: 'mysql_case_workbench',
-      sourcePath: 'case_workbench.ajxx_tab',
-      targetName: 'pgsql_test1',
-      targetPath: 'test1.public.a6',
-      workflowCode: 173455487604512,
-      workflowName: 'sync_mysql_ajxx_to_pgsql_a6',
-      workflowVersion: 3,
-      lastRunTime: '2026-05-15 12:49',
-      lastInstanceId: 161,
-      readRows: 5,
-      writeRows: 5,
-      duration: '15s',
-      updatedAt: '2026-05-15 12:49',
-      owner: 'admin',
-      errorMessage: '',
-      sourceFilters: [
-        {
-          key: 'demo-filter-1',
-          enabled: true,
-          field: 'update_time',
-          operator: 'GTE',
-          value: '${bizdate}',
-          valueEnd: ''
-        }
-      ],
-      sinkCustomSql: 'truncate table public.a6;',
-      fieldRows: rows,
-      sourceColumns,
-      targetColumns,
-      configText: '',
-      history: [
-        {
-          id: '161',
-          status: 'SUCCESS',
-          trigger: '手动运行',
-          startTime: '2026-05-15 12:40:48',
-          endTime: '2026-05-15 12:41:03',
-          duration: '15s',
-          rows: '5 / 5'
-        },
-        {
-          id: '159',
-          status: 'SUCCESS',
-          trigger: '调度运行',
-          startTime: '2026-05-15 12:31:56',
-          endTime: '2026-05-15 12:35:11',
-          duration: '3m15s',
-          rows: '5 / 5'
-        }
-      ],
-      changes: [
-        { time: '2026-05-15 12:49', user: 'admin', action: '保存并执行同步任务' },
-        { time: '2026-05-15 10:12', user: 'admin', action: '创建同步任务' }
-      ]
-    },
-    {
-      id: 'demo-failed',
-      name: 'sync_oracle_order_to_doris_ods',
-      projectCode: null,
-      projectName: 'ods',
-      status: 'FAILED',
-      scheduleStatus: 'ON',
-      sourceType: 'ORACLE',
-      targetType: 'DORIS',
-      sourceName: 'oracle_sync_test',
-      sourcePath: 'APP.ORDERS',
-      targetName: 'doris_sync_test',
-      targetPath: 'ods.order_detail',
-      workflowCode: 173455278088992,
-      workflowName: 'sync_oracle_order_to_doris_ods',
-      workflowVersion: 2,
-      lastRunTime: '2026-05-15 11:42',
-      lastInstanceId: 160,
-      readRows: 1200,
-      writeRows: 0,
-      duration: '41s',
-      updatedAt: '2026-05-15 11:43',
-      owner: 'admin',
-      errorMessage: '目标字段 amount 类型 DECIMAL(10,2) 无法承接 Oracle NUMBER(18,4)',
-      sourceFilters: [
-        {
-          key: 'demo-filter-2',
-          enabled: true,
-          field: 'ORDER_TIME',
-          operator: 'GTE',
-          value: '${bizdate}',
-          valueEnd: ''
-        }
-      ],
-      sinkCustomSql: '',
-      fieldRows: [
-        {
-          key: 'order_id',
-          sourceColumn: 'ORDER_ID',
-          sourceType: 'NUMBER(20)',
-          sourceComment: '订单 ID',
-          sourcePrimaryKey: true,
-          sourceNullable: false,
-          targetColumn: 'order_id',
-          targetType: 'BIGINT',
-          targetComment: '订单 ID',
-          targetPrimaryKey: true,
-          targetNullable: false,
-          sync: true,
-          mappedTargetKey: 'order_id',
-          mappingKind: 'AUTO',
-          targetColumnTouched: false
-        },
-        {
-          key: 'amount',
-          sourceColumn: 'AMOUNT',
-          sourceType: 'NUMBER(18,4)',
-          sourceComment: '订单金额',
-          sourcePrimaryKey: false,
-          sourceNullable: true,
-          targetColumn: 'amount',
-          targetType: 'DECIMAL(10,2)',
-          targetComment: '订单金额',
-          targetPrimaryKey: false,
-          targetNullable: true,
-          sync: true,
-          mappedTargetKey: 'amount',
-          mappingKind: 'MANUAL',
-          targetColumnTouched: false
-        },
-        {
-          key: 'order_time',
-          sourceColumn: 'ORDER_TIME',
-          sourceType: 'TIMESTAMP',
-          sourceComment: '订单时间',
-          sourcePrimaryKey: false,
-          sourceNullable: true,
-          targetColumn: 'order_time',
-          targetType: 'DATETIME',
-          targetComment: '订单时间',
-          targetPrimaryKey: false,
-          targetNullable: true,
-          sync: true,
-          mappedTargetKey: 'order_time',
-          mappingKind: 'AUTO',
-          targetColumnTouched: false
-        }
-      ],
-      sourceColumns: [],
-      targetColumns: [],
-      configText: '',
-      history: [
-        {
-          id: '160',
-          status: 'FAILED',
-          trigger: '调度运行',
-          startTime: '2026-05-15 11:42:01',
-          endTime: '2026-05-15 11:42:42',
-          duration: '41s',
-          rows: '1200 / 0'
-        }
-      ],
-      changes: [
-        { time: '2026-05-15 11:43', user: 'admin', action: '失败后进入修复' },
-        { time: '2026-05-15 09:20', user: 'admin', action: '创建同步任务' }
-      ]
-    }
-  ]
+const toPositiveNumber = (value: unknown): number | null => {
+  const numeric = Number(value)
+  return Number.isFinite(numeric) && numeric > 0 ? numeric : null
 }
 
 const escapeSeatunnelString = (value: string): string =>
@@ -600,6 +619,34 @@ interface WorkflowTaskProgressRow {
   startTime: string
   endTime: string
   host: string
+}
+
+interface SyncTaskHistoryRow {
+  id: string
+  instanceId: number | null
+  status: SyncTaskAssetStatus
+  state: string
+  trigger: string
+  startTime: string
+  endTime: string
+  duration: string
+  rows: string
+}
+
+const normalizeHistoryRow = (row: Partial<SyncTaskHistoryRow>): SyncTaskHistoryRow => {
+  const id = String(row.id || `history-${Date.now()}`)
+  const instanceId = toPositiveNumber(row.instanceId || row.id)
+  return {
+    id,
+    instanceId,
+    status: row.status || 'DRAFT',
+    state: row.state || '',
+    trigger: row.trigger || '-',
+    startTime: row.startTime || '-',
+    endTime: row.endTime || '-',
+    duration: row.duration || '-',
+    rows: row.rows || '- / -'
+  }
 }
 
 interface EndpointState {
@@ -817,6 +864,34 @@ const formatTaskLogReadError = (error: any): string => {
   return message || '读取任务日志失败，请稍后重试。'
 }
 
+const normalizeTaskHost = (task: any): string =>
+  String(task?.host || task?.executePath || '').trim()
+
+const formatTaskStateText = (stateValue: any): string => {
+  const normalized = String(stateValue ?? '').trim()
+  if (!normalized) return '未知状态'
+  if (normalized === '0') return '已提交'
+  return WORKFLOW_STATE_META[normalized]?.label || normalized
+}
+
+const formatTaskUndispatchedMessage = (task: any): string => {
+  const workerGroup = task?.workerGroup || task?.worker_group || 'default'
+  return [
+    '任务尚未分发到 Worker，当前任务实例 host 为空，因此没有可读取的运行日志。',
+    '',
+    `当前状态：${formatTaskStateText(task?.state)}。`,
+    `Worker 分组：${workerGroup}。`,
+    '',
+    '请重点检查：',
+    '1. DolphinScheduler Worker 是否在线。',
+    '2. Worker 分组是否和任务配置一致。',
+    '3. 注册中心里的 Worker 地址是否为当前机器可达地址。',
+    '4. 如果机器 IP 变化过，需要重启 DolphinScheduler，让 Worker 使用新地址重新注册。',
+    '',
+    '说明：这不是日志文件为空，而是任务还没有真正被 Worker 接收执行。'
+  ].join('\n')
+}
+
 const isUsefulTaskErrorLine = (line: string): boolean => {
   const normalized = line.trim()
   return (
@@ -919,7 +994,7 @@ const formatDateTime = (value: number | null): string => {
 
 const extractCounterFromLog = (logText: string, label: string): number | null => {
   if (!logText) return null
-  const counterRegExp = new RegExp(`${label}\\s*:\\s*([\\d,]+)`, 'g')
+  const counterRegExp = new RegExp(`"?${label}"?\\s*[:=]\\s*"?([\\d,]+)"?`, 'gi')
   const matchedValues = [...logText.matchAll(counterRegExp)]
   if (!matchedValues.length) return null
   const parsedValue = Number(
@@ -928,12 +1003,25 @@ const extractCounterFromLog = (logText: string, label: string): number | null =>
   return Number.isFinite(parsedValue) ? parsedValue : null
 }
 
+const firstNumber = (...values: Array<number | null>): number | null => {
+  for (const value of values) {
+    if (value !== null && Number.isFinite(value)) return value
+  }
+  return null
+}
+
 const extractReadWriteCountFromLog = (
   logText: string
-): { readRows: number | null; writeRows: number | null } => ({
-  readRows: extractCounterFromLog(logText, 'Total Read Count'),
-  writeRows: extractCounterFromLog(logText, 'Total Write Count')
-})
+): { readRows: number | null; writeRows: number | null } => {
+  const totalReadCount = extractCounterFromLog(logText, 'Total Read Count')
+  const totalWriteCount = extractCounterFromLog(logText, 'Total Write Count')
+  const numberTotalRows = extractCounterFromLog(logText, 'NumberTotalRows')
+  const numberLoadedRows = extractCounterFromLog(logText, 'NumberLoadedRows')
+  return {
+    readRows: firstNumber(totalReadCount, numberTotalRows, numberLoadedRows),
+    writeRows: firstNumber(totalWriteCount, numberLoadedRows, numberTotalRows)
+  }
+}
 
 const formatReadWriteRows = (
   readRows: number | null,
@@ -1000,15 +1088,103 @@ const buildSourceSelectByType = (
     .join(', ')}`
 }
 
+const hasActiveProcessingRules = (
+  rows: MappingRow[],
+  processingRules: DataProcessingRule[] = []
+): boolean =>
+  buildOrderedMappingRows(rows).some((row) =>
+    processingRules.some(
+      (item) =>
+        item.enabled &&
+        item.type === 'VALUE_TRANSLATE' &&
+        item.sourceField.trim() &&
+        item.targetField.trim() &&
+        item.sourceField.trim().toLowerCase() === row.sourceColumn.trim().toLowerCase() &&
+        item.targetField.trim().toLowerCase() === row.targetColumn.trim().toLowerCase() &&
+        item.mappings.some((mapping) => mapping.sourceValue.trim() && mapping.targetValue.trim())
+    )
+  )
+
+const toUtf8HexLiteral = (value: string): string => {
+  const encoder = new TextEncoder()
+  return [...encoder.encode(value)]
+    .map((item) => item.toString(16).padStart(2, '0'))
+    .join('')
+    .toUpperCase()
+}
+
+const buildSourceProcessingExpression = (
+  row: MappingRow,
+  sourceType: SyncDatasourceType,
+  processingRules: DataProcessingRule[] = []
+): string => {
+  const sourceColumn = quoteQueryIdentifier(sourceType, row.sourceColumn)
+  const rule = processingRules.find(
+    (item) =>
+      item.enabled &&
+      item.type === 'VALUE_TRANSLATE' &&
+      item.sourceField.trim() &&
+      item.targetField.trim() &&
+      item.sourceField.trim().toLowerCase() === row.sourceColumn.trim().toLowerCase() &&
+      item.targetField.trim().toLowerCase() === row.targetColumn.trim().toLowerCase()
+  )
+  if (!rule) return sourceColumn
+  const mappings = rule.mappings.filter(
+    (item) => item.sourceValue.trim() && item.targetValue.trim()
+  )
+  if (!mappings.length) return sourceColumn
+  if (sourceType === 'DORIS') {
+    const whenClauses = mappings
+      .map((item) => {
+        const sourceHex = toUtf8HexLiteral(item.sourceValue.trim())
+        const targetHex = toUtf8HexLiteral(item.targetValue.trim())
+        return `when HEX(${sourceColumn}) = '${sourceHex}' then CAST(UNHEX('${targetHex}') AS STRING)`
+      })
+      .join(' ')
+    const fallback = rule.defaultMode === 'EMPTY' ? "''" : sourceColumn
+    return `case ${whenClauses} else ${fallback} end`
+  }
+  const whenClauses = mappings
+    .map(
+      (item) =>
+        `when ${sourceColumn} = '${escapeSqlStringLiteral(item.sourceValue.trim())}' then '${escapeSqlStringLiteral(item.targetValue.trim())}'`
+    )
+    .join(' ')
+  const fallback = rule.defaultMode === 'EMPTY' ? "''" : sourceColumn
+  return `case ${whenClauses} else ${fallback} end`
+}
+
+const buildSourceSelectWithProcessing = (
+  rows: MappingRow[],
+  sourceType: SyncDatasourceType,
+  processingRules: DataProcessingRule[] = []
+): string => {
+  const orderedRows = buildOrderedMappingRows(rows)
+  if (!orderedRows.length) return 'select *'
+  return `select ${orderedRows
+    .map((row) => {
+      const expression = buildSourceProcessingExpression(row, sourceType, processingRules)
+      const targetColumn = quoteQueryIdentifier(sourceType, row.targetColumn)
+      const sourceColumn = quoteQueryIdentifier(sourceType, row.sourceColumn)
+      return expression === sourceColumn && row.sourceColumn === row.targetColumn
+        ? expression
+        : `${expression} as ${targetColumn}`
+    })
+    .join(', ')}`
+}
+
 const buildSourceSelectSql = (
   rows: MappingRow[],
   sourceFilters: SourceFilterRule[],
   sourceType: SyncDatasourceType,
   sourceTable: string,
   sourceColumns: ColumnItem[],
-  sampleLimit: number | null = null
+  sampleLimit: number | null = null,
+  processingRules: DataProcessingRule[] = []
 ): string => {
-  const selectClause = buildSourceSelectByType(rows, sourceType)
+  const selectClause = hasActiveProcessingRules(rows, processingRules)
+    ? buildSourceSelectWithProcessing(rows, sourceType, processingRules)
+    : buildSourceSelectByType(rows, sourceType)
   const fromClause = buildSourceFromClause(sourceType, sourceTable)
   const whereClause = buildSourceWhereClause(sourceFilters, sourceType, sourceColumns)
   const baseSql = `${selectClause} from ${fromClause}${whereClause}`
@@ -1189,17 +1365,56 @@ const describeSourceFilters = (filters: SourceFilterRule[]): string => {
   return activeCount ? `源端过滤 ${activeCount} 条` : '源端过滤未启用'
 }
 
-const buildSeatunnelTransformQuery = (rows: MappingRow[]): string => {
+const buildProcessingExpression = (
+  row: MappingRow,
+  processingRules: DataProcessingRule[]
+): string => {
+  const sourceColumn = quoteSeatunnelSqlIdentifier(row.sourceColumn)
+  const rule = processingRules.find(
+    (item) =>
+      item.enabled &&
+      item.type === 'VALUE_TRANSLATE' &&
+      item.sourceField.trim() &&
+      item.targetField.trim() &&
+      item.sourceField.trim().toLowerCase() === row.sourceColumn.trim().toLowerCase() &&
+      item.targetField.trim().toLowerCase() === row.targetColumn.trim().toLowerCase()
+  )
+  if (!rule) return sourceColumn
+  const mappings = rule.mappings.filter(
+    (item) => item.sourceValue.trim() && item.targetValue.trim()
+  )
+  if (!mappings.length) return sourceColumn
+  const whenClauses = mappings
+    .map(
+      (item) =>
+        `when ${sourceColumn} = '${escapeSqlStringLiteral(item.sourceValue.trim())}' then '${escapeSqlStringLiteral(item.targetValue.trim())}'`
+    )
+    .join(' ')
+  const fallback = rule.defaultMode === 'EMPTY' ? "''" : sourceColumn
+  return `case ${whenClauses} else ${fallback} end`
+}
+
+const buildSeatunnelTransformQuery = (
+  rows: MappingRow[],
+  processingRules: DataProcessingRule[] = []
+): string => {
   const orderedRows = buildOrderedMappingRows(rows)
   if (!orderedRows.length) return 'select * from sync_source'
   const selectFields = orderedRows
     .map((item) => {
-      const sourceColumn = quoteSeatunnelSqlIdentifier(item.sourceColumn)
+      const expression = buildProcessingExpression(item, processingRules)
       const targetColumn = quoteSeatunnelSqlIdentifier(item.targetColumn)
-      return item.sourceColumn === item.targetColumn
-        ? sourceColumn
-        : `${sourceColumn} as ${targetColumn}`
+      return expression === targetColumn ? expression : `${expression} as ${targetColumn}`
     })
+    .join(', ')
+  return `select ${selectFields} from sync_source`
+}
+
+const buildSeatunnelPassthroughTransformQuery = (rows: MappingRow[]): string => {
+  const orderedRows = buildOrderedMappingRows(rows)
+  if (!orderedRows.length) return 'select * from sync_source'
+  const selectFields = orderedRows
+    .map((item) => quoteSeatunnelSqlIdentifier(item.targetColumn))
     .join(', ')
   return `select ${selectFields} from sync_source`
 }
@@ -1237,6 +1452,159 @@ const buildDriver = (type: SyncDatasourceType): string => {
   return 'org.postgresql.Driver'
 }
 
+const getSinkConnectorName = (type: SyncDatasourceType): string => {
+  if (type === 'DORIS') return 'Doris'
+  return 'Jdbc'
+}
+
+const getJdbcFieldIde = (type: SyncDatasourceType, options: SinkOptions): string =>
+  options.fieldIde || (type === 'ORACLE' ? 'UPPERCASE' : 'ORIGINAL')
+
+const getXaDataSourceClassName = (type: SyncDatasourceType, options: SinkOptions): string => {
+  if (options.xaDataSourceClassName.trim()) return options.xaDataSourceClassName.trim()
+  if (type === 'MYSQL') return 'com.mysql.cj.jdbc.MysqlXADataSource'
+  if (type === 'ORACLE') return 'oracle.jdbc.xa.client.OracleXADataSource'
+  return ''
+}
+
+const getDefaultJdbcProperties = (type: SyncDatasourceType): string => {
+  if (type === 'MYSQL') return 'rewriteBatchedStatements=true\nuseServerPrepStmts=false'
+  if (type === 'ORACLE') return 'oracle.jdbc.timezoneAsRegion=false'
+  return ''
+}
+
+const parseKeyValueLines = (value: string): Array<[string, string]> =>
+  String(value || '')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const index = line.indexOf('=')
+      return (index >= 0
+        ? [line.slice(0, index).trim(), line.slice(index + 1).trim()]
+        : [line, '']) as [string, string]
+    })
+    .filter(([key]) => !!key)
+
+const parseSeaTunnelLocalParams = (value: string) =>
+  parseKeyValueLines(value).map(([prop, direct]) => ({
+    prop,
+    direct,
+    type: 'VARCHAR'
+  }))
+
+const normalizeNumberText = (value: string, fallback: string) => {
+  const trimmed = String(value ?? '').trim()
+  return trimmed || fallback
+}
+
+const resolveRunNodeName = (settings: SeaTunnelRunSettings, fallbackName: string) => {
+  const nodeName = settings.nodeName.trim()
+  return !nodeName || nodeName === 'sync_task' ? fallbackName : nodeName
+}
+
+const buildSeaTunnelTaskData = (
+  settings: SeaTunnelRunSettings,
+  fallbackName: string,
+  rawScript: string,
+  code = 0
+): ITaskData => ({
+  code,
+  delayTime: Number(normalizeNumberText(settings.delayTime, '0')),
+  description: settings.description,
+  environmentCode: settings.environmentCode ?? -1,
+  failRetryInterval: Number(normalizeNumberText(settings.failRetryInterval, '1')),
+  failRetryTimes: Number(normalizeNumberText(settings.failRetryTimes, '0')),
+  flag: settings.runFlag || 'YES',
+  name: resolveRunNodeName(settings, fallbackName),
+  taskGroupId: settings.taskGroupId ?? undefined,
+  taskGroupPriority: settings.taskGroupPriority.trim()
+    ? Number(settings.taskGroupPriority)
+    : undefined,
+  taskParams: {
+    localParams: parseSeaTunnelLocalParams(settings.localParams),
+    rawScript: settings.useCustom ? rawScript : settings.rawScript,
+    resourceList: settings.useCustom
+      ? []
+      : settings.resourceList.map((resourceName) => ({ resourceName })),
+    startupScript: settings.startupScript || 'seatunnel.sh',
+    useCustom: settings.useCustom,
+    runMode: settings.runMode || 'RUN',
+    others: settings.others || '',
+    deployMode: settings.deployMode || 'local',
+    master: settings.master || 'YARN',
+    masterUrl: settings.masterUrl || ''
+  },
+  taskPriority: settings.taskPriority || 'MEDIUM',
+  taskType: 'SEATUNNEL',
+  timeout: settings.timeoutFlag ? Number(normalizeNumberText(settings.timeout, '30')) : 0,
+  timeoutFlag: settings.timeoutFlag ? 'OPEN' : 'CLOSE',
+  timeoutNotifyStrategy: settings.timeoutFlag ? settings.timeoutNotifyStrategy : '',
+  workerGroup: settings.workerGroup || 'default',
+  cpuQuota: Number(normalizeNumberText(settings.cpuQuota, '-1')),
+  memoryMax: Number(normalizeNumberText(settings.memoryMax, '-1')),
+  taskExecuteType: 'BATCH'
+})
+
+const serializeLocalParams = (localParams: any[]) =>
+  (localParams || [])
+    .map((item) => {
+      const prop = String(item?.prop || '').trim()
+      if (!prop) return ''
+      return `${prop}=${String(item?.value ?? '')}`
+    })
+    .filter(Boolean)
+    .join('\n')
+
+const applyNativeSeaTunnelModel = (
+  settings: SeaTunnelRunSettings,
+  model: INodeData
+) => {
+  settings.nodeName = model.name || settings.nodeName
+  settings.runFlag = model.flag || 'YES'
+  settings.description = model.description || ''
+  settings.taskPriority = model.taskPriority || 'MEDIUM'
+  settings.workerGroup = model.workerGroup || 'default'
+  settings.environmentCode = model.environmentCode ?? null
+  settings.taskGroupId = model.taskGroupId ?? null
+  settings.taskGroupPriority =
+    model.taskGroupPriority === null || model.taskGroupPriority === undefined
+      ? ''
+      : String(model.taskGroupPriority)
+  settings.failRetryTimes = String(model.failRetryTimes ?? 0)
+  settings.failRetryInterval = String(model.failRetryInterval ?? 1)
+  settings.delayTime = String(model.delayTime ?? 0)
+  settings.cpuQuota = String(model.cpuQuota ?? -1)
+  settings.memoryMax = String(model.memoryMax ?? -1)
+  settings.timeoutFlag = !!model.timeoutFlag
+  settings.timeoutNotifyStrategy = Array.isArray(model.timeoutNotifyStrategy)
+    ? model.timeoutNotifyStrategy.length === 2
+      ? 'WARNFAILED'
+      : model.timeoutNotifyStrategy[0] || 'WARN'
+    : 'WARN'
+  settings.timeout = String(model.timeout ?? 30)
+  settings.startupScript = model.startupScript || 'seatunnel.sh'
+  settings.runMode = model.runMode || 'RUN'
+  settings.others = model.others || ''
+  settings.deployMode = (model.deployMode as SeaTunnelDeployMode) || 'local'
+  settings.master = model.master || 'YARN'
+  settings.masterUrl = model.masterUrl || ''
+  settings.useCustom = model.useCustom !== false
+  settings.rawScript = model.rawScript || ''
+  settings.resourceList = model.resourceList || []
+  settings.localParams = serializeLocalParams(model.localParams || [])
+}
+
+const pushPropertiesBlock = (lines: string[], value: string) => {
+  const entries = parseKeyValueLines(value)
+  if (!entries.length) return
+  lines.push('    properties = {')
+  entries.forEach(([key, val]) => {
+    lines.push(`      ${key} = ${seatunnelQuotedString(val)}`)
+  })
+  lines.push('    }')
+}
+
 const buildSinkTable = (
   targetType: SyncDatasourceType,
   databaseName: string,
@@ -1247,6 +1615,117 @@ const buildSinkTable = (
     return tableName.includes('.') ? tableName : `${schemaName}.${tableName}`
   }
   return tableName
+}
+
+const buildSinkConfigLines = (
+  targetDetail: DatasourceDetail,
+  databaseName: string,
+  sinkTable: string,
+  rows: MappingRow[],
+  primaryKeys: string[],
+  options: SinkOptions
+): string[] => {
+  const targetType = targetDetail.type
+  const connectorName = getSinkConnectorName(targetType)
+  const sinkInsertQuery = buildJdbcSinkInsertQuery(rows, sinkTable)
+  const customSql = options.customSql.trim()
+  const lines = [
+    'sink {',
+    `  ${connectorName} {`,
+    '    source_table_name = "sync_mapped"'
+  ]
+
+  if (targetType === 'DORIS') {
+    lines.push(
+      `    fenodes = ${seatunnelQuotedString(options.dorisFenodes.trim() || `${targetDetail.host}:8030`)}`,
+      `    query-port = ${options.dorisQueryPort || targetDetail.port || 9030}`,
+      `    username = ${seatunnelQuotedString(targetDetail.userName)}`,
+      `    password = ${seatunnelQuotedString(targetDetail.password)}`,
+      `    database = ${seatunnelQuotedString(databaseName)}`,
+      `    table = ${seatunnelQuotedString(sinkTable)}`,
+      `    table.identifier = ${seatunnelQuotedString(`${databaseName}.${sinkTable}`)}`,
+      `    sink.label-prefix = ${seatunnelQuotedString(options.dorisLabelPrefix || 'dataflow_sync')}`,
+      `    sink.enable-2pc = ${options.dorisEnable2pc}`,
+      `    sink.enable-delete = ${options.dorisEnableDelete}`,
+      `    sink.buffer-count = ${options.dorisBufferCount}`,
+      `    doris.batch.size = ${options.dorisBatchSize}`,
+      `    sink.check-interval = ${options.dorisCheckInterval}`,
+      `    sink.max-retries = ${options.dorisMaxRetries}`,
+      `    needs_unsupported_type_casting = ${options.dorisNeedsUnsupportedTypeCasting}`,
+      `    case_sensitive = ${options.dorisCaseSensitive}`,
+      `    schema_save_mode = ${seatunnelQuotedString(options.schemaSaveMode)}`,
+      `    data_save_mode = ${seatunnelQuotedString(options.dataSaveMode)}`
+    )
+    if (options.dorisEnable2pc !== 'true') {
+      lines.splice(12, 0, `    sink.buffer-size = ${options.dorisBufferSize}`)
+    }
+    if (customSql && options.dataSaveMode === 'CUSTOM_PROCESSING') {
+      lines.push(`    custom_sql = ${seatunnelQuotedString(customSql)}`)
+    }
+    if (options.schemaSaveMode !== 'ERROR_WHEN_SCHEMA_NOT_EXIST') {
+      lines.push('    save_mode_create_template = """')
+      lines.push(...options.dorisSaveModeCreateTemplate.split('\n').map((line) => `      ${line}`))
+      lines.push('    """')
+    }
+    lines.push('    doris.config = {')
+    lines.push(`      format = ${seatunnelQuotedString(options.dorisFormat)}`)
+    if (options.dorisFormat === 'json') {
+      lines.push(`      read_json_by_line = ${seatunnelQuotedString(options.dorisReadJsonByLine)}`)
+      lines.push(`      strip_outer_array = ${seatunnelQuotedString(options.dorisStripOuterArray)}`)
+    } else {
+      lines.push(`      column_separator = ${seatunnelQuotedString(options.dorisColumnSeparator)}`)
+    }
+    lines.push(`      load_to_single_tablet = ${seatunnelQuotedString(options.dorisLoadToSingleTablet)}`)
+    lines.push('    }')
+  } else {
+    const properties = options.jdbcProperties.trim() || getDefaultJdbcProperties(targetType)
+    lines.push(
+      `    url = ${seatunnelQuotedString(buildJdbcUrl(targetDetail, databaseName))}`,
+      `    driver = ${seatunnelQuotedString(buildDriver(targetType))}`,
+      `    user = ${seatunnelQuotedString(targetDetail.userName)}`,
+      `    password = ${seatunnelQuotedString(targetDetail.password)}`,
+      `    database = ${seatunnelQuotedString(databaseName)}`,
+      `    table = ${seatunnelQuotedString(sinkTable)}`,
+      `    schema_save_mode = ${seatunnelQuotedString(options.schemaSaveMode)}`,
+      `    data_save_mode = ${seatunnelQuotedString(options.dataSaveMode)}`,
+      `    enable_upsert = ${options.enableUpsert}`,
+      `    field_ide = ${seatunnelQuotedString(getJdbcFieldIde(targetType, options))}`,
+      `    batch_size = ${options.batchSize}`,
+      `    max_retries = ${options.maxRetries}`,
+      `    connection_check_timeout_sec = ${options.connectionCheckTimeoutSec}`,
+      `    is_exactly_once = ${options.isExactlyOnce}`,
+      `    auto_commit = ${options.autoCommit}`
+    )
+    const explicitSinkQuery = options.jdbcQuery.trim() || sinkInsertQuery
+    if (explicitSinkQuery) {
+      lines.splice(7, 0, `    query = ${seatunnelQuotedString(explicitSinkQuery)}`)
+    } else {
+      lines.splice(7, 0, `    generate_sink_sql = ${options.generateSinkSql}`)
+    }
+    if (targetType === 'ORACLE') {
+      lines.splice(lines.length - 5, 0, `    batch_interval_ms = ${options.batchIntervalMs}`)
+    }
+    if (options.isExactlyOnce === 'true') {
+      const xaClassName = getXaDataSourceClassName(targetType, options)
+      if (xaClassName) {
+        lines.push(
+          `    xa_data_source_class_name = ${seatunnelQuotedString(xaClassName)}`,
+          `    max_commit_attempts = ${options.maxCommitAttempts}`,
+          `    transaction_timeout_sec = ${options.transactionTimeoutSec}`
+        )
+      }
+    }
+    if (customSql && options.dataSaveMode === 'CUSTOM_PROCESSING') {
+      lines.push(`    custom_sql = ${seatunnelQuotedString(customSql)}`)
+    }
+    if (primaryKeys.length) {
+      lines.push(`    primary_keys = [${primaryKeys.map(seatunnelQuotedString).join(', ')}]`)
+    }
+    pushPropertiesBlock(lines, properties)
+  }
+
+  lines.push('  }', '}')
+  return lines
 }
 
 const getDefaultSchemaName = (targetType?: SyncDatasourceType): string => {
@@ -1280,6 +1759,32 @@ const getSchemaPlaceholder = (targetType?: SyncDatasourceType): string => {
   if (targetType === 'ORACLE') return '默认使用数据源用户名'
   if (targetType === 'POSTGRESQL') return 'public'
   return '可选'
+}
+
+const getSinkTabOptions = (targetType?: SyncDatasourceType) => {
+  if (targetType === 'DORIS') {
+    return [
+      { label: '基础写入配置', value: 'BASE' },
+      { label: '写入模式', value: 'MODE' },
+      { label: '吞吐与提交', value: 'THROUGHPUT' },
+      { label: '建表模板', value: 'TEMPLATE' },
+      { label: 'doris.config 参数', value: 'CONFIG' }
+    ]
+  }
+  return [
+    { label: '连接与目标表', value: 'BASE' },
+    { label: '写入模式', value: 'MODE' },
+    { label: '吞吐与事务', value: 'THROUGHPUT' },
+    { label: 'JDBC 扩展参数', value: 'CONFIG' }
+  ]
+}
+
+const normalizeSinkTab = (
+  tab: SinkConfigTab,
+  targetType?: SyncDatasourceType
+): SinkConfigTab => {
+  const values = getSinkTabOptions(targetType).map((item) => item.value)
+  return values.includes(tab) ? tab : 'BASE'
 }
 
 const buildPrimaryKeys = (rows: MappingRow[]): string[] => {
@@ -1523,14 +2028,12 @@ const extractWorkflowDefinitionMeta = (
   // query-by-name 接口返回的是一个 DAG 结构，真正的工作流定义在 workflowDefinition 字段里。
   // 这里统一兼容 query-by-name、query-by-code 以及可能的平铺对象，避免后续判断“是否已存在工作流”失真。
   const definition = payload.workflowDefinition || payload
-  const code = Number(definition?.code)
-  if (!Number.isFinite(code) || code <= 0) {
-    return null
-  }
+  const code = toPositiveNumber(definition?.code)
+  if (!code) return null
 
   return {
     code,
-    version: Number(definition?.version) || 1,
+    version: toPositiveNumber(definition?.version) || 1,
     releaseState: definition?.releaseState || '-',
     name: definition?.name || ''
   }
@@ -1540,6 +2043,7 @@ const findWorkflowDefinitionMetaByName = async (
   projectCode: number,
   workflowName: string
 ): Promise<ReturnType<typeof extractWorkflowDefinitionMeta>> => {
+  if (!toPositiveNumber(projectCode)) return null
   const page = await queryWorkflowDefinitionListPaging(
     {
       pageNo: 1,
@@ -1824,6 +2328,8 @@ const buildAssetDesignFromRawScript = (
   fieldRows: FieldDesignRow[]
   sourceFilters: SourceFilterRule[]
   sinkCustomSql: string
+  sinkOptions: SinkOptions
+  dataProcessingRules: DataProcessingRule[]
   configText: string
 } => {
   if (!rawScript.trim()) {
@@ -1835,6 +2341,8 @@ const buildAssetDesignFromRawScript = (
       fieldRows: [],
       sourceFilters: [],
       sinkCustomSql: '',
+      sinkOptions: createDefaultSinkOptions(),
+      dataProcessingRules: [],
       configText: ''
     }
   }
@@ -1855,6 +2363,10 @@ const buildAssetDesignFromRawScript = (
   const targetColumns = parseSinkInsertColumns(sinkQuery)
   const sourceFilters = parseSourceFiltersFromWhereClause(parsedSource.whereClause)
   const sinkCustomSql = unescapeSeatunnelString(extractQuotedConfigValue(rawScript, 'custom_sql'))
+  const sinkOptions = cloneSinkOptions({
+    customSql: sinkCustomSql,
+    dataSaveMode: sinkCustomSql ? 'CUSTOM_PROCESSING' : 'APPEND_DATA'
+  })
   const targetDatabase = extractQuotedConfigValue(rawScript, 'database') || jdbcDatabases[1] || ''
   const targetTable = extractQuotedConfigValue(rawScript, 'table') || pathMeta.targetPath
   const targetPath =
@@ -1913,6 +2425,8 @@ const buildAssetDesignFromRawScript = (
     fieldRows,
     sourceFilters,
     sinkCustomSql,
+    sinkOptions,
+    dataProcessingRules: [],
     configText: rawScript
   }
 }
@@ -2205,6 +2719,7 @@ const syncTask = defineComponent({
   name: 'sync-task',
   setup() {
     const router: Router = useRouter()
+    const instance = getCurrentInstance()
     const state = reactive({
       datasourceOptions: [] as DatasourceOption[],
       datasourceDetails: {} as Record<number, DatasourceDetail>,
@@ -2220,6 +2735,10 @@ const syncTask = defineComponent({
       assetDetailVisible: false,
       assetDetailTab: 'OVERVIEW' as SyncTaskDetailTab,
       assetLogFullscreenVisible: false,
+      assetHistoryLoading: false,
+      assetHistoryLoadedKey: '',
+      assetHistoryError: '',
+      assetLogInstanceId: null as number | null,
       selectedAsset: null as SyncTaskAsset | null,
       editingAssetId: '' as string,
       latestPublishedAssetId: '' as string,
@@ -2253,13 +2772,17 @@ const syncTask = defineComponent({
       targetTableName: '',
       targetSchemaName: '',
       taskName: '',
+      taskNameTouched: false,
       sourceFilters: [createSourceFilterRule()] as SourceFilterRule[],
       activeSolutionModule: 'MAPPING' as SyncSolutionModule,
       sinkCustomSql: '',
-      dataProcessingEnabled: false,
+      sinkOptions: createDefaultSinkOptions(),
+      dataProcessingRules: [createDataProcessingRule()] as DataProcessingRule[],
       previewVisible: false,
       configEditorText: '',
       configManualOverride: false,
+      runNodeData: null as ITaskData | null,
+      runNodeModalKey: 0,
       fieldRows: [] as FieldDesignRow[],
       creatingMapping: false,
       mappingLinesVisible: true,
@@ -2297,7 +2820,11 @@ const syncTask = defineComponent({
       scheduleModalType: 'create' as 'create' | 'update',
       scheduleModalState: 'OFFLINE',
       scheduleModalRow: {} as Record<string, any>,
-      latestScheduleSummary: '未配置' as string
+      scheduleModalKey: 0,
+      schedulingAssetId: '',
+      latestScheduleSummary: '未配置' as string,
+      runSettingsVisible: false,
+      runSettings: createDefaultRunSettings()
     })
     const mappingWorkbenchRef = ref<HTMLElement | null>(null)
     const mappingAnchorPositions = ref<Record<string, { x: number; y: number }>>({})
@@ -2308,6 +2835,28 @@ const syncTask = defineComponent({
     const mappingDraftPoint = ref<{ x: number; y: number } | null>(null)
     let latestInstancePollingTimer: number | null = null
     let latestInstancePollingErrorCount = 0
+    let assetFilterRefreshTimer: number | null = null
+
+    const refreshScheduleAssetState = async () => {
+      if (!state.latestWorkflowCode) return
+      const scheduleRow = await loadScheduleMeta(state.latestWorkflowCode)
+      if (state.schedulingAssetId) {
+        const asset = state.syncTaskAssets.find(
+          (item) => item.id === state.schedulingAssetId
+        )
+        if (asset) {
+          asset.schedule = scheduleRow
+          asset.scheduleStatus =
+            scheduleRow?.releaseState === 'ONLINE' ? 'ON' : 'OFF'
+          asset.updatedAt = format(new Date(), 'yyyy-MM-dd HH:mm')
+        }
+      }
+    }
+
+    const showScheduleModal = () => {
+      state.scheduleModalKey += 1
+      state.scheduleModalVisible = true
+    }
 
     const sourceDatasourceOption = computed(() =>
       state.datasourceOptions.find(
@@ -2319,7 +2868,6 @@ const syncTask = defineComponent({
         (item) => item.value === state.target.datasourceId
       )
     )
-
     const sourceDatabaseOptions = computed(() =>
       state.source.databases.map((item) => ({ label: item, value: item }))
     )
@@ -2372,7 +2920,11 @@ const syncTask = defineComponent({
         return state.fieldRows
       }
 
-      return state.source.columns.map((sourceColumn) => {
+      const sourceColumns = state.source.columns.length
+        ? state.source.columns
+        : buildSourceColumnsFromFieldRows(state.fieldRows)
+
+      return sourceColumns.map((sourceColumn) => {
         const mappedTargetRow = state.fieldRows.find(
           (item) => item.sync && item.sourceColumn === sourceColumn.name
         )
@@ -2401,7 +2953,9 @@ const syncTask = defineComponent({
     )
 
     const sourceFieldStats = computed(() => {
-      const columns = state.source.columns
+      const columns = state.source.columns.length
+        ? state.source.columns
+        : buildSourceColumnsFromFieldRows(state.fieldRows)
       return {
         total: columns.length,
         primaryKeys: columns.filter((item) => item.primaryKey).length,
@@ -2475,23 +3029,30 @@ const syncTask = defineComponent({
       }
     ])
 
+    const assetProjectOptions = computed(() =>
+      Array.from(new Set(state.syncTaskAssets.map((item) => item.projectName).filter(Boolean)))
+        .map((item) => ({ label: item, value: item }))
+    )
+
+    const assetTypeOptions = computed(() =>
+      SUPPORT_TYPES.map((item) => ({ label: item, value: item }))
+    )
+
+    const assetStatusOptions = computed(() => [
+      { label: '成功', value: 'SUCCESS' },
+      { label: '失败', value: 'FAILED' },
+      { label: '运行中', value: 'RUNNING' },
+      { label: '草稿', value: 'DRAFT' },
+      { label: '下线', value: 'OFFLINE' }
+    ])
+
+    const assetScheduleOptions = computed(() => [
+      { label: '已调度', value: 'ON' },
+      { label: '未调度', value: 'OFF' }
+    ])
+
     const filteredAssets = computed(() => {
-      const keyword = state.assetKeyword.trim().toLowerCase()
       return state.syncTaskAssets.filter((item) => {
-        const matchedKeyword =
-          !keyword ||
-          [
-            item.name,
-            item.projectName,
-            item.sourcePath,
-            item.targetPath,
-            String(item.workflowCode || '')
-          ]
-            .join(' ')
-            .toLowerCase()
-            .includes(keyword)
-        const matchedProject =
-          !state.assetProjectFilter || item.projectName === state.assetProjectFilter
         const matchedStatus =
           !state.assetStatusFilter || item.status === state.assetStatusFilter
         const matchedSchedule =
@@ -2501,8 +3062,6 @@ const syncTask = defineComponent({
           item.sourceType === state.assetTypeFilter ||
           item.targetType === state.assetTypeFilter
         return (
-          matchedKeyword &&
-          matchedProject &&
           matchedStatus &&
           matchedSchedule &&
           matchedType
@@ -2514,13 +3073,14 @@ const syncTask = defineComponent({
       workflow: any,
       project: ProjectOption
     ): Promise<SyncTaskAsset> => {
-      const workflowCode = Number(workflow?.code) || null
+      const projectCode = toPositiveNumber(project.value)
+      const workflowCode = toPositiveNumber(workflow?.code)
       const pathMeta = inferSyncAssetPath(workflow)
       let workflowDetail: any = null
       let designFromRawScript = buildAssetDesignFromRawScript('', pathMeta)
-      if (workflowCode) {
+      if (projectCode && workflowCode) {
         try {
-          workflowDetail = await queryWorkflowDefinitionByCode(workflowCode, project.value)
+          workflowDetail = await queryWorkflowDefinitionByCode(workflowCode, projectCode)
           designFromRawScript = buildAssetDesignFromRawScript(
             extractTaskRawScript(workflowDetail),
             pathMeta
@@ -2533,7 +3093,7 @@ const syncTask = defineComponent({
       let latestReadRows: number | null = null
       let latestWriteRows: number | null = null
       let latestFailureMessage = ''
-      if (workflowCode) {
+      if (projectCode && workflowCode) {
         try {
           const instanceResult = await queryWorkflowInstanceListPaging(
             {
@@ -2542,67 +3102,40 @@ const syncTask = defineComponent({
               workflowDefinitionCode: workflowCode,
               searchVal: ''
             },
-            project.value
+            projectCode
           )
           latestInstance = normalizeList(instanceResult)[0] || null
         } catch (err) {
           latestInstance = null
         }
       }
-      if (latestInstance?.id && latestInstance?.state && TERMINAL_WORKFLOW_STATES.has(latestInstance.state)) {
+      const latestInstanceId = toPositiveNumber(latestInstance?.id)
+      if (projectCode && latestInstanceId && latestInstance?.state && TERMINAL_WORKFLOW_STATES.has(latestInstance.state)) {
         try {
           const taskResult = await queryTaskListByWorkflowId(
-            Number(latestInstance.id),
-            project.value
+            latestInstanceId,
+            projectCode
           )
-          let totalReadRows = 0
-          let totalWriteRows = 0
-          let hasReadRows = false
-          let hasWriteRows = false
           for (const task of normalizeList(taskResult?.taskList || taskResult)) {
-            const taskInstanceId = Number(task?.id)
-            if (!Number.isFinite(taskInstanceId)) {
-              continue
-            }
-            let skipLineNum = 0
-            let taskLogText = ''
-            let previousMessage = ''
-            for (let attempt = 0; attempt < 12; attempt += 1) {
-              const logChunk = await queryLog({
-                taskInstanceId,
-                skipLineNum,
-                limit: 1000
-              }, true)
-              const message = logChunk?.message || ''
-              const lineNum = Number(logChunk?.lineNum || 0)
-              if (isTaskLogMissingMessage(message)) break
-              if (!message || message === previousMessage) break
-              taskLogText += message
-              previousMessage = message
-              skipLineNum += lineNum || message.split(/\r?\n/).length
-              if (!lineNum) break
-            }
-            const counts = extractReadWriteCountFromLog(taskLogText)
-            if (counts.readRows !== null) {
-              totalReadRows += counts.readRows
-              hasReadRows = true
-            }
-            if (counts.writeRows !== null) {
-              totalWriteRows += counts.writeRows
-              hasWriteRows = true
-            }
             if (
               !latestFailureMessage &&
               ['FAILURE', 'STOP', 'PAUSE'].includes(task?.state)
             ) {
-              const summary = extractTaskFailureSummaryFromLog(taskLogText)
-              if (summary) {
-                latestFailureMessage = `${task?.name || task?.taskName || '同步任务'}: ${summary}`
+              latestFailureMessage = `${task?.name || task?.taskName || '同步任务'} 执行失败，请进入详情查看日志诊断。`
+            }
+            if (latestInstance.state === 'SUCCESS' && task?.state === 'SUCCESS') {
+              const taskInstanceId = toPositiveNumber(task?.id)
+              if (!taskInstanceId) continue
+              const taskLogText = await queryTaskLogText(taskInstanceId, 12)
+              const taskCounts = extractReadWriteCountFromLog(taskLogText)
+              if (taskCounts.readRows !== null) {
+                latestReadRows = (latestReadRows || 0) + taskCounts.readRows
+              }
+              if (taskCounts.writeRows !== null) {
+                latestWriteRows = (latestWriteRows || 0) + taskCounts.writeRows
               }
             }
           }
-          latestReadRows = hasReadRows ? totalReadRows : null
-          latestWriteRows = hasWriteRows ? totalWriteRows : null
         } catch (err) {
           latestReadRows = null
           latestWriteRows = null
@@ -2622,9 +3155,26 @@ const syncTask = defineComponent({
               : workflow?.releaseState === 'OFFLINE'
                 ? 'OFFLINE'
                 : 'OFFLINE'
+      let scheduleRow = workflow?.schedule || null
+      if (projectCode && workflowCode) {
+        try {
+          const scheduleList = await queryScheduleListPaging(
+            {
+              pageNo: 1,
+              pageSize: 20,
+              searchVal: '',
+              workflowDefinitionCode: workflowCode
+            },
+            projectCode
+          )
+          scheduleRow = normalizeList(scheduleList)[0] || scheduleRow
+        } catch (err) {
+          scheduleRow = workflow?.schedule || null
+        }
+      }
       const scheduleOnline =
         workflow?.scheduleReleaseState === 'ONLINE' ||
-        workflow?.schedule?.releaseState === 'ONLINE'
+        scheduleRow?.releaseState === 'ONLINE'
       const updatedAt = normalizeDateText(workflow?.updateTime || workflow?.createTime)
       const lastRunTime = normalizeDateText(
         latestInstance?.startTime || latestInstance?.submitTime || workflow?.updateTime
@@ -2633,7 +3183,7 @@ const syncTask = defineComponent({
       return {
         id: `workflow-${project.value}-${workflowCode || workflow?.id || workflow?.name}`,
         name: workflow?.name || '-',
-        projectCode: project.value,
+        projectCode,
         projectName: project.label,
         status,
         scheduleStatus: scheduleOnline ? 'ON' : 'OFF',
@@ -2646,8 +3196,9 @@ const syncTask = defineComponent({
         workflowCode,
         workflowName: workflow?.name || '',
         workflowVersion: Number(workflow?.version) || 1,
+        workflowReleaseState: workflow?.releaseState || 'OFFLINE',
         lastRunTime,
-        lastInstanceId: Number(latestInstance?.id) || null,
+        lastInstanceId: latestInstanceId,
         readRows: latestReadRows,
         writeRows: latestWriteRows,
         duration: '-',
@@ -2662,6 +3213,8 @@ const syncTask = defineComponent({
             : [createSourceFilterRule()]
         ),
         sinkCustomSql: designFromRawScript.sinkCustomSql,
+        sinkOptions: cloneSinkOptions(designFromRawScript.sinkOptions),
+        dataProcessingRules: cloneDataProcessingRules(designFromRawScript.dataProcessingRules),
         fieldRows: cloneFieldRows(designFromRawScript.fieldRows),
         sourceColumns: cloneColumns(designFromRawScript.sourceColumns),
         targetColumns: cloneColumns(designFromRawScript.targetColumns),
@@ -2670,7 +3223,9 @@ const syncTask = defineComponent({
           ? [
               {
                 id: String(latestInstance.id),
+                instanceId: latestInstanceId,
                 status,
+                state: instanceState,
                 trigger: workflow?.schedule ? '调度运行' : '手动运行',
                 startTime: normalizeDateText(latestInstance.startTime),
                 endTime: normalizeDateText(latestInstance.endTime),
@@ -2686,22 +3241,28 @@ const syncTask = defineComponent({
             action: '从 Dolphin 工作流定义同步'
           }
         ],
-        source: 'REAL'
+        source: 'REAL',
+        schedule: scheduleRow
       }
     }
 
     const loadSyncTaskAssets = async () => {
       if (state.loadingAssets || !state.projectOptions.length) return
+      const keyword = state.assetKeyword.trim()
+      const projectFilter = state.assetProjectFilter
+      const projects = projectFilter
+        ? state.projectOptions.filter((item) => item.label === projectFilter)
+        : state.projectOptions
       state.loadingAssets = true
       try {
         const assetGroups = await Promise.all(
-          state.projectOptions.map(async (project) => {
+          projects.map(async (project) => {
             try {
               const response = await queryWorkflowDefinitionListPaging(
                 {
                   pageNo: 1,
                   pageSize: 200,
-                  searchVal: ''
+                  searchVal: keyword
                 },
                 project.value
               )
@@ -2718,16 +3279,7 @@ const syncTask = defineComponent({
         const realAssets = assetGroups.flat().sort((left, right) =>
           right.updatedAt.localeCompare(left.updatedAt)
         )
-        const localAssets = state.syncTaskAssets.filter((item) => item.source === 'LOCAL')
-        const realAssetKeys = new Set(
-          realAssets.map((item) => `${item.projectCode}:${item.workflowCode || item.name}`)
-        )
-        state.syncTaskAssets = [
-          ...localAssets.filter(
-            (item) => !realAssetKeys.has(`${item.projectCode}:${item.workflowCode || item.name}`)
-          ),
-          ...realAssets
-        ]
+        state.syncTaskAssets = realAssets
       } finally {
         state.loadingAssets = false
       }
@@ -2892,9 +3444,12 @@ const syncTask = defineComponent({
         sourceDetail.type,
         state.source.table,
         state.source.columns,
-        null
+        null,
+        state.dataProcessingRules
       )
-      const transformQuery = buildSeatunnelTransformQuery(state.fieldRows)
+      const transformQuery = hasActiveProcessingRules(state.fieldRows, state.dataProcessingRules)
+        ? buildSeatunnelPassthroughTransformQuery(state.fieldRows)
+        : buildSeatunnelTransformQuery(state.fieldRows, state.dataProcessingRules)
       const primaryKeys = buildPrimaryKeys(state.fieldRows)
       const targetType = targetDetail.type
       const targetSchema =
@@ -2905,10 +3460,6 @@ const syncTask = defineComponent({
         state.target.database,
         targetSchema,
         state.targetTableName.trim()
-      )
-      const sinkInsertQuery = buildJdbcSinkInsertQuery(
-        state.fieldRows,
-        sinkTable
       )
 
       const lines = [
@@ -2936,31 +3487,15 @@ const syncTask = defineComponent({
         '  }',
         '}',
         '',
-        'sink {',
-        '  Jdbc {',
-        '    source_table_name = "sync_mapped"',
-        `    url = ${seatunnelQuotedString(buildJdbcUrl(targetDetail, state.target.database))}`,
-        `    driver = ${seatunnelQuotedString(buildDriver(targetDetail.type))}`,
-        `    user = ${seatunnelQuotedString(targetDetail.userName)}`,
-        `    password = ${seatunnelQuotedString(targetDetail.password)}`,
-        sinkInsertQuery ? `    query = ${seatunnelQuotedString(sinkInsertQuery)}` : '    generate_sink_sql = true',
-        `    database = ${seatunnelQuotedString(state.target.database)}`,
-        `    table = ${seatunnelQuotedString(sinkTable)}`
-      ]
-      const customSql = state.sinkCustomSql.trim()
-
-      if (customSql) {
-        lines.push('    data_save_mode = "CUSTOM_PROCESSING"')
-        lines.push(`    custom_sql = ${seatunnelQuotedString(customSql)}`)
-      }
-
-      if (primaryKeys.length) {
-        lines.push(
-          `    primary_keys = [${primaryKeys.map(seatunnelQuotedString).join(', ')}]`
+        ...buildSinkConfigLines(
+          targetDetail,
+          state.target.database,
+          sinkTable,
+          state.fieldRows,
+          primaryKeys,
+          state.sinkOptions
         )
-      }
-
-      lines.push('  }', '}')
+      ]
       return lines.join('\n')
     })
 
@@ -3119,6 +3654,9 @@ const syncTask = defineComponent({
       window.removeEventListener('resize', refreshMappingLayout)
       window.removeEventListener('mousemove', handleGlobalMouseMove)
       window.removeEventListener('mouseup', handleGlobalMouseUp)
+      if (assetFilterRefreshTimer) {
+        window.clearTimeout(assetFilterRefreshTimer)
+      }
       stopLatestInstancePolling()
     })
 
@@ -3174,10 +3712,12 @@ const syncTask = defineComponent({
       state.loadingProjects = true
       const res = await queryAllProjectList()
       state.loadingProjects = false
-      state.projectOptions = normalizeList(res).map((item) => ({
-        label: item.name,
-        value: item.code
-      }))
+      state.projectOptions = normalizeList(res)
+        .map((item) => ({
+          label: item.name,
+          value: toPositiveNumber(item.code)
+        }))
+        .filter((item): item is ProjectOption => !!item.label && !!item.value)
       await loadSyncTaskAssets()
     }
 
@@ -3614,7 +4154,10 @@ const syncTask = defineComponent({
       endpoint.loading = false
     }
 
-    const loadColumns = async (endpoint: EndpointState) => {
+    const loadColumns = async (
+      endpoint: EndpointState,
+      options: { preserveExisting?: boolean } = {}
+    ) => {
       if (!endpoint.datasourceId || !endpoint.database || !endpoint.table) return
       endpoint.loading = true
       try {
@@ -3623,10 +4166,22 @@ const syncTask = defineComponent({
           endpoint.database,
           endpoint.table
         )
-        endpoint.columns = normalizeColumnList(res)
+        const columns = normalizeColumnList(res)
+        if (columns.length || !options.preserveExisting || !endpoint.columns.length) {
+          endpoint.columns = columns
+        }
+        if (!columns.length && options.preserveExisting && endpoint.columns.length) {
+          window.$message.warning('实时读取字段为空，已保留当前同步任务保存的字段映射。')
+        }
       } catch (err) {
-        endpoint.columns = []
-        window.$message.error('读取字段列表失败，请确认目标表存在且当前账号有查询权限。')
+        if (!options.preserveExisting || !endpoint.columns.length) {
+          endpoint.columns = []
+        }
+        window.$message.error(
+          options.preserveExisting && endpoint.columns.length
+            ? '读取字段列表失败，已保留当前同步任务保存的字段映射。'
+            : '读取字段列表失败，请确认目标表存在且当前账号有查询权限。'
+        )
       }
       endpoint.loading = false
     }
@@ -3903,9 +4458,85 @@ const syncTask = defineComponent({
       })
     }
 
-    const loadAssetLogs = async (asset: SyncTaskAsset | null) => {
+    const mapWorkflowStateToAssetStatus = (stateValue: string): SyncTaskAssetStatus => {
+      if (stateValue === 'SUCCESS') return 'SUCCESS'
+      if (['FAILURE', 'STOP', 'PAUSE'].includes(stateValue)) return 'FAILED'
+      if (['RUNNING_EXECUTION', 'SUBMITTED_SUCCESS', 'SERIAL_WAIT'].includes(stateValue)) {
+        return 'RUNNING'
+      }
+      return 'DRAFT'
+    }
+
+    const loadAssetHistory = async (asset: SyncTaskAsset | null) => {
+      if (!asset) return
+      const projectCode = toPositiveNumber(asset.projectCode)
+      const workflowCode = toPositiveNumber(asset.workflowCode)
+      if (!projectCode || !workflowCode) {
+        asset.history = []
+        return
+      }
+      const historyKey = `${projectCode}-${workflowCode}`
+      if (state.assetHistoryLoadedKey === historyKey && asset.history.length) {
+        void refreshAssetHistoryReadWriteCounts(asset)
+        return
+      }
+      state.assetHistoryLoading = true
+      state.assetHistoryError = ''
+      try {
+        const result = await queryWorkflowInstanceListPaging(
+          {
+            pageNo: 1,
+            pageSize: 50,
+            workflowDefinitionCode: workflowCode,
+            searchVal: ''
+          },
+          projectCode
+        )
+        const rows: SyncTaskHistoryRow[] = normalizeList(result).map((item, index) => {
+          const instanceId = Number(item?.id)
+          const stateValue = String(item?.state || '')
+          return {
+            id: String(item?.id || `instance-${index}-${Date.now()}`),
+            instanceId: Number.isFinite(instanceId) && instanceId > 0 ? instanceId : null,
+            status: mapWorkflowStateToAssetStatus(stateValue),
+            state: stateValue,
+            trigger: item?.commandType || item?.command_type || item?.scheduleTime ? '调度运行' : '手动运行',
+            startTime: normalizeDateText(item?.startTime || item?.submitTime),
+            endTime: normalizeDateText(item?.endTime),
+            duration: item?.duration || '-',
+            rows: '- / -'
+          }
+        })
+        asset.history = rows
+        state.assetHistoryLoadedKey = historyKey
+        void refreshAssetHistoryReadWriteCounts(asset)
+      } catch (err) {
+        state.assetHistoryError = extractErrorMessage(err, '读取运行历史失败，请稍后重试。')
+      } finally {
+        state.assetHistoryLoading = false
+      }
+    }
+
+    const loadAssetLogsForInstance = async (
+      asset: SyncTaskAsset,
+      instanceId: number
+    ) => {
+      asset.lastInstanceId = instanceId
+      state.assetLogInstanceId = instanceId
+      asset.logLoaded = false
+      asset.logText = ''
+      asset.logError = ''
+      await loadAssetLogs(asset, instanceId)
+    }
+
+    const loadAssetLogs = async (
+      asset: SyncTaskAsset | null,
+      targetInstanceId?: number | null
+    ) => {
       if (!asset || asset.logLoading || asset.logLoaded) return
-      if (!asset.projectCode || !asset.lastInstanceId) {
+      const projectCode = toPositiveNumber(asset.projectCode)
+      const instanceId = toPositiveNumber(targetInstanceId || state.assetLogInstanceId || asset.lastInstanceId)
+      if (!projectCode || !instanceId) {
         asset.logLoaded = true
         asset.logText = ''
         return
@@ -3915,8 +4546,8 @@ const syncTask = defineComponent({
       asset.logError = ''
       try {
         const taskResult = await queryTaskListByWorkflowId(
-          asset.lastInstanceId,
-          asset.projectCode
+          instanceId,
+          projectCode
         )
         const taskRows = normalizeList(taskResult?.taskList || taskResult)
         if (!taskRows.length) {
@@ -3930,9 +4561,19 @@ const syncTask = defineComponent({
           const taskInstanceId = Number(task?.id)
           const taskName = task?.name || task?.taskName || `task_${taskInstanceId || '-'}`
           const taskState = task?.state || '-'
+          const taskHost = normalizeTaskHost(task)
           if (!Number.isFinite(taskInstanceId) || taskInstanceId <= 0) {
             logSections.push(
               `===== ${taskName} / 实例 - / 状态 ${taskState} =====\n未获取到任务实例 ID，无法读取日志。`
+            )
+            continue
+          }
+          if (!taskHost) {
+            logSections.push(
+              [
+                `===== ${taskName} / 实例 ${taskInstanceId} / 状态 ${formatTaskStateText(taskState)} =====`,
+                formatTaskUndispatchedMessage(task)
+              ].join('\n')
             )
             continue
           }
@@ -3962,7 +4603,7 @@ const syncTask = defineComponent({
 
           logSections.push(
             [
-              `===== ${taskName} / 实例 ${taskInstanceId} / 状态 ${taskState} =====`,
+              `===== ${taskName} / 实例 ${taskInstanceId} / 状态 ${formatTaskStateText(taskState)} / Host ${taskHost} =====`,
               taskLogText.trim() || '该任务实例暂无日志内容。'
             ].join('\n')
           )
@@ -4003,6 +4644,142 @@ const syncTask = defineComponent({
       return taskLogText
     }
 
+    const queryInstanceReadWriteCounts = async (
+      instanceId: number,
+      projectCode: number
+    ): Promise<{ readRows: number | null; writeRows: number | null; taskInstanceId: number | null }> => {
+      const taskResult = await queryTaskListByWorkflowId(instanceId, projectCode)
+      let totalReadRows = 0
+      let totalWriteRows = 0
+      let hasReadRows = false
+      let hasWriteRows = false
+      let latestTaskInstanceId: number | null = null
+      for (const task of normalizeList(taskResult?.taskList || taskResult)) {
+        if (task?.state !== 'SUCCESS') continue
+        const taskInstanceId = toPositiveNumber(task?.id)
+        if (!taskInstanceId) continue
+        latestTaskInstanceId = taskInstanceId
+        const taskLogText = await queryTaskLogText(taskInstanceId, 12)
+        const taskCounts = extractReadWriteCountFromLog(taskLogText)
+        if (taskCounts.readRows !== null) {
+          totalReadRows += taskCounts.readRows
+          hasReadRows = true
+        }
+        if (taskCounts.writeRows !== null) {
+          totalWriteRows += taskCounts.writeRows
+          hasWriteRows = true
+        }
+      }
+      return {
+        readRows: hasReadRows ? totalReadRows : null,
+        writeRows: hasWriteRows ? totalWriteRows : null,
+        taskInstanceId: latestTaskInstanceId
+      }
+    }
+
+    const buildSyncStatPayload = (
+      asset: SyncTaskAsset,
+      instanceId: number,
+      counts: { readRows: number | null; writeRows: number | null; taskInstanceId?: number | null }
+    ) => ({
+      projectCode: Number(asset.projectCode),
+      workflowDefinitionCode: Number(asset.workflowCode),
+      workflowInstanceId: instanceId,
+      taskInstanceId: counts.taskInstanceId || null,
+      readRows: counts.readRows,
+      writeRows: counts.writeRows,
+      failedRows: 0,
+      runStatus: 'SUCCESS',
+      statSource: 'LOG_PARSE',
+      payloadJson: JSON.stringify({
+        taskName: asset.name,
+        sourcePath: asset.sourcePath,
+        targetPath: asset.targetPath
+      })
+    })
+
+    const applyPersistedHistoryStats = (asset: SyncTaskAsset, stats: any[]) => {
+      const statByInstanceId = new Map<number, any>()
+      normalizeList(stats).forEach((stat) => {
+        const instanceId = toPositiveNumber(stat?.workflowInstanceId)
+        if (instanceId) statByInstanceId.set(instanceId, stat)
+      })
+      asset.history.forEach((row) => {
+        if (!row.instanceId) return
+        const stat = statByInstanceId.get(row.instanceId)
+        if (!stat) return
+        const readRows = stat.readRows ?? null
+        const writeRows = stat.writeRows ?? null
+        row.rows = formatReadWriteRows(readRows, writeRows)
+      })
+    }
+
+    const loadPersistedHistoryStats = async (asset: SyncTaskAsset) => {
+      const projectCode = toPositiveNumber(asset.projectCode)
+      const workflowCode = toPositiveNumber(asset.workflowCode)
+      const workflowInstanceIds = asset.history
+        .map((row) => row.instanceId)
+        .filter((id): id is number => !!toPositiveNumber(id))
+      if (!projectCode || !workflowCode || !workflowInstanceIds.length) return
+      const stats = await queryDataFlowSyncInstanceStats({
+        projectCode,
+        workflowDefinitionCode: workflowCode,
+        workflowInstanceIds,
+        refreshMissing: true
+      })
+      applyPersistedHistoryStats(asset, stats)
+    }
+
+    const refreshAssetReadWriteCounts = async (asset: SyncTaskAsset) => {
+      const projectCode = toPositiveNumber(asset.projectCode)
+      const instanceId = toPositiveNumber(asset.lastInstanceId)
+      if (!projectCode || !instanceId) return
+      try {
+        const counts = await queryInstanceReadWriteCounts(instanceId, projectCode)
+        const hasReadRows = counts.readRows !== null
+        const hasWriteRows = counts.writeRows !== null
+        if (hasReadRows) asset.readRows = counts.readRows
+        if (hasWriteRows) asset.writeRows = counts.writeRows
+        if (hasReadRows || hasWriteRows) {
+          void upsertDataFlowSyncInstanceStat(buildSyncStatPayload(asset, instanceId, counts))
+        }
+        if ((hasReadRows || hasWriteRows) && asset.history.length) {
+          asset.history[0].rows = formatReadWriteRows(asset.readRows, asset.writeRows)
+        }
+      } catch (err) {
+        // 读写数是辅助展示，失败时保留原值，避免覆盖已解析出的统计结果。
+      }
+    }
+
+    const refreshAssetHistoryReadWriteCounts = async (asset: SyncTaskAsset) => {
+      const projectCode = toPositiveNumber(asset.projectCode)
+      if (!projectCode || !asset.history.length) return
+      try {
+        await loadPersistedHistoryStats(asset)
+        return
+      } catch (err) {
+        // 统计表查询失败时仍保留日志解析兜底。
+      }
+      const rowsNeedingCounts = asset.history.filter((row) =>
+        row.status === 'SUCCESS' &&
+        row.instanceId &&
+        (!row.rows || row.rows === '- / -')
+      )
+      for (const row of rowsNeedingCounts) {
+        try {
+          const counts = await queryInstanceReadWriteCounts(row.instanceId as number, projectCode)
+          if (counts.readRows !== null || counts.writeRows !== null) {
+            row.rows = formatReadWriteRows(counts.readRows, counts.writeRows)
+            void upsertDataFlowSyncInstanceStat(
+              buildSyncStatPayload(asset, row.instanceId as number, counts)
+            )
+          }
+        } catch (err) {
+          // 单条历史读写解析失败不影响其他历史实例展示。
+        }
+      }
+    }
+
     const queryWorkflowFailureSummary = async (
       taskRows: WorkflowTaskProgressRow[]
     ): Promise<string> => {
@@ -4036,10 +4813,12 @@ const syncTask = defineComponent({
     }
 
     const refreshLatestInstanceProgress = async (instanceId: number) => {
-      if (!state.selectedProjectCode) return null
+      const projectCode = toPositiveNumber(state.selectedProjectCode)
+      const safeInstanceId = toPositiveNumber(instanceId)
+      if (!projectCode || !safeInstanceId) return null
       const [instanceDetail, taskResult] = await Promise.all([
-        queryWorkflowInstanceById(instanceId, state.selectedProjectCode),
-        queryTaskListByWorkflowId(instanceId, state.selectedProjectCode)
+        queryWorkflowInstanceById(safeInstanceId, projectCode),
+        queryTaskListByWorkflowId(safeInstanceId, projectCode)
       ])
 
       const instanceState =
@@ -4169,7 +4948,9 @@ const syncTask = defineComponent({
           asset.history = [
             {
               id: String(instanceId),
+              instanceId,
               status: terminalStatus,
+              state: instanceState,
               trigger: '立即执行',
               startTime: state.latestInstanceStartTime || nowText,
               endTime: state.latestInstanceEndTime || nowText,
@@ -4234,7 +5015,9 @@ const syncTask = defineComponent({
     const queryLatestWorkflowInstanceId = async (
       workflowDefinitionCode: number
     ): Promise<number | null> => {
-      if (!state.selectedProjectCode) return null
+      const projectCode = toPositiveNumber(state.selectedProjectCode)
+      const workflowCode = toPositiveNumber(workflowDefinitionCode)
+      if (!projectCode || !workflowCode) return null
 
       // DolphinScheduler 的启动接口并不总是稳定返回实例 ID。
       // 这里在启动后主动按工作流编码查询最新实例，避免“任务已启动但页面无法跳转”的体验断层。
@@ -4243,10 +5026,10 @@ const syncTask = defineComponent({
           {
             pageNo: 1,
             pageSize: 10,
-            workflowDefinitionCode,
+            workflowDefinitionCode: workflowCode,
             searchVal: ''
           },
-          state.selectedProjectCode
+          projectCode
         )
         const latestRow = normalizeList(result)[0]
         const latestInstanceId = Number(latestRow?.id)
@@ -4423,6 +5206,7 @@ const syncTask = defineComponent({
       state.currentStep = 1
       state.selectedProjectCode = null
       state.taskName = ''
+      state.taskNameTouched = false
       state.source.datasourceId = null
       state.target.datasourceId = null
       resetEndpoint(state.source)
@@ -4433,6 +5217,8 @@ const syncTask = defineComponent({
       state.sourceFilters = [createSourceFilterRule()]
       state.activeSolutionModule = 'MAPPING'
       state.sinkCustomSql = ''
+      state.sinkOptions = createDefaultSinkOptions()
+      state.dataProcessingRules = [createDataProcessingRule()]
       state.configEditorText = ''
       state.configManualOverride = false
       state.latestWorkflowCode = null
@@ -4488,15 +5274,367 @@ const syncTask = defineComponent({
       state.viewMode = 'LIST'
       state.assetDetailVisible = false
       state.selectedAsset = null
+      void loadSyncTaskAssets()
     }
 
     const openAssetDetail = (asset: SyncTaskAsset, tab: SyncTaskDetailTab = 'OVERVIEW') => {
       state.selectedAsset = asset
       state.assetDetailTab = tab
       state.assetDetailVisible = true
+      state.assetLogInstanceId = asset.lastInstanceId
+      void refreshAssetReadWriteCounts(asset)
       if (tab === 'LOGS') {
         void loadAssetLogs(asset)
       }
+      if (tab === 'HISTORY') {
+        void loadAssetHistory(asset)
+      }
+    }
+
+    const buildAssetWorkflowActionState = (asset: SyncTaskAsset): SyncTaskWorkflowActionRow => {
+      const releaseState =
+        asset.workflowReleaseState === 'ONLINE'
+          ? 'ONLINE'
+          : asset.status === 'OFFLINE' || asset.status === 'DRAFT'
+            ? 'OFFLINE'
+            : 'ONLINE'
+      const scheduleReleaseState =
+        asset.schedule?.releaseState || (asset.scheduleStatus === 'ON' ? 'ONLINE' : 'OFFLINE')
+
+      return {
+        code: asset.workflowCode,
+        name: asset.workflowName || asset.name,
+        releaseState,
+        scheduleReleaseState,
+        schedule: asset.schedule || null
+      }
+    }
+
+    const createDefaultScheduleRow = (workflowCode: number) => ({
+      code: workflowCode,
+      startTime: format(new Date(), 'yyyy-MM-dd HH:mm:ss'),
+      endTime: format(new Date(new Date().setFullYear(new Date().getFullYear() + 100)), 'yyyy-MM-dd HH:mm:ss'),
+      crontab: '0 0 * * * ? *',
+      timezoneId: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      failureStrategy: 'CONTINUE',
+      warningType: 'NONE',
+      warningGroupId: 0,
+      workflowInstancePriority: 'MEDIUM',
+      workerGroup: 'default',
+      tenantCode: 'default',
+      environmentCode: null
+    })
+
+    const normalizeScheduleModalRow = (
+      scheduleRow: Record<string, any> | null | undefined,
+      workflowCode: number
+    ) => {
+      if (!scheduleRow?.id) {
+        return createDefaultScheduleRow(workflowCode)
+      }
+      return {
+        ...scheduleRow,
+        code: workflowCode,
+        warningGroupId: scheduleRow.warningGroupId || 0,
+        workflowInstancePriority:
+          scheduleRow.workflowInstancePriority || 'MEDIUM',
+        workerGroup: scheduleRow.workerGroup || 'default',
+        tenantCode: scheduleRow.tenantCode || 'default',
+        environmentCode: scheduleRow.environmentCode || null
+      }
+    }
+
+    const resolveAssetProjectCode = (asset: SyncTaskAsset): number | null => {
+      const directCode = Number(asset.projectCode)
+      if (Number.isFinite(directCode) && directCode > 0) return directCode
+
+      const matchedProject = state.projectOptions.find(
+        (item) => item.label === asset.projectName
+      )
+      const matchedCode = Number(matchedProject?.value)
+      if (Number.isFinite(matchedCode) && matchedCode > 0) {
+        asset.projectCode = matchedCode
+        return matchedCode
+      }
+      return null
+    }
+
+    const ensureAssetWorkflowMeta = async (
+      asset: SyncTaskAsset,
+      silent = false
+    ): Promise<boolean> => {
+      const projectCode = resolveAssetProjectCode(asset)
+      if (!projectCode) {
+        if (!silent) {
+          window.$message.warning('该同步任务没有关联 Dolphin 项目，请先编辑并保存任务。')
+        }
+        return false
+      }
+
+      const directWorkflowCode = Number(asset.workflowCode)
+      if (Number.isFinite(directWorkflowCode) && directWorkflowCode > 0) {
+        return true
+      }
+
+      const workflowName = asset.workflowName || asset.name
+      if (!workflowName) {
+        if (!silent) {
+          window.$message.warning('该同步任务没有关联 Dolphin 工作流，请先编辑并保存任务。')
+        }
+        return false
+      }
+
+      try {
+        const latestMeta = await findWorkflowDefinitionMetaByName(
+          projectCode,
+          workflowName
+        )
+        if (!latestMeta?.code) {
+          if (!silent) {
+            window.$message.warning('没有找到对应 Dolphin 工作流定义，请先编辑并保存任务。')
+          }
+          return false
+        }
+        asset.projectCode = projectCode
+        asset.workflowCode = latestMeta.code
+        asset.workflowName = latestMeta.name || workflowName
+        asset.workflowVersion = latestMeta.version || asset.workflowVersion || 1
+        asset.workflowReleaseState = latestMeta.releaseState || asset.workflowReleaseState
+        return true
+      } catch (err) {
+        if (!silent) {
+          window.$message.error(
+            extractErrorMessage(err, '读取同步任务工作流失败，请检查项目权限。')
+          )
+        }
+        return false
+      }
+    }
+
+    const ensureAssetHasWorkflow = (asset: SyncTaskAsset): boolean => {
+      if (resolveAssetProjectCode(asset) && toPositiveNumber(asset.workflowCode)) return true
+      window.$message.warning('该同步任务还没有关联 Dolphin 工作流定义，请先编辑并保存任务。')
+      return false
+    }
+
+    const refreshAssetWorkflowReleaseState = async (
+      asset: SyncTaskAsset
+    ): Promise<'ONLINE' | 'OFFLINE'> => {
+      if (!ensureAssetHasWorkflow(asset)) {
+        return asset.workflowReleaseState === 'ONLINE' ? 'ONLINE' : 'OFFLINE'
+      }
+      const projectCode = toPositiveNumber(asset.projectCode)
+      const workflowCode = toPositiveNumber(asset.workflowCode)
+      if (!projectCode || !workflowCode) {
+        return asset.workflowReleaseState === 'ONLINE' ? 'ONLINE' : 'OFFLINE'
+      }
+      const latest = await queryWorkflowDefinitionByCode(
+        workflowCode,
+        projectCode
+      )
+      const latestMeta = extractWorkflowDefinitionMeta(latest)
+      const releaseState =
+        latestMeta?.releaseState === 'ONLINE' ? 'ONLINE' : 'OFFLINE'
+      asset.workflowReleaseState = releaseState
+      asset.workflowVersion = latestMeta?.version || asset.workflowVersion || 1
+      asset.workflowName = latestMeta?.name || asset.workflowName || asset.name
+      return releaseState
+    }
+
+    const openAssetWorkflowDefinition = (asset: SyncTaskAsset) => {
+      if (!ensureAssetHasWorkflow(asset)) return
+      void router.push({
+        name: 'workflow-definition-detail',
+        params: {
+          projectCode: asset.projectCode,
+          code: asset.workflowCode
+        }
+      })
+    }
+
+    const openAssetWorkflowTree = (asset: SyncTaskAsset) => {
+      if (!ensureAssetHasWorkflow(asset)) return
+      void router.push({
+        name: 'workflow-definition-tree',
+        params: {
+          projectCode: asset.projectCode,
+          definitionCode: asset.workflowCode
+        }
+      })
+    }
+
+    const startAssetWorkflow = async (asset: SyncTaskAsset) => {
+      if (!ensureAssetHasWorkflow(asset)) return
+      const projectCode = asset.projectCode as number
+      const workflowCode = asset.workflowCode as number
+      try {
+        await release(
+          {
+            name: asset.workflowName || asset.name,
+            releaseState: 'ONLINE'
+          },
+          projectCode,
+          workflowCode
+        )
+        const result = await startWorkflowInstance(
+          {
+            workflowDefinitionCode: workflowCode,
+            failureStrategy: 'CONTINUE',
+            workflowInstancePriority: 'MEDIUM',
+            scheduleTime: JSON.stringify({
+              complementScheduleDateList: formatDateTime(Date.now())
+            }),
+            warningGroupId: 0,
+            warningType: 'NONE',
+            execType: 'START_PROCESS',
+            runMode: 'RUN_MODE_SERIAL',
+            workerGroup: 'default',
+            environmentCode: -1,
+            timeout: 0,
+            startParams: '',
+            version: Number(asset.workflowVersion) || 1,
+            dryRun: 0
+          },
+          projectCode
+        )
+        const instanceId = Array.isArray(result)
+          ? Number(result[0])
+          : Number(result?.id || result?.workflowInstanceId || result?.processInstanceId || 0)
+        asset.status = 'RUNNING'
+        asset.workflowReleaseState = 'ONLINE'
+        asset.lastInstanceId = instanceId || asset.lastInstanceId
+        asset.lastRunTime = formatDateTime(Date.now())
+        asset.updatedAt = asset.lastRunTime
+        window.$message.success('同步任务已提交运行。')
+      } catch (err) {
+        window.$message.error(extractErrorMessage(err, '启动同步任务失败，请检查工作流定义状态。'))
+      }
+    }
+
+    const releaseAssetWorkflow = async (
+      asset: SyncTaskAsset,
+      currentReleaseState?: 'ONLINE' | 'OFFLINE'
+    ) => {
+      if (!ensureAssetHasWorkflow(asset)) return
+      try {
+        const releaseState =
+          currentReleaseState ||
+          (asset.workflowReleaseState === 'ONLINE' ? 'ONLINE' : 'OFFLINE')
+        const nextReleaseState = releaseState === 'ONLINE'
+          ? 'OFFLINE'
+          : 'ONLINE'
+        await release(
+          {
+            name: asset.workflowName || asset.name,
+            releaseState: nextReleaseState
+          },
+          asset.projectCode as number,
+          asset.workflowCode as number
+        )
+        asset.status = nextReleaseState === 'ONLINE' ? 'SUCCESS' : 'OFFLINE'
+        asset.workflowReleaseState = nextReleaseState
+        void refreshAssetWorkflowReleaseState(asset)
+        asset.updatedAt = formatDateTime(Date.now())
+        window.$message.success(nextReleaseState === 'ONLINE' ? '同步任务工作流已上线。' : '同步任务工作流已下线。')
+      } catch (err) {
+        window.$message.error(extractErrorMessage(err, '切换工作流上线状态失败。'))
+      }
+    }
+
+    const openAssetScheduleModal = async (asset: SyncTaskAsset) => {
+      const projectCode = resolveAssetProjectCode(asset)
+      const workflowCode = Number(asset.workflowCode)
+      if (!projectCode || !Number.isFinite(workflowCode) || workflowCode <= 0) {
+        const hasWorkflow = await ensureAssetWorkflowMeta(asset)
+        if (!hasWorkflow) return
+      }
+      const resolvedProjectCode = asset.projectCode as number
+      const resolvedWorkflowCode = asset.workflowCode as number
+      state.schedulingAssetId = asset.id
+      state.selectedProjectCode = resolvedProjectCode
+      state.latestWorkflowCode = resolvedWorkflowCode
+      state.latestWorkflowName = asset.workflowName || asset.name
+      state.latestWorkflowVersion = asset.workflowVersion || 1
+      state.latestWorkflowReleaseState =
+        asset.workflowReleaseState ||
+        (asset.status === 'OFFLINE' || asset.status === 'DRAFT' ? 'OFFLINE' : 'ONLINE')
+      state.scheduleModalType = asset.schedule?.id ? 'update' : 'create'
+      state.scheduleModalState = asset.schedule?.releaseState || 'OFFLINE'
+      state.scheduleModalRow = normalizeScheduleModalRow(
+        asset.schedule,
+        resolvedWorkflowCode
+      )
+      showScheduleModal()
+      try {
+        const releasedWorkflow = await queryWorkflowDefinitionByCode(
+          resolvedWorkflowCode,
+          resolvedProjectCode
+        )
+        const latestMeta = extractWorkflowDefinitionMeta(releasedWorkflow)
+        state.latestWorkflowReleaseState =
+          latestMeta?.releaseState ||
+          (asset.status === 'OFFLINE' || asset.status === 'DRAFT' ? 'OFFLINE' : 'ONLINE')
+        asset.workflowReleaseState = state.latestWorkflowReleaseState
+        state.latestWorkflowVersion = latestMeta?.version || state.latestWorkflowVersion
+        state.latestWorkflowName = latestMeta?.name || state.latestWorkflowName
+        const scheduleRow = await loadScheduleMeta(resolvedWorkflowCode)
+        asset.schedule = scheduleRow
+        asset.scheduleStatus = scheduleRow?.releaseState === 'ONLINE' ? 'ON' : 'OFF'
+        state.scheduleModalType = scheduleRow?.id ? 'update' : 'create'
+        state.scheduleModalState = scheduleRow?.releaseState || 'OFFLINE'
+        state.scheduleModalRow = normalizeScheduleModalRow(
+          scheduleRow,
+          resolvedWorkflowCode
+        )
+      } catch (err) {
+        window.$message.warning(extractErrorMessage(err, '已打开定时配置，但读取已有调度信息失败，请检查项目权限和工作流定义。'))
+      }
+    }
+
+    const releaseAssetScheduler = async (asset: SyncTaskAsset) => {
+      if (!ensureAssetHasWorkflow(asset)) return
+      const projectCode = toPositiveNumber(asset.projectCode)
+      const workflowCode = toPositiveNumber(asset.workflowCode)
+      if (!projectCode || !workflowCode) return
+      state.selectedProjectCode = projectCode
+      state.latestWorkflowCode = workflowCode
+      const scheduleRow = await loadScheduleMeta(workflowCode)
+      if (!scheduleRow?.id) {
+        window.$message.warning('该同步任务还没有周期调度配置，请先点击定时按钮配置。')
+        return
+      }
+      try {
+        if (scheduleRow.releaseState === 'ONLINE') {
+          await offline(projectCode, scheduleRow.id)
+          asset.scheduleStatus = 'OFF'
+          asset.schedule = {
+            ...scheduleRow,
+            releaseState: 'OFFLINE'
+          }
+          window.$message.success('同步任务调度已下线。')
+        } else {
+          await online(projectCode, scheduleRow.id)
+          asset.scheduleStatus = 'ON'
+          asset.schedule = {
+            ...scheduleRow,
+            releaseState: 'ONLINE'
+          }
+          window.$message.success('同步任务调度已上线。')
+        }
+        asset.updatedAt = formatDateTime(Date.now())
+      } catch (err) {
+        window.$message.error(extractErrorMessage(err, '切换调度状态失败。'))
+      }
+    }
+
+    const copyAssetWorkflow = (asset: SyncTaskAsset) => {
+      if (!ensureAssetHasWorkflow(asset)) return
+      navigator.clipboard?.writeText(asset.workflowName || asset.name)
+      window.$message.success('已复制同步任务工作流名称。')
+    }
+
+    const deleteAssetWorkflow = (asset: SyncTaskAsset) => {
+      window.$message.warning(`为避免误删 Dolphin 工作流，当前请先在详情中确认后再处理：${asset.name}`)
     }
 
     const openAssetLogFullscreen = () => {
@@ -4514,6 +5652,7 @@ const syncTask = defineComponent({
         state.projectOptions.find((item) => item.label === asset.projectName)?.value ||
         null
       state.taskName = asset.name
+      state.taskNameTouched = true
       const sourceOption = state.datasourceOptions.find(
         (item) =>
           item.type === asset.sourceType &&
@@ -4531,26 +5670,12 @@ const syncTask = defineComponent({
       state.source.columns = cloneColumns(
         asset.sourceColumns.length
           ? asset.sourceColumns
-          : asset.fieldRows.map((item) => ({
-              name: item.sourceColumn,
-              type: item.sourceType,
-              key: item.sourceColumn,
-              nullable: item.sourceNullable,
-              primaryKey: item.sourcePrimaryKey,
-              comment: item.sourceComment
-            }))
+          : buildSourceColumnsFromFieldRows(asset.fieldRows)
       )
       state.target.columns = cloneColumns(
         asset.targetColumns.length
           ? asset.targetColumns
-          : asset.fieldRows.map((item) => ({
-              name: item.targetColumn,
-              type: item.targetType,
-              key: item.key,
-              nullable: item.targetNullable,
-              primaryKey: item.targetPrimaryKey,
-              comment: item.targetComment
-            }))
+          : buildTargetColumnsFromFieldRows(asset.fieldRows)
       )
       const sourceParts = asset.sourcePath.split('.').filter(Boolean)
       const sourceDatabase =
@@ -4581,8 +5706,13 @@ const syncTask = defineComponent({
       state.fieldRows = cloneFieldRows(asset.fieldRows)
       state.sourceFilters = cloneSourceFilters(asset.sourceFilters.length ? asset.sourceFilters : [createSourceFilterRule()])
       state.sinkCustomSql = asset.sinkCustomSql
-      state.configEditorText = asset.configText || generatedConfig.value
-      state.configManualOverride = !!asset.configText
+      state.sinkOptions = cloneSinkOptions({
+        ...asset.sinkOptions,
+        customSql: asset.sinkOptions?.customSql || asset.sinkCustomSql
+      })
+      state.dataProcessingRules = cloneDataProcessingRules(asset.dataProcessingRules)
+      state.configEditorText = generatedConfig.value
+      state.configManualOverride = false
       state.latestWorkflowCode = asset.workflowCode
       state.latestWorkflowName = asset.workflowName || asset.name
       state.latestWorkflowVersion = asset.workflowVersion || 1
@@ -4602,13 +5732,13 @@ const syncTask = defineComponent({
         if (state.source.datasourceId && state.source.database && state.source.table) {
           void loadDatabases(state.source).then(async () => {
             await loadTables(state.source)
-            await loadColumns(state.source)
+            await loadColumns(state.source, { preserveExisting: true })
           })
         }
         if (state.target.datasourceId && state.target.database && state.target.table) {
           void loadDatabases(state.target).then(async () => {
             await loadTables(state.target)
-            await loadColumns(state.target)
+            await loadColumns(state.target, { preserveExisting: true })
           })
         }
       })
@@ -4643,6 +5773,7 @@ const syncTask = defineComponent({
         workflowCode: state.latestWorkflowCode,
         workflowName: state.latestWorkflowName || state.taskName,
         workflowVersion: state.latestWorkflowVersion,
+        workflowReleaseState: state.latestWorkflowReleaseState,
         lastRunTime: status === 'DRAFT' ? '-' : nowText,
         lastInstanceId: state.latestInstanceId,
         readRows: state.latestReadRowCount,
@@ -4653,6 +5784,8 @@ const syncTask = defineComponent({
         errorMessage: status === 'FAILED' ? state.latestRunMessage : '',
         sourceFilters: cloneSourceFilters(state.sourceFilters),
         sinkCustomSql: state.sinkCustomSql,
+        sinkOptions: cloneSinkOptions(state.sinkOptions),
+        dataProcessingRules: cloneDataProcessingRules(state.dataProcessingRules),
         fieldRows: cloneFieldRows(state.fieldRows),
         sourceColumns: cloneColumns(state.source.columns),
         targetColumns: cloneColumns(state.target.columns),
@@ -4660,7 +5793,9 @@ const syncTask = defineComponent({
         history: [
           {
             id: state.latestInstanceId ? String(state.latestInstanceId) : `draft-${Date.now()}`,
+            instanceId: state.latestInstanceId || null,
             status,
+            state: state.latestInstanceState || '',
             trigger: status === 'DRAFT' ? '保存草稿' : '页面发布',
             startTime: nowText,
             endTime: status === 'RUNNING' ? '-' : nowText,
@@ -4683,7 +5818,7 @@ const syncTask = defineComponent({
         state.syncTaskAssets[existedIndex] = {
           ...previous,
           ...asset,
-          history: [...asset.history, ...previous.history].slice(0, 8),
+          history: [...asset.history, ...previous.history.map(normalizeHistoryRow)].slice(0, 8),
           changes: [...asset.changes, ...previous.changes].slice(0, 8)
         }
       } else {
@@ -4715,7 +5850,14 @@ const syncTask = defineComponent({
         .filter((item) => item.sourceColumn && item.targetColumn)
         .map((item) => ({
           sourceField: item.sourceColumn,
-          targetField: item.targetColumn
+          targetField: state.dataProcessingRules.some(
+            (rule) =>
+              rule.enabled &&
+              rule.sourceField.toLowerCase() === item.sourceColumn.toLowerCase() &&
+              rule.targetField.toLowerCase() === item.targetColumn.toLowerCase()
+          )
+            ? `${item.targetColumn}（字段值翻译）`
+            : item.targetColumn
         }))
       try {
         await registerGovernanceSyncTaskLineage({
@@ -4774,15 +5916,17 @@ const syncTask = defineComponent({
     }
 
     const loadScheduleMeta = async (workflowDefinitionCode: number) => {
-      if (!state.selectedProjectCode) return null
+      const projectCode = toPositiveNumber(state.selectedProjectCode)
+      const workflowCode = toPositiveNumber(workflowDefinitionCode)
+      if (!projectCode || !workflowCode) return null
       const scheduleList = await queryScheduleListPaging(
         {
           pageNo: 1,
           pageSize: 20,
           searchVal: '',
-          workflowDefinitionCode
+          workflowDefinitionCode: workflowCode
         },
-        state.selectedProjectCode
+        projectCode
       )
       const scheduleRow = normalizeList(scheduleList)[0] || null
       if (!scheduleRow) {
@@ -4873,36 +6017,21 @@ const syncTask = defineComponent({
         .replaceAll(/[^a-zA-Z0-9_\u4e00-\u9fa5]+/g, '_')
         .slice(0, 120)
       const [taskCode] = await genTaskCodeList(1, state.selectedProjectCode as number)
-      const taskDefinition = {
-        code: taskCode,
-        delayTime: '0',
-        description: `由同步任务页面自动生成，来源 ${sourceOption.label} -> ${targetOption.label}`,
-        environmentCode: -1,
-        failRetryInterval: '1',
-        failRetryTimes: '0',
-        flag: 'YES',
-        name: taskName,
-        taskGroupId: null,
-        taskGroupPriority: null,
-        taskParams: {
-          localParams: [],
-          rawScript: effectiveConfigText.value,
-          resourceList: [],
-          startupScript: 'seatunnel.sh',
-          useCustom: true,
-          deployMode: 'local',
-          others: ''
-        },
-        taskPriority: 'MEDIUM',
-        taskType: 'SEATUNNEL',
-        timeout: 0,
-        timeoutFlag: 'CLOSE',
-        timeoutNotifyStrategy: '',
-        workerGroup: 'default',
-        cpuQuota: -1,
-        memoryMax: -1,
-        taskExecuteType: 'BATCH'
+      const currentRawScript = effectiveConfigText.value.trim()
+      if (!currentRawScript) {
+        window.$message.error('SeaTunnel 配置为空，请先检查源端、目标端和字段映射。')
+        return null
       }
+      const nodeData = buildSeaTunnelTaskData(
+        state.runSettings,
+        taskName,
+        currentRawScript,
+        taskCode
+      )
+      if (!nodeData.description) {
+        nodeData.description = `由同步任务页面自动生成，来源 ${sourceOption.label} -> ${targetOption.label}`
+      }
+      const taskDefinition = formatParams(nodeData as INodeData).taskDefinitionJsonObj
       const taskRelation = {
         name: '',
         preTaskCode: 0,
@@ -5215,25 +6344,74 @@ const syncTask = defineComponent({
       const scheduleRow = await loadScheduleMeta(state.latestWorkflowCode)
       state.scheduleModalType = scheduleRow?.id ? 'update' : 'create'
       state.scheduleModalState = scheduleRow?.releaseState || 'OFFLINE'
-      state.scheduleModalRow = scheduleRow?.id
-        ? {
-            ...scheduleRow
-          }
-        : {
-            code: state.latestWorkflowCode,
-            warningGroupId: 0,
-            workerGroup: 'default',
-            tenantCode: 'default',
-            environmentCode: null
-          }
-      state.scheduleModalVisible = true
+      state.scheduleModalRow = normalizeScheduleModalRow(
+        scheduleRow,
+        state.latestWorkflowCode
+      )
+      showScheduleModal()
     }
 
-    const handleRunWorkflow = async () => {
+    const openRunSettingsModal = () => {
       const validated = validateSyncDesign()
       if (!validated) {
         return
       }
+      const { sourceOption, targetOption } = validated
+      const fallbackTaskName = `${state.source.table}_to_${state.targetTableName.trim()}`
+        .replaceAll(/[^a-zA-Z0-9_\u4e00-\u9fa5]+/g, '_')
+        .slice(0, 120)
+      state.runSettings.nodeName = state.runSettings.nodeName === 'sync_task'
+        ? fallbackTaskName
+        : state.runSettings.nodeName
+      state.runSettings.description =
+        state.runSettings.description ||
+        `由同步任务页面自动生成，来源 ${sourceOption.label} -> ${targetOption.label}`
+      state.runSettings.rawScript = effectiveConfigText.value
+      const nextNodeData = buildSeaTunnelTaskData(
+        state.runSettings,
+        fallbackTaskName,
+        effectiveConfigText.value
+      )
+      state.runNodeData = {
+        ...nextNodeData,
+        taskParams: {
+          ...nextNodeData.taskParams,
+          rawScript: effectiveConfigText.value
+        }
+      }
+      state.runNodeModalKey += 1
+      state.runSettingsVisible = true
+    }
+
+    const handleRunWorkflow = () => {
+      openRunSettingsModal()
+    }
+
+    const handleConfirmRunWorkflow = async (payload?: { data?: INodeData }) => {
+      if (payload?.data) {
+        const modalData = payload.data as INodeData & {
+          taskParams?: {
+            rawScript?: string
+            useCustom?: boolean
+          }
+        }
+        const fallbackRawScript = effectiveConfigText.value
+        const payloadRawScript = modalData.rawScript || modalData.taskParams?.rawScript || ''
+        const normalizedData = {
+          ...modalData,
+          rawScript: payloadRawScript || fallbackRawScript,
+          useCustom: modalData.useCustom !== false
+        } as INodeData
+        applyNativeSeaTunnelModel(state.runSettings, normalizedData)
+        if (normalizedData.useCustom !== false) {
+          handleConfigEditorChange(normalizedData.rawScript || fallbackRawScript)
+        }
+      }
+      const validated = validateSyncDesign()
+      if (!validated) {
+        return
+      }
+      state.runSettingsVisible = false
       state.runningWorkflow = true
       state.latestRunStage = 'PREPARING'
       state.latestRunMessage = '保存中'
@@ -5619,6 +6797,215 @@ const syncTask = defineComponent({
       return meta[status]
     }
 
+    const renderAssetActionButton = (
+      tooltip: string,
+      icon: any,
+      onClick: () => void | Promise<void>,
+      options: {
+        type?: 'default' | 'primary' | 'info' | 'success' | 'warning' | 'error'
+        disabled?: boolean
+        className?: string
+      } = {}
+    ) => {
+      const handleClick = async (event: MouseEvent) => {
+        event.stopPropagation()
+        if (!options.disabled) {
+          try {
+            await onClick()
+          } catch (err) {
+            window.$message.error(
+              extractErrorMessage(err, `${tooltip}操作失败，请稍后重试。`)
+            )
+          }
+        }
+      }
+
+      return (
+        <NTooltip trigger='hover'>
+          {{
+            default: () => tooltip,
+            trigger: () => (
+            <span
+              class={['sync-task-action-hitbox', options.className]}
+              role='button'
+              aria-label={tooltip}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '28px',
+                height: '28px',
+                cursor: options.disabled ? 'not-allowed' : 'pointer'
+              }}
+              onClick={handleClick}
+            >
+            <NButton
+              size='small'
+              type={options.type || 'info'}
+              circle
+              disabled={options.disabled}
+              class={options.className}
+              onClick={(event: MouseEvent) => {
+                event.stopPropagation()
+                void handleClick(event)
+              }}
+            >
+              <NIcon>
+                {h(icon)}
+              </NIcon>
+            </NButton>
+            </span>
+            )
+          }}
+        </NTooltip>
+      )
+    }
+
+    const renderAssetActions = (row: SyncTaskAsset) => {
+      const actionState = buildAssetWorkflowActionState(row)
+      const releaseState = actionState.releaseState
+      const scheduleReleaseState = actionState.scheduleReleaseState
+      const schedule = actionState.schedule
+      const handleScheduleClick = (event: MouseEvent) => {
+        event.preventDefault()
+        event.stopPropagation()
+        void openAssetScheduleModal(row)
+      }
+
+      return (
+        <NSpace>
+          {renderAssetActionButton('编辑', FormOutlined, () => hydrateWizardFromAsset(row), {
+            disabled: releaseState === 'ONLINE',
+            className: 'btn-edit'
+          })}
+          {renderAssetActionButton('启动', PlayCircleOutlined, () => void startAssetWorkflow(row), {
+            type: 'primary',
+            disabled: releaseState === 'OFFLINE',
+            className: 'btn-run'
+          })}
+          <NTooltip trigger='hover'>
+            {{
+              default: () => releaseState === 'ONLINE' ? '下线' : '上线',
+              trigger: () => (
+                <NPopconfirm
+                  onPositiveClick={() =>
+                    void releaseAssetWorkflow(row, releaseState)
+                  }
+                >
+                  {{
+                    default: () => releaseState === 'ONLINE' ? '确认下线该工作流？' : '确认上线该工作流？',
+                    trigger: () => (
+                      <NButton
+                        size='small'
+                        type={releaseState === 'ONLINE' ? 'warning' : 'error'}
+                        circle
+                        class='btn-publish'
+                        onClick={(event: MouseEvent) => event.stopPropagation()}
+                      >
+                        <NIcon>
+                          {releaseState === 'ONLINE' ? h(DownloadOutlined) : h(UploadOutlined)}
+                        </NIcon>
+                      </NButton>
+                    )
+                  }}
+                </NPopconfirm>
+              )
+            }}
+          </NTooltip>
+          <NTooltip trigger='hover'>
+            {{
+              default: () => '定时',
+              trigger: () => (
+                <span
+                  class='btn-schedule-wrapper'
+                  role='button'
+                  aria-label='定时'
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    width: '28px',
+                    height: '28px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <NButton
+                    size='small'
+                    type='info'
+                    circle
+                    class='btn-schedule'
+                    onClick={handleScheduleClick}
+                  >
+                    <NIcon>
+                      {h(ClockCircleOutlined)}
+                    </NIcon>
+                  </NButton>
+                </span>
+              )
+            }}
+          </NTooltip>
+          <NTooltip trigger='hover'>
+            {{
+              default: () => scheduleReleaseState === 'ONLINE' ? '调度下线' : '调度上线',
+              trigger: () => (
+                <NPopconfirm onPositiveClick={() => void releaseAssetScheduler(row)}>
+                  {{
+                    default: () => scheduleReleaseState === 'ONLINE' ? '确认下线该调度？' : '确认上线该调度？',
+                    trigger: () => (
+                      <NButton
+                        size='small'
+                        type={scheduleReleaseState === 'ONLINE' ? 'warning' : 'error'}
+                        circle
+                        class='btn-publish'
+                        disabled={!schedule || releaseState !== 'ONLINE'}
+                        onClick={(event: MouseEvent) => event.stopPropagation()}
+                      >
+                        <NIcon>
+                          {scheduleReleaseState === 'ONLINE' ? h(ArrowDownOutlined) : h(ArrowUpOutlined)}
+                        </NIcon>
+                      </NButton>
+                    )
+                  }}
+                </NPopconfirm>
+              )
+            }}
+          </NTooltip>
+          {renderAssetActionButton('复制工作流', CopyOutlined, () => copyAssetWorkflow(row))}
+          <NTooltip trigger='hover'>
+            {{
+              default: () => '删除',
+              trigger: () => (
+                <NPopconfirm
+                  disabled={releaseState === 'ONLINE'}
+                  onPositiveClick={() => deleteAssetWorkflow(row)}
+                >
+                  {{
+                    default: () => '确认删除该同步任务？',
+                    trigger: () => (
+                      <NButton
+                        size='small'
+                        type='error'
+                        circle
+                        disabled={releaseState === 'ONLINE'}
+                        class='btn-delete'
+                        onClick={(event: MouseEvent) => event.stopPropagation()}
+                      >
+                        <NIcon>
+                          {h(DeleteOutlined)}
+                        </NIcon>
+                      </NButton>
+                    )
+                  }}
+                </NPopconfirm>
+              )
+            }}
+          </NTooltip>
+          {renderAssetActionButton('血缘图', ApartmentOutlined, () => openAssetWorkflowTree(row))}
+          {renderAssetActionButton('版本信息', InfoCircleFilled, () => openAssetDetail(row, 'CONFIG'))}
+        </NSpace>
+      )
+    }
+
     const assetTableColumns = computed<DataTableColumns<SyncTaskAsset>>(() => [
       {
         title: '任务名称',
@@ -5700,17 +7087,9 @@ const syncTask = defineComponent({
       {
         title: '操作',
         key: 'actions',
-        width: 150,
-        render: (row) => (
-          <NSpace size={6}>
-            <NButton size='small' text type='primary' onClick={() => openAssetDetail(row)}>
-              详情
-            </NButton>
-            <NButton size='small' text type='primary' onClick={() => hydrateWizardFromAsset(row)}>
-              {row.status === 'FAILED' ? '修复' : '编辑'}
-            </NButton>
-          </NSpace>
-        )
+        width: 380,
+        fixed: 'right',
+        render: renderAssetActions
       }
     ])
 
@@ -5789,7 +7168,7 @@ const syncTask = defineComponent({
         state.targetTableName.trim()
       ],
       () => {
-        if (state.taskName.trim()) return
+        if (state.taskNameTouched) return
         state.taskName = buildSuggestedTaskName(
           sourceDatasourceOption.value,
           state.source.table,
@@ -5805,6 +7184,25 @@ const syncTask = defineComponent({
         if (state.assetDetailTab === 'LOGS') {
           void loadAssetLogs(state.selectedAsset)
         }
+        if (state.assetDetailTab === 'HISTORY') {
+          void loadAssetHistory(state.selectedAsset)
+        }
+      }
+    )
+
+    watch(
+      () => [
+        state.assetKeyword,
+        state.assetProjectFilter
+      ],
+      () => {
+        if (state.viewMode !== 'LIST') return
+        if (assetFilterRefreshTimer) {
+          window.clearTimeout(assetFilterRefreshTimer)
+        }
+        assetFilterRefreshTimer = window.setTimeout(() => {
+          void loadSyncTaskAssets()
+        }, 300)
       }
     )
 
@@ -5963,6 +7361,10 @@ const syncTask = defineComponent({
       targetFieldColumns,
       latestInstanceTaskColumns,
       assetMetrics,
+      assetProjectOptions,
+      assetTypeOptions,
+      assetStatusOptions,
+      assetScheduleOptions,
       filteredAssets,
       assetTableColumns,
       statusTagMeta,
@@ -5972,6 +7374,8 @@ const syncTask = defineComponent({
       hydrateWizardFromAsset,
       openWorkflowInstanceDetail,
       loadAssetLogs,
+      loadAssetHistory,
+      loadAssetLogsForInstance,
       openAssetLogFullscreen,
       allFieldsChecked,
       someFieldsChecked,
@@ -5990,7 +7394,9 @@ const syncTask = defineComponent({
       handlePreviewTargetTable,
       handleSaveWorkflow,
       handleRunWorkflow,
+      handleConfirmRunWorkflow,
       handleOpenScheduleModal,
+      refreshScheduleAssetState,
       loadScheduleMeta,
       handlePrevStep,
       handleNextStep,
@@ -6002,6 +7408,38 @@ const syncTask = defineComponent({
   render() {
     const datasourceSelectOptions = this.state.datasourceOptions
     const selectedAsset = this.state.selectedAsset
+    const renderScheduleModal = () => {
+      const projectCode = Number(this.state.selectedProjectCode)
+      if (!this.state.scheduleModalVisible || !Number.isFinite(projectCode) || projectCode <= 0) {
+        return null
+      }
+      return (
+        <TimingModal
+        key={`sync-schedule-${this.state.scheduleModalKey}`}
+        row={this.state.scheduleModalRow}
+        show={this.state.scheduleModalVisible}
+        type={this.state.scheduleModalType}
+        state={this.state.scheduleModalState}
+        projectCode={projectCode}
+        onUpdate:row={(row: Record<string, any>) => {
+          this.state.scheduleModalRow = row
+        }}
+        onUpdate:show={(show?: boolean) => {
+          this.state.scheduleModalVisible = !!show
+        }}
+        onUpdate:type={(type: 'create' | 'update') => {
+          this.state.scheduleModalType = type
+        }}
+        onUpdate:state={(value: string) => {
+          this.state.scheduleModalState = value
+        }}
+        onUpdateList={async () => {
+          await this.refreshScheduleAssetState()
+          this.state.scheduleModalVisible = false
+        }}
+      />
+      )
+    }
     const renderAssetLogContent = (asset: SyncTaskAsset, fullscreen = false) => (
       <NSpin show={!!asset.logLoading}>
         <NSpace vertical>
@@ -6011,7 +7449,7 @@ const syncTask = defineComponent({
             </NAlert>
           ) : null}
           <div class={styles.assetKvGrid}>
-            <div><span>最近实例</span><strong>{asset.lastInstanceId || '-'}</strong></div>
+            <div><span>当前实例</span><strong>{this.state.assetLogInstanceId || asset.lastInstanceId || '-'}</strong></div>
             <div><span>工作流编码</span><strong>{asset.workflowCode || '-'}</strong></div>
             <div><span>项目</span><strong>{asset.projectName}</strong></div>
             <div><span>日志状态</span><strong>{asset.logLoading ? '读取中' : asset.logLoaded ? '已读取' : '等待读取'}</strong></div>
@@ -6023,7 +7461,7 @@ const syncTask = defineComponent({
                 loading={!!asset.logLoading}
                 onClick={() => {
                   asset.logLoaded = false
-                  void this.loadAssetLogs(asset)
+                  void this.loadAssetLogs(asset, this.state.assetLogInstanceId || asset.lastInstanceId)
                 }}
               >
                 刷新日志
@@ -6085,45 +7523,58 @@ const syncTask = defineComponent({
       }
       if (this.state.assetDetailTab === 'HISTORY') {
         return (
-          <NDataTable
-            columns={[
-              { title: '实例', key: 'id' },
-              {
-                title: '状态',
-                key: 'status',
-                render: (row: any) => {
-                  const [label, type] = this.statusTagMeta(row.status)
-                  return <NTag bordered={false} type={type}>{label}</NTag>
-                }
-              },
-              { title: '触发方式', key: 'trigger' },
-              { title: '开始时间', key: 'startTime' },
-              { title: '结束时间', key: 'endTime' },
-              { title: '耗时', key: 'duration' },
-              { title: '读 / 写', key: 'rows' }
-            ]}
-            data={selectedAsset.history}
-            row-key={(row: any) => row.id}
-            size='small'
-            pagination={false}
-          />
+          <NSpin show={this.state.assetHistoryLoading}>
+            <NSpace vertical>
+              {this.state.assetHistoryError ? (
+                <NAlert type='error' showIcon={false}>
+                  {this.state.assetHistoryError}
+                </NAlert>
+              ) : null}
+              <NDataTable
+                columns={[
+                  {
+                    title: '实例',
+                    key: 'id',
+                    render: (row: SyncTaskHistoryRow) => (
+                      <NButton
+                        text
+                        type='primary'
+                        disabled={!row.instanceId}
+                        onClick={async () => {
+                          if (!row.instanceId) return
+                          await this.loadAssetLogsForInstance(selectedAsset, row.instanceId)
+                          this.state.assetDetailTab = 'LOGS'
+                        }}
+                      >
+                        {row.id}
+                      </NButton>
+                    )
+                  },
+                  {
+                    title: '状态',
+                    key: 'status',
+                    render: (row: SyncTaskHistoryRow) => {
+                      const [label, type] = this.statusTagMeta(row.status)
+                      return <NTag bordered={false} type={type}>{label}</NTag>
+                    }
+                  },
+                  { title: '触发方式', key: 'trigger' },
+                  { title: '开始时间', key: 'startTime' },
+                  { title: '结束时间', key: 'endTime' },
+                  { title: '耗时', key: 'duration' },
+                  { title: '读 / 写', key: 'rows' }
+                ]}
+                data={selectedAsset.history}
+                row-key={(row: SyncTaskHistoryRow) => row.id}
+                size='small'
+                pagination={false}
+              />
+            </NSpace>
+          </NSpin>
         )
       }
       if (this.state.assetDetailTab === 'LOGS') {
         return renderAssetLogContent(selectedAsset)
-      }
-      if (this.state.assetDetailTab === 'CHANGES') {
-        return (
-          <div class={styles.assetTimeline}>
-            {selectedAsset.changes.map((item) => (
-              <div class={styles.assetTimelineItem} key={`${item.time}-${item.action}`}>
-                <span>{item.time}</span>
-                <strong>{item.action}</strong>
-                <em>{item.user}</em>
-              </div>
-            ))}
-          </div>
-        )
       }
       const [statusLabel, statusType] = this.statusTagMeta(selectedAsset.status)
       return (
@@ -6186,51 +7637,57 @@ const syncTask = defineComponent({
             ))}
           </div>
           <div class={styles.assetToolbar}>
-            <NInput
-              value={this.state.assetKeyword}
-              placeholder='搜索任务名称、源表、目标表、工作流编码'
-              clearable
-              onUpdateValue={(value) => { this.state.assetKeyword = value }}
-            />
-            <NSelect
-              value={this.state.assetProjectFilter}
-              placeholder='全部项目'
-              clearable
-              options={[...new Set(this.state.syncTaskAssets.map((item) => item.projectName))]
-                .map((item) => ({ label: item, value: item }))}
-              onUpdateValue={(value) => { this.state.assetProjectFilter = value || '' }}
-            />
-            <NSelect
-              value={this.state.assetStatusFilter}
-              placeholder='全部状态'
-              clearable
-              options={[
-                { label: '成功', value: 'SUCCESS' },
-                { label: '失败', value: 'FAILED' },
-                { label: '运行中', value: 'RUNNING' },
-                { label: '草稿', value: 'DRAFT' },
-                { label: '下线', value: 'OFFLINE' }
-              ]}
-              onUpdateValue={(value) => { this.state.assetStatusFilter = value || '' }}
-            />
-            <NSelect
-              value={this.state.assetScheduleFilter}
-              placeholder='全部调度'
-              clearable
-              options={[
-                { label: '已调度', value: 'ON' },
-                { label: '未调度', value: 'OFF' }
-              ]}
-              onUpdateValue={(value) => { this.state.assetScheduleFilter = value || '' }}
-            />
-            <NSelect
-              value={this.state.assetTypeFilter}
-              placeholder='全部链路'
-              clearable
-              options={SUPPORT_TYPES.map((item) => ({ label: item, value: item }))}
-              onUpdateValue={(value) => { this.state.assetTypeFilter = value || '' }}
-            />
+            <label class={[styles.assetFilterField, styles.assetKeywordField]}>
+              <span>关键字</span>
+              <NInput
+                value={this.state.assetKeyword}
+                placeholder='任务名称 / 源表 / 目标表 / 工作流编码'
+                clearable
+                onUpdateValue={(value) => { this.state.assetKeyword = value }}
+              />
+            </label>
+            <label class={styles.assetFilterField}>
+              <span>项目</span>
+              <NSelect
+                value={this.state.assetProjectFilter}
+                placeholder='全部'
+                clearable
+                options={this.assetProjectOptions}
+                onUpdateValue={(value) => { this.state.assetProjectFilter = value || '' }}
+              />
+            </label>
+            <label class={styles.assetFilterField}>
+              <span>数据源类型</span>
+              <NSelect
+                value={this.state.assetTypeFilter}
+                placeholder='全部'
+                clearable
+                options={this.assetTypeOptions}
+                onUpdateValue={(value) => { this.state.assetTypeFilter = value || '' }}
+              />
+            </label>
+            <label class={styles.assetFilterField}>
+              <span>状态</span>
+              <NSelect
+                value={this.state.assetStatusFilter}
+                placeholder='全部'
+                clearable
+                options={this.assetStatusOptions}
+                onUpdateValue={(value) => { this.state.assetStatusFilter = value || '' }}
+              />
+            </label>
+            <label class={styles.assetFilterField}>
+              <span>调度</span>
+              <NSelect
+                value={this.state.assetScheduleFilter}
+                placeholder='全部'
+                clearable
+                options={this.assetScheduleOptions}
+                onUpdateValue={(value) => { this.state.assetScheduleFilter = value || '' }}
+              />
+            </label>
             <NButton
+              class={styles.assetToolbarReset}
               onClick={() => {
                 this.state.assetKeyword = ''
                 this.state.assetProjectFilter = ''
@@ -6239,7 +7696,7 @@ const syncTask = defineComponent({
                 this.state.assetTypeFilter = ''
               }}
             >
-              重置
+              清空
             </NButton>
           </div>
           <Card>
@@ -6250,6 +7707,7 @@ const syncTask = defineComponent({
               size='small'
               loading={this.state.loadingAssets}
               pagination={{ pageSize: 10 }}
+              scrollX={1480}
               striped
             />
           </Card>
@@ -6271,7 +7729,6 @@ const syncTask = defineComponent({
                       <NButton type='primary' onClick={() => this.hydrateWizardFromAsset(selectedAsset)}>
                         编辑配置
                       </NButton>
-                      <NButton onClick={() => { this.state.assetDetailTab = 'HISTORY' }}>运行历史</NButton>
                     </NSpace>
                   </div>
                   <div class={styles.assetTabs}>
@@ -6279,8 +7736,7 @@ const syncTask = defineComponent({
                       ['OVERVIEW', '概览'],
                       ['CONFIG', '配置'],
                       ['HISTORY', '运行历史'],
-                      ['LOGS', '日志诊断'],
-                      ['CHANGES', '变更记录']
+                      ['LOGS', '日志诊断']
                     ].map(([key, label]) => (
                       <button
                         key={key}
@@ -6313,6 +7769,7 @@ const syncTask = defineComponent({
               {selectedAsset ? renderAssetLogContent(selectedAsset, true) : null}
             </NDrawerContent>
           </NDrawer>
+          {renderScheduleModal()}
         </NSpace>
       )
     }
@@ -6609,47 +8066,552 @@ const syncTask = defineComponent({
         </div>
       </div>
     )
+    const sinkTargetType = this.targetDatasourceOption?.type || 'MYSQL'
+    const sinkOptions = this.state.sinkOptions
+    const activeSinkTab = normalizeSinkTab(sinkOptions.tab, sinkTargetType)
+    if (sinkOptions.tab !== activeSinkTab) {
+      sinkOptions.tab = activeSinkTab
+    }
+    const sinkTabOptions = getSinkTabOptions(sinkTargetType)
+    const sinkHelp = (text: string) => (
+      <NTooltip trigger='hover'>
+        {{
+          trigger: () => <span class={styles.sinkHelpIcon}>!</span>,
+          default: () => <span>{text}</span>
+        }}
+      </NTooltip>
+    )
+    const renderSinkFieldLabel = (label: string, help?: string) => (
+      <div class={styles.fieldLabel}>
+        {label}
+        {help ? sinkHelp(help) : null}
+      </div>
+    )
+    const updateSinkCustomSql = (value: string) => {
+      sinkOptions.customSql = value
+      this.state.sinkCustomSql = value
+    }
+    const renderDorisSinkConfig = () => {
+      if (activeSinkTab === 'BASE') {
+        return (
+          <div class={styles.sinkFormGrid}>
+            <div class={styles.fieldBlock}>
+              {renderSinkFieldLabel('FE HTTP 地址（fenodes）', 'Doris Stream Load 使用 FE HTTP 端口，通常是 8030；多个 FE 用英文逗号分隔。')}
+              <NInput
+                value={sinkOptions.dorisFenodes}
+                placeholder='默认使用目标数据源 host:8030'
+                onUpdateValue={(value) => {
+                  sinkOptions.dorisFenodes = value
+                }}
+              />
+            </div>
+            <div class={styles.fieldBlock}>
+              {renderSinkFieldLabel('FE MySQL 查询端口（query-port）')}
+              <NInput
+                value={sinkOptions.dorisQueryPort}
+                onUpdateValue={(value) => {
+                  sinkOptions.dorisQueryPort = value
+                }}
+              />
+            </div>
+            <div class={styles.fieldBlock}>
+              {renderSinkFieldLabel('Label 前缀（sink.label-prefix）')}
+              <NInput
+                value={sinkOptions.dorisLabelPrefix}
+                onUpdateValue={(value) => {
+                  sinkOptions.dorisLabelPrefix = value
+                }}
+              />
+            </div>
+          </div>
+        )
+      }
+      if (activeSinkTab === 'MODE') {
+        return (
+          <div class={styles.sinkFormGrid}>
+            <div class={styles.fieldBlock}>
+              {renderSinkFieldLabel('结构处理（schema_save_mode）', 'CREATE 表不存在时自动建表；RECREATE 会重建表；ERROR 表不存在时报错。')}
+              <NSelect
+                value={sinkOptions.schemaSaveMode}
+                options={[
+                  { label: 'CREATE_SCHEMA_WHEN_NOT_EXIST', value: 'CREATE_SCHEMA_WHEN_NOT_EXIST' },
+                  { label: 'RECREATE_SCHEMA', value: 'RECREATE_SCHEMA' },
+                  { label: 'ERROR_WHEN_SCHEMA_NOT_EXIST', value: 'ERROR_WHEN_SCHEMA_NOT_EXIST' }
+                ]}
+                onUpdateValue={(value) => {
+                  sinkOptions.schemaSaveMode = value
+                }}
+              />
+            </div>
+            <div class={styles.fieldBlock}>
+              {renderSinkFieldLabel('数据处理（data_save_mode）', 'APPEND 追加；DROP 写入前清空；ERROR 有数据时报错；CUSTOM 先执行 custom_sql。')}
+              <NSelect
+                value={sinkOptions.dataSaveMode}
+                options={[
+                  { label: 'APPEND_DATA', value: 'APPEND_DATA' },
+                  { label: 'DROP_DATA', value: 'DROP_DATA' },
+                  { label: 'ERROR_WHEN_DATA_EXISTS', value: 'ERROR_WHEN_DATA_EXISTS' },
+                  { label: 'CUSTOM_PROCESSING', value: 'CUSTOM_PROCESSING' }
+                ]}
+                onUpdateValue={(value) => {
+                  sinkOptions.dataSaveMode = value
+                }}
+              />
+            </div>
+            <div class={styles.fieldBlock}>
+              {renderSinkFieldLabel('分布式事务（sink.enable-2pc）')}
+              <NSelect
+                value={sinkOptions.dorisEnable2pc}
+                options={[{ label: 'true', value: 'true' }, { label: 'false', value: 'false' }]}
+                onUpdateValue={(value) => {
+                  sinkOptions.dorisEnable2pc = value
+                }}
+              />
+            </div>
+            <div class={styles.fieldBlock}>
+              {renderSinkFieldLabel('删除事件（sink.enable-delete）')}
+              <NSelect
+                value={sinkOptions.dorisEnableDelete}
+                options={[{ label: 'true', value: 'true' }, { label: 'false', value: 'false' }]}
+                onUpdateValue={(value) => {
+                  sinkOptions.dorisEnableDelete = value
+                }}
+              />
+            </div>
+            <div class={styles.fieldBlock}>
+              {renderSinkFieldLabel('大小写敏感（case_sensitive）')}
+              <NSelect
+                value={sinkOptions.dorisCaseSensitive}
+                options={[{ label: 'true', value: 'true' }, { label: 'false', value: 'false' }]}
+                onUpdateValue={(value) => {
+                  sinkOptions.dorisCaseSensitive = value
+                }}
+              />
+            </div>
+            <div class={styles.fieldBlock}>
+              {renderSinkFieldLabel('不支持类型转换')}
+              <NSelect
+                value={sinkOptions.dorisNeedsUnsupportedTypeCasting}
+                options={[{ label: 'true', value: 'true' }, { label: 'false', value: 'false' }]}
+                onUpdateValue={(value) => {
+                  sinkOptions.dorisNeedsUnsupportedTypeCasting = value
+                }}
+              />
+            </div>
+            {sinkOptions.dataSaveMode === 'CUSTOM_PROCESSING' ? (
+              <div class={[styles.fieldBlock, styles.fieldBlockSpan2]}>
+                {renderSinkFieldLabel('同步前 SQL（custom_sql）')}
+                <NInput
+                  type='textarea'
+                  value={sinkOptions.customSql}
+                  autosize={{ minRows: 3, maxRows: 8 }}
+                  onUpdateValue={updateSinkCustomSql}
+                />
+              </div>
+            ) : null}
+          </div>
+        )
+      }
+      if (activeSinkTab === 'THROUGHPUT') {
+        return (
+          <div class={styles.sinkFormGrid}>
+            <div class={styles.fieldBlock}>
+              {renderSinkFieldLabel('单批行数（sink.buffer-size）')}
+              <NInput
+                value={sinkOptions.dorisBufferSize}
+                disabled={sinkOptions.dorisEnable2pc === 'true'}
+                onUpdateValue={(value) => {
+                  sinkOptions.dorisBufferSize = value
+                }}
+              />
+            </div>
+            <div class={styles.fieldBlock}>
+              {renderSinkFieldLabel('缓冲区数量（sink.buffer-count）')}
+              <NInput value={sinkOptions.dorisBufferCount} onUpdateValue={(value) => { sinkOptions.dorisBufferCount = value }} />
+            </div>
+            <div class={styles.fieldBlock}>
+              {renderSinkFieldLabel('HTTP 批量行数（doris.batch.size）')}
+              <NInput value={sinkOptions.dorisBatchSize} onUpdateValue={(value) => { sinkOptions.dorisBatchSize = value }} />
+            </div>
+            <div class={styles.fieldBlock}>
+              {renderSinkFieldLabel('刷新间隔（sink.check-interval ms）')}
+              <NInput value={sinkOptions.dorisCheckInterval} onUpdateValue={(value) => { sinkOptions.dorisCheckInterval = value }} />
+            </div>
+            <div class={styles.fieldBlock}>
+              {renderSinkFieldLabel('最大重试次数（sink.max-retries）')}
+              <NInput value={sinkOptions.dorisMaxRetries} onUpdateValue={(value) => { sinkOptions.dorisMaxRetries = value }} />
+            </div>
+          </div>
+        )
+      }
+      if (activeSinkTab === 'TEMPLATE') {
+        return (
+          <div class={styles.sinkFormGrid}>
+            <div class={[styles.fieldBlock, styles.fieldBlockSpan2]}>
+              {renderSinkFieldLabel('建表模板（save_mode_create_template）')}
+              <NInput
+                type='textarea'
+                value={sinkOptions.dorisSaveModeCreateTemplate}
+                autosize={{ minRows: 8, maxRows: 14 }}
+                onUpdateValue={(value) => {
+                  sinkOptions.dorisSaveModeCreateTemplate = value
+                }}
+              />
+            </div>
+          </div>
+        )
+      }
+      return (
+        <div class={styles.sinkFormGrid}>
+          <div class={styles.fieldBlock}>
+            {renderSinkFieldLabel('Stream Load 格式', '决定传给 Doris Stream Load 的数据格式。JSON 适合结构化字段，CSV 适合分隔符文本。')}
+            <NSelect
+              value={sinkOptions.dorisFormat}
+              options={[{ label: 'json', value: 'json' }, { label: 'csv', value: 'csv' }]}
+              onUpdateValue={(value) => {
+                sinkOptions.dorisFormat = value
+              }}
+            />
+          </div>
+          {sinkOptions.dorisFormat === 'json' ? (
+            <>
+              <div class={styles.fieldBlock}>
+                {renderSinkFieldLabel('read_json_by_line', 'JSON 每行一条记录时设为 true。')}
+                <NSelect value={sinkOptions.dorisReadJsonByLine} options={[{ label: 'true', value: 'true' }, { label: 'false', value: 'false' }]} onUpdateValue={(value) => { sinkOptions.dorisReadJsonByLine = value }} />
+              </div>
+              <div class={styles.fieldBlock}>
+                {renderSinkFieldLabel('strip_outer_array', 'JSON 外层是数组时设为 true，让 Doris 拆开数组逐行写入。')}
+                <NSelect value={sinkOptions.dorisStripOuterArray} options={[{ label: 'true', value: 'true' }, { label: 'false', value: 'false' }]} onUpdateValue={(value) => { sinkOptions.dorisStripOuterArray = value }} />
+              </div>
+            </>
+          ) : (
+            <div class={styles.fieldBlock}>
+              {renderSinkFieldLabel('column_separator', 'CSV 字段分隔符，必须和 SeaTunnel 输出字段顺序一致。')}
+              <NInput value={sinkOptions.dorisColumnSeparator} onUpdateValue={(value) => { sinkOptions.dorisColumnSeparator = value }} />
+            </div>
+          )}
+          <div class={styles.fieldBlock}>
+            {renderSinkFieldLabel('load_to_single_tablet', '默认 false 更适合分布式写入，true 只适合小表或特殊调试。')}
+            <NSelect value={sinkOptions.dorisLoadToSingleTablet} options={[{ label: 'true', value: 'true' }, { label: 'false', value: 'false' }]} onUpdateValue={(value) => { sinkOptions.dorisLoadToSingleTablet = value }} />
+          </div>
+        </div>
+      )
+    }
+    const renderJdbcSinkConfig = () => {
+      const isOracle = sinkTargetType === 'ORACLE'
+      const exactlyOnce = sinkOptions.isExactlyOnce === 'true'
+      if (activeSinkTab === 'BASE') {
+        return (
+          <div class={styles.sinkFormGrid}>
+            <div class={[styles.fieldBlock, styles.fieldBlockSpan2]}>
+              {renderSinkFieldLabel('JDBC URL', isOracle ? 'Oracle 通常使用 jdbc:oracle:thin:@//host:1521/serviceName。' : 'MySQL 建议在 URL 或 properties 中启用 rewriteBatchedStatements=true。')}
+              <NInput
+                value={
+                  this.state.target.datasourceId
+                    ? buildJdbcUrl(
+                      this.state.datasourceDetails[this.state.target.datasourceId],
+                      this.state.target.database || ''
+                    )
+                    : ''
+                }
+                disabled
+              />
+            </div>
+            <div class={styles.fieldBlock}>
+              {renderSinkFieldLabel('驱动类（driver）')}
+              <NInput value={buildDriver(sinkTargetType)} disabled />
+            </div>
+            <div class={styles.fieldBlock}>
+              {renderSinkFieldLabel('字段名处理（field_ide）', 'MySQL 通常保持 ORIGINAL；Oracle 常见字段大写，建议默认 UPPERCASE。')}
+              <NSelect
+                value={getJdbcFieldIde(sinkTargetType, sinkOptions)}
+                options={[
+                  { label: 'ORIGINAL', value: 'ORIGINAL' },
+                  { label: 'LOWERCASE', value: 'LOWERCASE' },
+                  { label: 'UPPERCASE', value: 'UPPERCASE' }
+                ]}
+                onUpdateValue={(value) => {
+                  sinkOptions.fieldIde = value
+                }}
+              />
+            </div>
+            <div class={[styles.fieldBlock, styles.fieldBlockSpan2]}>
+              {renderSinkFieldLabel('自定义写入 SQL（query）', '留空时按字段映射自动生成 INSERT。只有需要完全接管写入语句时才填写。')}
+              <NInput
+                type='textarea'
+                value={sinkOptions.jdbcQuery}
+                autosize={{ minRows: 3, maxRows: 8 }}
+                onUpdateValue={(value) => {
+                  sinkOptions.jdbcQuery = value
+                }}
+              />
+            </div>
+          </div>
+        )
+      }
+      if (activeSinkTab === 'MODE') {
+        return (
+          <div class={styles.sinkFormGrid}>
+            <div class={styles.fieldBlock}>
+              {renderSinkFieldLabel('结构处理（schema_save_mode）', 'CREATE 表不存在时自动建表；RECREATE 会重建表；ERROR 表不存在时报错。')}
+              <NSelect value={sinkOptions.schemaSaveMode} options={[{ label: 'CREATE_SCHEMA_WHEN_NOT_EXIST', value: 'CREATE_SCHEMA_WHEN_NOT_EXIST' }, { label: 'RECREATE_SCHEMA', value: 'RECREATE_SCHEMA' }, { label: 'ERROR_WHEN_SCHEMA_NOT_EXIST', value: 'ERROR_WHEN_SCHEMA_NOT_EXIST' }]} onUpdateValue={(value) => { sinkOptions.schemaSaveMode = value }} />
+            </div>
+            <div class={styles.fieldBlock}>
+              {renderSinkFieldLabel('数据处理（data_save_mode）', 'APPEND 追加；DROP 写入前清空；ERROR 有数据时报错；CUSTOM 先执行 custom_sql。')}
+              <NSelect value={sinkOptions.dataSaveMode} options={[{ label: 'APPEND_DATA', value: 'APPEND_DATA' }, { label: 'DROP_DATA', value: 'DROP_DATA' }, { label: 'ERROR_WHEN_DATA_EXISTS', value: 'ERROR_WHEN_DATA_EXISTS' }, { label: 'CUSTOM_PROCESSING', value: 'CUSTOM_PROCESSING' }]} onUpdateValue={(value) => { sinkOptions.dataSaveMode = value }} />
+            </div>
+            <div class={styles.fieldBlock}>
+              {renderSinkFieldLabel('启用 Upsert（enable_upsert）')}
+              <NSelect value={sinkOptions.enableUpsert} options={[{ label: 'true', value: 'true' }, { label: 'false', value: 'false' }]} onUpdateValue={(value) => { sinkOptions.enableUpsert = value }} />
+            </div>
+            <div class={styles.fieldBlock}>
+              {renderSinkFieldLabel('自动生成写入 SQL')}
+              <NSelect value={sinkOptions.generateSinkSql} options={[{ label: 'true', value: 'true' }, { label: 'false', value: 'false' }]} onUpdateValue={(value) => { sinkOptions.generateSinkSql = value }} />
+            </div>
+            {sinkOptions.dataSaveMode === 'CUSTOM_PROCESSING' ? (
+              <div class={[styles.fieldBlock, styles.fieldBlockSpan2]}>
+                {renderSinkFieldLabel('同步前 SQL（custom_sql）')}
+                <NInput type='textarea' value={sinkOptions.customSql} autosize={{ minRows: 3, maxRows: 8 }} onUpdateValue={updateSinkCustomSql} />
+              </div>
+            ) : null}
+          </div>
+        )
+      }
+      if (activeSinkTab === 'THROUGHPUT') {
+        return (
+          <div class={styles.sinkFormGrid}>
+            <div class={styles.fieldBlock}>
+              {renderSinkFieldLabel('批量行数（batch_size）')}
+              <NInput value={sinkOptions.batchSize} onUpdateValue={(value) => { sinkOptions.batchSize = value }} />
+            </div>
+            {isOracle ? (
+              <div class={styles.fieldBlock}>
+                {renderSinkFieldLabel('批量间隔（batch_interval_ms）', 'Oracle Sink 支持按时间间隔触发批量提交。')}
+                <NInput value={sinkOptions.batchIntervalMs} onUpdateValue={(value) => { sinkOptions.batchIntervalMs = value }} />
+              </div>
+            ) : null}
+            <div class={styles.fieldBlock}>
+              {renderSinkFieldLabel('最大重试次数（max_retries）')}
+              <NInput value={sinkOptions.maxRetries} onUpdateValue={(value) => { sinkOptions.maxRetries = value }} />
+            </div>
+            <div class={styles.fieldBlock}>
+              {renderSinkFieldLabel('连接检查超时秒数')}
+              <NInput value={sinkOptions.connectionCheckTimeoutSec} onUpdateValue={(value) => { sinkOptions.connectionCheckTimeoutSec = value }} />
+            </div>
+            <div class={styles.fieldBlock}>
+              {renderSinkFieldLabel('Exactly Once', '开启后依赖 XA 数据源和两阶段提交；演示环境可关闭。')}
+              <NSelect value={sinkOptions.isExactlyOnce} options={[{ label: 'true', value: 'true' }, { label: 'false', value: 'false' }]} onUpdateValue={(value) => { sinkOptions.isExactlyOnce = value }} />
+            </div>
+            <div class={styles.fieldBlock}>
+              {renderSinkFieldLabel('自动提交（auto_commit）')}
+              <NSelect value={sinkOptions.autoCommit} options={[{ label: 'true', value: 'true' }, { label: 'false', value: 'false' }]} onUpdateValue={(value) => { sinkOptions.autoCommit = value }} />
+            </div>
+            <div class={[styles.fieldBlock, styles.fieldBlockSpan2]}>
+              {renderSinkFieldLabel('XA 数据源类', isOracle ? 'Oracle 常用 oracle.jdbc.xa.client.OracleXADataSource。' : 'MySQL 常用 com.mysql.cj.jdbc.MysqlXADataSource。')}
+              <NInput value={getXaDataSourceClassName(sinkTargetType, sinkOptions)} disabled={!exactlyOnce} onUpdateValue={(value) => { sinkOptions.xaDataSourceClassName = value }} />
+            </div>
+            <div class={styles.fieldBlock}>
+              {renderSinkFieldLabel('最大提交尝试次数')}
+              <NInput value={sinkOptions.maxCommitAttempts} disabled={!exactlyOnce} onUpdateValue={(value) => { sinkOptions.maxCommitAttempts = value }} />
+            </div>
+            <div class={styles.fieldBlock}>
+              {renderSinkFieldLabel('事务超时秒数')}
+              <NInput value={sinkOptions.transactionTimeoutSec} disabled={!exactlyOnce} onUpdateValue={(value) => { sinkOptions.transactionTimeoutSec = value }} />
+            </div>
+          </div>
+        )
+      }
+      return (
+        <div class={styles.sinkFormGrid}>
+          <div class={[styles.fieldBlock, styles.fieldBlockSpan2]}>
+            {renderSinkFieldLabel('连接属性（properties）', isOracle ? '按 key=value 每行填写，例如 oracle.jdbc.timezoneAsRegion=false。' : '按 key=value 每行填写，例如 rewriteBatchedStatements=true。')}
+            <NInput
+              type='textarea'
+              value={sinkOptions.jdbcProperties || getDefaultJdbcProperties(sinkTargetType)}
+              autosize={{ minRows: 5, maxRows: 10 }}
+              onUpdateValue={(value) => {
+                sinkOptions.jdbcProperties = value
+              }}
+            />
+          </div>
+        </div>
+      )
+    }
     const sinkContent = (
       <div class={styles.solutionPanel}>
         <div class={styles.solutionPanelHeader}>
           <div>
             <div class={styles.sectionTitle}>数据去向</div>
             <div class={styles.hintText}>
-              可选配置。SeaTunnel JDBC sink 使用 custom_sql 作为同步前 SQL。
+              根据目标端数据源类型配置 SeaTunnel Sink 参数；Doris 使用 Stream Load，MySQL/Oracle 使用 JDBC 体系。
             </div>
           </div>
-          <NTag bordered={false} type='warning'>可配置</NTag>
+          <NTag bordered={false} type='warning'>{sinkTargetType}</NTag>
         </div>
-        {this.state.sinkCustomSql.trim() ? (
-          <NAlert type='warning' showIcon={false}>
-            当前 sink 使用显式 query 写入字段列表；请确认 SeaTunnel JDBC sink 在该模式下会执行 custom_sql。
-          </NAlert>
-        ) : null}
-        <NInput
-          type='textarea'
-          value={this.state.sinkCustomSql}
-          placeholder='例如：truncate table ajxx_tab_sync;'
-          autosize={{ minRows: 6, maxRows: 12 }}
-          onUpdateValue={(value) => {
-            this.state.sinkCustomSql = value
-          }}
-        />
+        <div class={styles.sinkTabs}>
+          {sinkTabOptions.map((item) => (
+            <button
+              key={item.value}
+              type='button'
+              class={[
+                styles.sinkTab,
+                activeSinkTab === item.value ? styles.sinkTabActive : ''
+              ]}
+              onClick={() => {
+                sinkOptions.tab = item.value as SinkConfigTab
+              }}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+        <div class={styles.sinkTabPanel}>
+          {sinkTargetType === 'DORIS' ? renderDorisSinkConfig() : renderJdbcSinkConfig()}
+        </div>
+        <div class={styles.codeWrap}>
+          <pre class={styles.codeBlock}>{this.generatedConfig}</pre>
+        </div>
       </div>
     )
+    const sourceFieldOptions = this.state.fieldRows
+      .filter((item) => item.sync && item.sourceColumn)
+      .map((item) => ({
+        label: item.sourceColumn,
+        value: item.sourceColumn
+      }))
+    const targetFieldOptions = this.state.fieldRows
+      .filter((item) => item.sync && item.targetColumn)
+      .map((item) => ({
+        label: item.targetColumn,
+        value: item.targetColumn
+      }))
     const processingContent = (
       <div class={styles.solutionPanel}>
         <div class={styles.solutionPanelHeader}>
           <div>
             <div class={styles.sectionTitle}>数据处理</div>
             <div class={styles.hintText}>
-              后续用于字符串替换、AI 辅助处理、数据向量化等能力。
+              配置字段翻译、派生字段等 ETL 处理，规则会进入 SeaTunnel Transform SQL。
             </div>
           </div>
-          <NTag bordered={false} type='default'>暂未实现</NTag>
+          <NButton
+            size='small'
+            onClick={() => {
+              this.state.dataProcessingRules.push(createDataProcessingRule())
+            }}
+          >
+            新增规则
+          </NButton>
         </div>
-        <NAlert type='info' showIcon={false}>
-          数据处理暂未实现。本期只保留入口，不参与保存、执行或 SeaTunnel 配置生成。
-        </NAlert>
+        <div class={[styles.processingRuleList, 'df-processing-rule-list']}>
+          {this.state.dataProcessingRules.map((rule, ruleIndex) => (
+            <div class={[styles.processingRuleCard, 'df-processing-rule-card']} key={rule.key}>
+              <div class={styles.processingRuleHead}>
+                <NSpace align='center'>
+                  <NSwitch
+                    value={rule.enabled}
+                    onUpdateValue={(value) => {
+                      rule.enabled = value
+                    }}
+                  />
+                  <strong>字段值翻译</strong>
+                  <NTag bordered={false} type='info'>CASE WHEN</NTag>
+                </NSpace>
+                <NButton
+                  size='tiny'
+                  quaternary
+                  disabled={this.state.dataProcessingRules.length <= 1}
+                  onClick={() => {
+                    this.state.dataProcessingRules.splice(ruleIndex, 1)
+                  }}
+                >
+                  删除
+                </NButton>
+              </div>
+              <div class={styles.sinkFormGrid}>
+                <div class={styles.fieldBlock}>
+                  {renderSinkFieldLabel('源字段')}
+                  <NSelect
+                    filterable
+                    value={rule.sourceField}
+                    options={sourceFieldOptions}
+                    onUpdateValue={(value) => {
+                      rule.sourceField = String(value || '')
+                      if (!rule.targetField) rule.targetField = String(value || '')
+                    }}
+                  />
+                </div>
+                <div class={styles.fieldBlock}>
+                  {renderSinkFieldLabel('写入字段')}
+                  <NSelect
+                    filterable
+                    value={rule.targetField}
+                    options={targetFieldOptions}
+                    onUpdateValue={(value) => {
+                      rule.targetField = String(value || '')
+                    }}
+                  />
+                </div>
+                <div class={styles.fieldBlock}>
+                  {renderSinkFieldLabel('未命中时')}
+                  <NSelect
+                    value={rule.defaultMode}
+                    options={[
+                      { label: '保留源值', value: 'KEEP_SOURCE' },
+                      { label: '置为空字符串', value: 'EMPTY' }
+                    ]}
+                    onUpdateValue={(value) => {
+                      rule.defaultMode = value as DataProcessingRule['defaultMode']
+                    }}
+                  />
+                </div>
+              </div>
+              <div class={[styles.processingMappingList, 'df-processing-mapping-list']}>
+                {rule.mappings.map((mapping, mappingIndex) => (
+                  <div class={[styles.processingMappingRow, 'df-processing-mapping-row']} key={mapping.key}>
+                    <NInput
+                      value={mapping.sourceValue}
+                      placeholder='源字段值'
+                      onUpdateValue={(value) => {
+                        mapping.sourceValue = value
+                      }}
+                    />
+                    <span>翻译为</span>
+                    <NInput
+                      value={mapping.targetValue}
+                      placeholder='目标字段值'
+                      onUpdateValue={(value) => {
+                        mapping.targetValue = value
+                      }}
+                    />
+                    <NButton
+                      size='tiny'
+                      quaternary
+                      disabled={rule.mappings.length <= 1}
+                      onClick={() => {
+                        rule.mappings.splice(mappingIndex, 1)
+                      }}
+                    >
+                      删除
+                    </NButton>
+                  </div>
+                ))}
+              </div>
+              <NButton
+                size='small'
+                secondary
+                onClick={() => {
+                  rule.mappings.push(createDataProcessingMapping())
+                }}
+              >
+                添加翻译项
+              </NButton>
+            </div>
+          ))}
+        </div>
+        <div class={styles.codeWrap}>
+          <pre class={styles.codeBlock}>{this.generatedConfig}</pre>
+        </div>
       </div>
     )
     const solutionContent = {
@@ -6712,6 +8674,7 @@ const syncTask = defineComponent({
                     placeholder='根据源端和目标端自动生成，可编辑'
                     onUpdateValue={(value) => {
                       this.state.taskName = value
+                      this.state.taskNameTouched = true
                     }}
                   />
                 </div>
@@ -7286,18 +9249,22 @@ const syncTask = defineComponent({
           </NDrawerContent>
         </NDrawer>
 
-        <TimingModal
-          v-model:row={this.state.scheduleModalRow}
-          v-model:show={this.state.scheduleModalVisible}
-          v-model:type={this.state.scheduleModalType}
-          v-model:state={this.state.scheduleModalState}
-          projectCode={this.state.selectedProjectCode}
-          onUpdateList={async () => {
-            if (this.state.latestWorkflowCode) {
-              await this.loadScheduleMeta(this.state.latestWorkflowCode)
-            }
-          }}
-        />
+        {this.state.runNodeData ? (
+          <NodeDetailModal
+            key={`${this.state.runNodeData.taskType}-${this.state.runNodeModalKey}`}
+            show={this.state.runSettingsVisible}
+            data={this.state.runNodeData}
+            projectCode={this.state.selectedProjectCode || 0}
+            saving={this.state.runningWorkflow}
+            onCancel={() => {
+              this.state.runSettingsVisible = false
+            }}
+            onSubmit={this.handleConfirmRunWorkflow}
+          />
+        ) : null}
+
+        {renderScheduleModal()}
+
       </NSpace>
     )
   }

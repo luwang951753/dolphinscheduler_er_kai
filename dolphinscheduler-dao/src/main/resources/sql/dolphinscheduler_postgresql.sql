@@ -817,6 +817,32 @@ CREATE INDEX idx_data_governance_lineage_asset on t_ds_data_governance_lineage(a
 CREATE INDEX idx_data_governance_lineage_related on t_ds_data_governance_lineage(related_asset_id);
 
 --
+-- Table structure for table t_ds_dataflow_sync_instance_stat
+--
+
+DROP TABLE IF EXISTS t_ds_dataflow_sync_instance_stat;
+CREATE TABLE t_ds_dataflow_sync_instance_stat (
+  id int NOT NULL,
+  project_code bigint NOT NULL,
+  workflow_definition_code bigint NOT NULL,
+  workflow_instance_id int NOT NULL,
+  task_instance_id int DEFAULT NULL,
+  read_rows bigint DEFAULT NULL,
+  write_rows bigint DEFAULT NULL,
+  failed_rows bigint DEFAULT NULL,
+  duration_seconds int DEFAULT NULL,
+  run_status varchar(64) DEFAULT NULL,
+  stat_source varchar(64) DEFAULT NULL,
+  payload_json text DEFAULT NULL,
+  create_time timestamp DEFAULT NULL,
+  update_time timestamp DEFAULT NULL,
+  PRIMARY KEY (id)
+);
+CREATE UNIQUE INDEX uk_dataflow_sync_instance on t_ds_dataflow_sync_instance_stat(project_code, workflow_definition_code, workflow_instance_id);
+CREATE INDEX idx_dataflow_sync_workflow on t_ds_dataflow_sync_instance_stat(project_code, workflow_definition_code);
+CREATE INDEX idx_dataflow_sync_task_instance on t_ds_dataflow_sync_instance_stat(task_instance_id);
+
+--
 -- Table structure for table t_ds_relation_workflow_instance
 --
 
@@ -1175,6 +1201,9 @@ ALTER TABLE t_ds_data_governance_issue ALTER COLUMN id SET DEFAULT NEXTVAL('t_ds
 DROP SEQUENCE IF EXISTS t_ds_data_governance_lineage_id_sequence;
 CREATE SEQUENCE  t_ds_data_governance_lineage_id_sequence;
 ALTER TABLE t_ds_data_governance_lineage ALTER COLUMN id SET DEFAULT NEXTVAL('t_ds_data_governance_lineage_id_sequence');
+DROP SEQUENCE IF EXISTS t_ds_dataflow_sync_instance_stat_id_sequence;
+CREATE SEQUENCE  t_ds_dataflow_sync_instance_stat_id_sequence;
+ALTER TABLE t_ds_dataflow_sync_instance_stat ALTER COLUMN id SET DEFAULT NEXTVAL('t_ds_dataflow_sync_instance_stat_id_sequence');
 DROP SEQUENCE IF EXISTS t_ds_relation_workflow_instance_id_sequence;
 CREATE SEQUENCE  t_ds_relation_workflow_instance_id_sequence;
 ALTER TABLE t_ds_relation_workflow_instance ALTER COLUMN id SET DEFAULT NEXTVAL('t_ds_relation_workflow_instance_id_sequence');

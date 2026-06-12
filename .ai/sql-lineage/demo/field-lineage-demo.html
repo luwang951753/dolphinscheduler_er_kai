@@ -1,0 +1,419 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SQL 字段级血缘 Demo</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: #f4f6fa;
+      color: #1f2937;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    .page {
+      display: grid;
+      grid-template-rows: auto 1fr;
+      min-height: 100vh;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 16px 20px;
+      border-bottom: 1px solid #dce4ef;
+      background: #fff;
+    }
+
+    .title {
+      margin: 0;
+      font-size: 20px;
+      line-height: 28px;
+    }
+
+    .subtitle {
+      margin-top: 4px;
+      color: #667085;
+      font-size: 13px;
+    }
+
+    .actions {
+      display: flex;
+      gap: 8px;
+      white-space: nowrap;
+    }
+
+    button {
+      height: 34px;
+      padding: 0 14px;
+      border: 1px solid #cfd8e6;
+      border-radius: 6px;
+      background: #fff;
+      color: #344054;
+      cursor: pointer;
+      font-size: 13px;
+    }
+
+    button.primary,
+    button.active {
+      border-color: #1769e0;
+      background: #1769e0;
+      color: #fff;
+    }
+
+    .workspace {
+      display: grid;
+      grid-template-columns: minmax(360px, 0.82fr) minmax(680px, 1.42fr);
+      gap: 14px;
+      min-height: 0;
+      padding: 14px;
+    }
+
+    .panel {
+      display: grid;
+      grid-template-rows: auto 1fr;
+      min-height: 0;
+      overflow: hidden;
+      border: 1px solid #dce4ef;
+      border-radius: 8px;
+      background: #fff;
+    }
+
+    .panel-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      min-height: 48px;
+      gap: 10px;
+      padding: 0 14px;
+      border-bottom: 1px solid #e5eaf3;
+      font-weight: 700;
+    }
+
+    .editor {
+      width: 100%;
+      height: 100%;
+      min-height: 560px;
+      padding: 16px;
+      border: 0;
+      outline: none;
+      resize: none;
+      color: #d1e3ff;
+      background: #101828;
+      font: 13px/1.65 Menlo, Monaco, Consolas, monospace;
+    }
+
+    .graph {
+      position: relative;
+      min-height: 600px;
+      overflow: auto;
+      background:
+        linear-gradient(#f0f3f8 1px, transparent 1px),
+        linear-gradient(90deg, #f0f3f8 1px, transparent 1px);
+      background-size: 24px 24px;
+    }
+
+    .graph-inner {
+      position: relative;
+      width: 1040px;
+      height: 620px;
+    }
+
+    svg {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+
+    .edge {
+      fill: none;
+      stroke: #98a2b3;
+      stroke-width: 1.8;
+      opacity: 0.8;
+    }
+
+    .edge.dim {
+      opacity: 0.16;
+    }
+
+    .edge.active {
+      stroke: #1769e0;
+      stroke-width: 3.2;
+      opacity: 1;
+    }
+
+    .node {
+      position: absolute;
+      width: 278px;
+      overflow: hidden;
+      border: 1px solid #cdd8ea;
+      border-radius: 8px;
+      background: #fff;
+      box-shadow: 0 12px 24px rgba(17, 24, 39, 0.08);
+    }
+
+    .node.target {
+      border-color: #85b8ff;
+    }
+
+    .node-head {
+      padding: 10px 12px;
+      border-bottom: 1px solid #e5eaf3;
+      background: #f8fbff;
+    }
+
+    .node-name {
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    .node-schema {
+      margin-top: 2px;
+      color: #667085;
+      font-size: 12px;
+    }
+
+    .columns {
+      display: grid;
+      gap: 2px;
+      padding: 8px;
+    }
+
+    .column {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      min-height: 30px;
+      gap: 8px;
+      padding: 4px 8px;
+      border-radius: 6px;
+      color: #344054;
+      font-size: 12px;
+      cursor: pointer;
+    }
+
+    .column:hover,
+    .column.active {
+      background: #eaf2ff;
+      color: #1769e0;
+      font-weight: 800;
+    }
+
+    .column.dim {
+      color: #b0b7c3;
+    }
+
+    .type {
+      color: #98a2b3;
+      font-size: 11px;
+      font-weight: 500;
+    }
+
+    .summary {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: #667085;
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    .tips {
+      padding: 10px 14px;
+      border-top: 1px solid #e5eaf3;
+      background: #fffaf0;
+      color: #8a4b00;
+      font-size: 12px;
+    }
+
+    @media (max-width: 1060px) {
+      .workspace {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header class="topbar">
+      <div>
+        <h1 class="title">在线 SQL 数据血缘解析 - 字段级血缘 Demo</h1>
+        <div class="subtitle">点击字段可以高亮上下游链路，模拟 Dolphin 二开页面的字段级血缘交互。</div>
+      </div>
+      <div class="actions">
+        <button id="tableBtn">表级</button>
+        <button class="active" id="fieldBtn">字段级</button>
+        <button class="primary" id="parseBtn">解析</button>
+      </div>
+    </header>
+
+    <main class="workspace">
+      <section class="panel">
+        <div class="panel-head">SQL 编辑器</div>
+        <textarea class="editor" id="sqlEditor"></textarea>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <span>血缘图</span>
+          <span class="summary" id="summary">点击解析</span>
+        </div>
+        <div class="graph">
+          <div class="graph-inner" id="graph"></div>
+        </div>
+        <div class="tips">提示：点击 card_id、suspect_id、amount 或 total_amount，可以查看字段来源链路。</div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    const sql = `INSERT INTO money_laundering.money_laundering_feature (
+  card_id,
+  suspect_id,
+  total_amount
+)
+SELECT
+  bc.card_id,
+  s.suspect_id,
+  SUM(tx.amount) AS total_amount
+FROM money_laundering.bank_card bc
+JOIN money_laundering.suspect s
+  ON bc.owner_id = s.suspect_id
+JOIN money_laundering.transaction_detail tx
+  ON bc.card_id = tx.card_id
+GROUP BY bc.card_id, s.suspect_id;`;
+
+    const data = {
+      tables: [
+        { id: 'money_laundering.bank_card', x: 54, y: 42, name: 'bank_card', schema: 'money_laundering', columns: [{ name: 'card_id', type: 'String' }, { name: 'owner_id', type: 'String' }] },
+        { id: 'money_laundering.suspect', x: 54, y: 226, name: 'suspect', schema: 'money_laundering', columns: [{ name: 'suspect_id', type: 'String' }, { name: 'name', type: 'String' }] },
+        { id: 'money_laundering.transaction_detail', x: 54, y: 410, name: 'transaction_detail', schema: 'money_laundering', columns: [{ name: 'card_id', type: 'String' }, { name: 'amount', type: 'Decimal' }] },
+        { id: 'money_laundering.money_laundering_feature', x: 700, y: 208, name: 'money_laundering_feature', schema: 'money_laundering', columns: [{ name: 'card_id', type: 'String' }, { name: 'suspect_id', type: 'String' }, { name: 'total_amount', type: 'Decimal' }] }
+      ],
+      edges: [
+        { sourceTable: 'money_laundering.bank_card', sourceColumn: 'card_id', targetTable: 'money_laundering.money_laundering_feature', targetColumn: 'card_id', lineageType: 'FIELD' },
+        { sourceTable: 'money_laundering.suspect', sourceColumn: 'suspect_id', targetTable: 'money_laundering.money_laundering_feature', targetColumn: 'suspect_id', lineageType: 'FIELD' },
+        { sourceTable: 'money_laundering.transaction_detail', sourceColumn: 'amount', targetTable: 'money_laundering.money_laundering_feature', targetColumn: 'total_amount', lineageType: 'FIELD' }
+      ]
+    };
+
+    const editor = document.getElementById('sqlEditor');
+    const graph = document.getElementById('graph');
+    const summary = document.getElementById('summary');
+    editor.value = sql;
+    let mode = 'FIELD';
+    let activeKey = '';
+
+    function render() {
+      graph.innerHTML = '<svg id="lines"></svg>';
+      const svg = document.getElementById('lines');
+      const edges = mode === 'FIELD'
+        ? data.edges
+        : data.tables.filter((table) => table.id !== 'money_laundering.money_laundering_feature').map((table) => ({
+          sourceTable: table.id,
+          targetTable: 'money_laundering.money_laundering_feature'
+        }));
+
+      edges.forEach((edge, index) => {
+        svg.innerHTML += renderEdge(edge, index);
+      });
+
+      data.tables.forEach((table) => graph.appendChild(renderNode(table)));
+      summary.textContent = mode === 'FIELD'
+        ? `${data.tables.length} 张表 / ${data.edges.length} 条字段血缘`
+        : `${data.tables.length} 张表 / 3 条表级血缘`;
+    }
+
+    function renderNode(table) {
+      const node = document.createElement('div');
+      const target = table.id.includes('money_laundering_feature');
+      node.className = `node ${target ? 'target' : ''}`;
+      node.style.left = `${table.x}px`;
+      node.style.top = `${table.y}px`;
+      const columns = table.columns.map((column) => {
+        const key = `${table.id}.${column.name}`;
+        const related = !activeKey || relatedTo(key);
+        return `
+          <div class="column ${activeKey === key ? 'active' : ''} ${related ? '' : 'dim'}" data-key="${key}">
+            <span>${column.name}</span>
+            <span class="type">${column.type}</span>
+          </div>
+        `;
+      }).join('');
+      node.innerHTML = `
+        <div class="node-head">
+          <div class="node-name">${table.name}</div>
+          <div class="node-schema">${table.schema}</div>
+        </div>
+        <div class="columns">${columns}</div>
+      `;
+      node.querySelectorAll('.column').forEach((column) => {
+        column.addEventListener('click', () => {
+          activeKey = activeKey === column.dataset.key ? '' : column.dataset.key;
+          render();
+        });
+      });
+      return node;
+    }
+
+    function renderEdge(edge, index) {
+      const source = tableById(edge.sourceTable);
+      const target = tableById(edge.targetTable);
+      const active = isEdgeActive(edge);
+      const dim = activeKey && !active;
+      const sourceY = mode === 'FIELD' ? columnY(source, edge.sourceColumn) : source.y + 70;
+      const targetY = mode === 'FIELD' ? columnY(target, edge.targetColumn) : target.y + 86;
+      const x1 = source.x + 278;
+      const x2 = target.x;
+      return `<path class="edge ${active ? 'active' : ''} ${dim ? 'dim' : ''}" d="M ${x1} ${sourceY} C ${x1 + 120} ${sourceY}, ${x2 - 120} ${targetY}, ${x2} ${targetY}" />`;
+    }
+
+    function tableById(id) {
+      return data.tables.find((table) => table.id === id);
+    }
+
+    function columnY(table, columnName) {
+      const index = Math.max(0, table.columns.findIndex((column) => column.name === columnName));
+      return table.y + 62 + index * 32 + 15;
+    }
+
+    function relatedTo(key) {
+      return data.edges.some((edge) => {
+        const source = `${edge.sourceTable}.${edge.sourceColumn}`;
+        const target = `${edge.targetTable}.${edge.targetColumn}`;
+        return (source === activeKey || target === activeKey) && (source === key || target === key);
+      });
+    }
+
+    function isEdgeActive(edge) {
+      if (!activeKey) return false;
+      return [`${edge.sourceTable}.${edge.sourceColumn}`, `${edge.targetTable}.${edge.targetColumn}`].includes(activeKey);
+    }
+
+    document.getElementById('parseBtn').addEventListener('click', render);
+    document.getElementById('tableBtn').addEventListener('click', () => {
+      mode = 'TABLE';
+      activeKey = '';
+      document.getElementById('tableBtn').classList.add('active');
+      document.getElementById('fieldBtn').classList.remove('active');
+      render();
+    });
+    document.getElementById('fieldBtn').addEventListener('click', () => {
+      mode = 'FIELD';
+      activeKey = '';
+      document.getElementById('fieldBtn').classList.add('active');
+      document.getElementById('tableBtn').classList.remove('active');
+      render();
+    });
+  </script>
+</body>
+</html>

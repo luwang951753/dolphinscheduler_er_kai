@@ -69,6 +69,10 @@ const props = {
   state: {
     type: String as PropType<String>,
     default: 'OFFLINE'
+  },
+  projectCode: {
+    type: Number as PropType<number | null>,
+    default: null
   }
 }
 
@@ -83,6 +87,14 @@ export default defineComponent({
     const router: Router = useRouter()
 
     const { timingState } = useForm()
+    const projectCode = computed(() => {
+      const propProjectCode = Number(props.projectCode)
+      if (Number.isFinite(propProjectCode) && propProjectCode > 0) {
+        return propProjectCode
+      }
+      return Number(router.currentRoute.value.params.projectCode)
+    })
+
     const {
       variables,
       handleCreateTiming,
@@ -92,9 +104,7 @@ export default defineComponent({
       getAlertGroups,
       getEnvironmentList,
       getPreviewSchedule
-    } = useModal(timingState, ctx)
-
-    const projectCode = Number(router.currentRoute.value.params.projectCode)
+    } = useModal(timingState, ctx, projectCode)
 
     const environmentOptions = computed(() =>
       variables.environmentList.filter((item: any) =>
@@ -278,7 +288,14 @@ export default defineComponent({
       getTenantList()
       getAlertGroups()
       getEnvironmentList()
-      initProjectPreferences(projectCode)
+      initProjectPreferences(projectCode.value)
+    })
+
+    watch(projectCode, (value) => {
+      if (value) {
+        initProjectPreferences(value)
+        getWorkerGroups()
+      }
     })
 
     watch(

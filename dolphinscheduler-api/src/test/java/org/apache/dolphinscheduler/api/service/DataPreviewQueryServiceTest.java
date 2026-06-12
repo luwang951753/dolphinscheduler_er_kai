@@ -23,7 +23,13 @@ import org.apache.dolphinscheduler.spi.enums.DbType;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
+import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
+import java.sql.Statement;
 import java.sql.Timestamp;
+import java.util.ArrayList;
 import java.util.List;
 
 import org.junit.jupiter.api.Assertions;
@@ -56,8 +62,8 @@ public class DataPreviewQueryServiceTest {
 
     @Test
     public void normalizePreviewReadonlySqlRejectsForbiddenKeywordOutsideStringLiteral() {
-        ServiceException exception = Assertions.assertThrows(ServiceException.class, () ->
-                invoke("normalizePreviewReadonlySql",
+        ServiceException exception = Assertions.assertThrows(ServiceException.class,
+                () -> invoke("normalizePreviewReadonlySql",
                         new Class[]{String.class},
                         "select id from t; drop table t"));
 
@@ -73,6 +79,46 @@ public class DataPreviewQueryServiceTest {
                 50);
 
         Assertions.assertEquals("select 'limit 1' as text LIMIT 50", sql);
+    }
+
+    @Test
+    public void appendReadonlySqlLimitSupportsDoris() throws Exception {
+        String sql = (String) invoke("appendReadonlySqlLimit",
+                new Class[]{DbType.class, String.class, int.class},
+                DbType.DORIS,
+                "select case_id, case_type from ods.ajxx_tab",
+                50);
+
+        Assertions.assertEquals("select case_id, case_type from ods.ajxx_tab LIMIT 50", sql);
+    }
+
+    @Test
+    public void containsReadonlySqlResultLimitHonorsUserMysqlLimit() throws Exception {
+        Boolean userLimited = (Boolean) invoke("containsReadonlySqlResultLimit",
+                new Class[]{DbType.class, String.class},
+                DbType.MYSQL,
+                "select * from case_workbench.ajxx_tab limit 1000");
+
+        Assertions.assertTrue(userLimited);
+    }
+
+    @Test
+    public void supportedPreviewDatasourceTypesIncludeDoris() throws Exception {
+        Boolean supported = (Boolean) invoke("isSupportedPreviewDataSourceType",
+                new Class[]{DbType.class},
+                DbType.DORIS);
+
+        Assertions.assertTrue(supported);
+    }
+
+    @Test
+    public void quoteIdentifierUsesBackticksForDoris() throws Exception {
+        String quoted = (String) invoke("quoteIdentifier",
+                new Class[]{DbType.class, String.class},
+                DbType.DORIS,
+                "ajxx_tab");
+
+        Assertions.assertEquals("`ajxx_tab`", quoted);
     }
 
     @Test
@@ -95,6 +141,22 @@ public class DataPreviewQueryServiceTest {
                 50);
 
         Assertions.assertEquals("select ID from POLICE_APP.ALARM_EVENT where rownum <= 10", sql);
+    }
+
+    @Test
+    public void executeOracleExplainPlanUsesExplainPlanForSyntax() throws Exception {
+        List<String> executedSql = new ArrayList<>();
+        Connection connection = connectionCapturingSql(executedSql);
+
+        invoke("executeOracleExplainPlan",
+                new Class[]{Connection.class, String.class, int.class, int.class},
+                connection,
+                "select ID, NAME from POLICE_APP.ALARM_EVENT",
+                30,
+                50);
+
+        Assertions.assertEquals("EXPLAIN PLAN FOR select ID, NAME from POLICE_APP.ALARM_EVENT", executedSql.get(0));
+        Assertions.assertEquals("SELECT PLAN_TABLE_OUTPUT FROM TABLE(DBMS_XPLAN.DISPLAY())", executedSql.get(1));
     }
 
     @Test
@@ -149,6 +211,90 @@ public class DataPreviewQueryServiceTest {
         public String toString() {
             return value;
         }
+    }
+
+    private Connection connectionCapturingSql(List<String> executedSql) {
+        return (Connection) Proxy.newProxyInstance(
+                getClass().getClassLoader(),
+                new Class[]{Connection.class},
+                (proxy, method, args) -> {
+                    if ("createStatement".equals(method.getName())) {
+                        return statementCapturingSql(executedSql);
+                    }
+                    return defaultValue(method.getReturnType());
+                });
+    }
+
+    private Statement statementCapturingSql(List<String> executedSql) {
+        return (Statement) Proxy.newProxyInstance(
+                getClass().getClassLoader(),
+                new Class[]{Statement.class},
+                (proxy, method, args) -> {
+                    if ("execute".equals(method.getName()) && args != null && args.length > 0) {
+                        executedSql.add((String) args[0]);
+                        return true;
+                    }
+                    if ("executeQuery".equals(method.getName()) && args != null && args.length > 0) {
+                        executedSql.add((String) args[0]);
+                        return emptyResultSet();
+                    }
+                    return defaultValue(method.getReturnType());
+                });
+    }
+
+    private ResultSet emptyResultSet() {
+        return (ResultSet) Proxy.newProxyInstance(
+                getClass().getClassLoader(),
+                new Class[]{ResultSet.class},
+                (proxy, method, args) -> {
+                    if ("getMetaData".equals(method.getName())) {
+                        return emptyResultSetMetaData();
+                    }
+                    if ("next".equals(method.getName())) {
+                        return false;
+                    }
+                    return defaultValue(method.getReturnType());
+                });
+    }
+
+    private ResultSetMetaData emptyResultSetMetaData() {
+        return (ResultSetMetaData) Proxy.newProxyInstance(
+                getClass().getClassLoader(),
+                new Class[]{ResultSetMetaData.class},
+                (proxy, method, args) -> {
+                    if ("getColumnCount".equals(method.getName())) {
+                        return 0;
+                    }
+                    return defaultValue(method.getReturnType());
+                });
+    }
+
+    private Object defaultValue(Class<?> returnType) {
+        if (returnType == Void.TYPE) {
+            return null;
+        }
+        if (returnType == Boolean.TYPE) {
+            return false;
+        }
+        if (returnType == Integer.TYPE) {
+            return 0;
+        }
+        if (returnType == Long.TYPE) {
+            return 0L;
+        }
+        if (returnType == Short.TYPE) {
+            return (short) 0;
+        }
+        if (returnType == Byte.TYPE) {
+            return (byte) 0;
+        }
+        if (returnType == Float.TYPE) {
+            return 0F;
+        }
+        if (returnType == Double.TYPE) {
+            return 0D;
+        }
+        return null;
     }
 
     private Object invoke(String methodName, Class<?>[] parameterTypes, Object... args) throws Exception {

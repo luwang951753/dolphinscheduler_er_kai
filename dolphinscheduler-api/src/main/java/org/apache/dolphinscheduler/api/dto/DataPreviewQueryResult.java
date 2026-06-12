@@ -32,6 +32,8 @@ public class DataPreviewQueryResult {
 
     private Integer rowCount;
 
+    private Integer totalCount;
+
     private Long elapsedMs;
 
     private String executedAt;
@@ -76,6 +78,14 @@ public class DataPreviewQueryResult {
 
     public void setRowCount(Integer rowCount) {
         this.rowCount = rowCount;
+    }
+
+    public Integer getTotalCount() {
+        return totalCount;
+    }
+
+    public void setTotalCount(Integer totalCount) {
+        this.totalCount = totalCount;
     }
 
     public Long getElapsedMs() {

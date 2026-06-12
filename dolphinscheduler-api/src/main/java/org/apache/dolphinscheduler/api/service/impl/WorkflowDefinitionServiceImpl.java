@@ -54,6 +54,7 @@ import org.apache.dolphinscheduler.api.service.TaskDefinitionService;
 import org.apache.dolphinscheduler.api.service.WorkflowDefinitionService;
 import org.apache.dolphinscheduler.api.service.WorkflowInstanceService;
 import org.apache.dolphinscheduler.api.service.WorkflowLineageService;
+import org.apache.dolphinscheduler.api.service.WorkflowSqlLineageService;
 import org.apache.dolphinscheduler.api.utils.CheckUtils;
 import org.apache.dolphinscheduler.api.utils.PageInfo;
 import org.apache.dolphinscheduler.api.utils.Result;
@@ -69,8 +70,8 @@ import org.apache.dolphinscheduler.common.utils.CodeGenerateUtils;
 import org.apache.dolphinscheduler.common.utils.DateUtils;
 import org.apache.dolphinscheduler.common.utils.JSONUtils;
 import org.apache.dolphinscheduler.dao.entity.DagData;
-import org.apache.dolphinscheduler.dao.entity.DependentSimplifyDefinition;
 import org.apache.dolphinscheduler.dao.entity.DataSource;
+import org.apache.dolphinscheduler.dao.entity.DependentSimplifyDefinition;
 import org.apache.dolphinscheduler.dao.entity.Project;
 import org.apache.dolphinscheduler.dao.entity.Schedule;
 import org.apache.dolphinscheduler.dao.entity.TaskDefinition;
@@ -99,14 +100,14 @@ import org.apache.dolphinscheduler.dao.model.PageListingResult;
 import org.apache.dolphinscheduler.dao.repository.TaskDefinitionLogDao;
 import org.apache.dolphinscheduler.dao.repository.WorkflowDefinitionDao;
 import org.apache.dolphinscheduler.dao.repository.WorkflowDefinitionLogDao;
+import org.apache.dolphinscheduler.plugin.datasource.api.utils.DataSourceUtils;
+import org.apache.dolphinscheduler.plugin.datasource.api.utils.PasswordUtils;
 import org.apache.dolphinscheduler.plugin.task.api.model.DependentItem;
 import org.apache.dolphinscheduler.plugin.task.api.model.DependentTaskModel;
 import org.apache.dolphinscheduler.plugin.task.api.model.Property;
 import org.apache.dolphinscheduler.plugin.task.api.parameters.DependentParameters;
 import org.apache.dolphinscheduler.plugin.task.api.parameters.SwitchParameters;
 import org.apache.dolphinscheduler.plugin.task.api.utils.TaskTypeUtils;
-import org.apache.dolphinscheduler.plugin.datasource.api.utils.DataSourceUtils;
-import org.apache.dolphinscheduler.plugin.datasource.api.utils.PasswordUtils;
 import org.apache.dolphinscheduler.service.model.TaskNode;
 import org.apache.dolphinscheduler.service.process.ProcessService;
 import org.apache.dolphinscheduler.spi.datasource.BaseConnectionParam;
@@ -227,6 +228,9 @@ public class WorkflowDefinitionServiceImpl extends BaseServiceImpl implements Wo
 
     @Autowired
     private WorkflowLineageService workflowLineageService;
+
+    @Autowired
+    private WorkflowSqlLineageService workflowSqlLineageService;
 
     @Autowired
     private MetricsCleanUpService metricsCleanUpService;
@@ -385,6 +389,8 @@ public class WorkflowDefinitionServiceImpl extends BaseServiceImpl implements Wo
 
         saveWorkflowLineage(workflowDefinition.getProjectCode(), workflowDefinition.getCode(),
                 insertVersion, taskDefinitionLogs);
+        workflowSqlLineageService.registerWorkflowSqlLineage(workflowDefinition.getCode(), insertVersion,
+                workflowDefinition.getName(), taskDefinitionLogs);
 
         putMsg(result, Status.SUCCESS);
         result.put(Constants.DATA_LIST, workflowDefinition);
@@ -1055,6 +1061,8 @@ public class WorkflowDefinitionServiceImpl extends BaseServiceImpl implements Wo
 
             saveWorkflowLineage(workflowDefinition.getProjectCode(), workflowDefinition.getCode(),
                     insertVersion, taskDefinitionLogs);
+            workflowSqlLineageService.registerWorkflowSqlLineage(workflowDefinition.getCode(), insertVersion,
+                    workflowDefinition.getName(), taskDefinitionLogs);
         } else {
             log.info(
                     "workflow definition does not need to be updated because there is no change, projectCode:{}, workflowDefinitionCode:{}, workflowDefinitionVersion:{}.",

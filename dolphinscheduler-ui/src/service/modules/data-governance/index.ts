@@ -19,8 +19,11 @@ import { axios } from '@/service/service'
 import type {
   IGovernanceMetadataRequest,
   IGovernanceQualityRule,
+  ISqlLineageParseRequest,
   IGovernanceSyncTaskLineageRequest,
-  IGovernanceTrialRunRequest
+  IGovernanceTrialRunRequest,
+  IDataFlowSyncStatQueryRequest,
+  IDataFlowSyncStatUpsertRequest
 } from './types'
 
 export function queryGovernanceAssets(params: {
@@ -159,4 +162,48 @@ export function updateGovernanceIssueStatus(
     },
     transformRequest: (params) => JSON.stringify(params)
   })
+}
+
+export function parseSqlLineage(data: ISqlLineageParseRequest): any {
+  return axios({
+    url: '/data-governance/sql-lineage/parse',
+    method: 'post',
+    suppressErrorMessage: true,
+    timeout: 8000,
+    data,
+    headers: {
+      'Content-Type': 'application/json;charset=UTF-8'
+    },
+    transformRequest: (params: any) => JSON.stringify(params)
+  } as any)
+}
+
+export function queryDataFlowSyncInstanceStats(
+  data: IDataFlowSyncStatQueryRequest
+): any {
+  return axios({
+    url: '/dataflow/sync-instance-stats/query',
+    method: 'post',
+    suppressErrorMessage: true,
+    data,
+    headers: {
+      'Content-Type': 'application/json;charset=UTF-8'
+    },
+    transformRequest: (params: any) => JSON.stringify(params)
+  } as any)
+}
+
+export function upsertDataFlowSyncInstanceStat(
+  data: IDataFlowSyncStatUpsertRequest
+): any {
+  return axios({
+    url: '/dataflow/sync-instance-stats/upsert',
+    method: 'post',
+    suppressErrorMessage: true,
+    data,
+    headers: {
+      'Content-Type': 'application/json;charset=UTF-8'
+    },
+    transformRequest: (params: any) => JSON.stringify(params)
+  } as any)
 }

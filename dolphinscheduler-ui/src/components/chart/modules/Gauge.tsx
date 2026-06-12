@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-import { defineComponent, onMounted, onBeforeUnmount, PropType, ref } from 'vue'
+import { defineComponent, PropType, ref } from 'vue'
 import initChart from '@/components/chart'
 import type { Ref } from 'vue'
 
@@ -115,14 +115,6 @@ const GaugeChart = defineComponent({
     }
 
     initChart(gaugeChartRef, option, resize)
-
-    onMounted(() => {
-      addEventListener('resize', resize)
-    })
-
-    onBeforeUnmount(() => {
-      removeEventListener('resize', resize)
-    })
 
     return { gaugeChartRef }
   },

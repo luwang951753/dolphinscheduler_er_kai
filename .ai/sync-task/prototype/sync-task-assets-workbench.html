@@ -548,6 +548,281 @@
       margin-bottom: 12px;
     }
 
+    .run-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 50;
+      display: none;
+    }
+
+    .run-modal.open {
+      display: block;
+    }
+
+    .run-modal-mask {
+      position: absolute;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.48);
+    }
+
+    .run-modal-panel {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: min(860px, calc(100vw - 40px));
+      max-height: calc(100vh - 56px);
+      transform: translate(-50%, -50%);
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr) auto;
+      border-radius: 8px;
+      background: #fff;
+      box-shadow: 0 24px 70px rgba(15, 23, 42, 0.22);
+      overflow: hidden;
+    }
+
+    .run-modal-head {
+      padding: 18px 22px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .run-modal-title {
+      font-size: 20px;
+      font-weight: 800;
+      color: #1f2937;
+    }
+
+    .run-modal-body {
+      padding: 20px 22px;
+      overflow: auto;
+      display: grid;
+      gap: 18px;
+    }
+
+    .run-form-grid {
+      display: grid;
+      gap: 18px;
+    }
+
+    .run-two-col {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 18px;
+    }
+
+    .run-three-col {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 18px;
+    }
+
+    .run-field {
+      display: grid;
+      gap: 8px;
+    }
+
+    .run-label {
+      font-size: 14px;
+      font-weight: 700;
+      color: #344054;
+    }
+
+    .run-required {
+      color: #d92d20;
+      margin-left: 4px;
+    }
+
+    .run-select,
+    .run-input,
+    .run-textarea {
+      width: 100%;
+      border: 1px solid #d0d5dd;
+      border-radius: 6px;
+      background: #fff;
+      color: #344054;
+      font: inherit;
+    }
+
+    .run-select,
+    .run-input {
+      height: 42px;
+      padding: 0 12px;
+    }
+
+    .run-textarea {
+      min-height: 104px;
+      padding: 10px 12px;
+      resize: vertical;
+      line-height: 1.55;
+    }
+
+    .run-radio-row {
+      display: flex;
+      gap: 28px;
+      align-items: center;
+    }
+
+    .run-stepper {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 34px 34px;
+      border: 1px solid #d0d5dd;
+      border-radius: 6px;
+      overflow: hidden;
+      background: #fff;
+    }
+
+    .run-stepper input {
+      height: 40px;
+      border: 0;
+      padding: 0 12px;
+      font: inherit;
+      min-width: 0;
+    }
+
+    .run-stepper span,
+    .run-stepper button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 34px;
+      border: 0;
+      border-left: 1px solid #d0d5dd;
+      background: #fff;
+      color: #667085;
+      font: inherit;
+    }
+
+    .run-stepper button {
+      cursor: pointer;
+    }
+
+    .run-inline-unit {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 42px 34px 34px;
+      border: 1px solid #d0d5dd;
+      border-radius: 6px;
+      overflow: hidden;
+      background: #fff;
+    }
+
+    .run-inline-unit input {
+      height: 40px;
+      border: 0;
+      padding: 0 12px;
+      font: inherit;
+      min-width: 0;
+    }
+
+    .run-inline-unit span,
+    .run-inline-unit button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border: 0;
+      border-left: 1px solid #d0d5dd;
+      background: #fff;
+      color: #667085;
+      font: inherit;
+    }
+
+    .run-inline-unit button {
+      cursor: pointer;
+    }
+
+    .run-hidden {
+      display: none !important;
+    }
+
+    .run-radio {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: #344054;
+      font-size: 15px;
+    }
+
+    .run-switch-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .run-switch {
+      position: relative;
+      width: 48px;
+      height: 26px;
+      border: 0;
+      border-radius: 999px;
+      background: #d0d5dd;
+      cursor: pointer;
+    }
+
+    .run-switch::after {
+      content: '';
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: #fff;
+      box-shadow: 0 1px 3px rgba(15, 23, 42, 0.22);
+      transition: transform 0.16s ease;
+    }
+
+    .run-switch.on {
+      background: #1677ff;
+    }
+
+    .run-switch.on::after {
+      transform: translateX(22px);
+    }
+
+    .run-code {
+      min-height: 320px;
+      margin: 0;
+      padding: 0;
+      border: 1px solid #d0d5dd;
+      border-radius: 6px;
+      background: #fbfcff;
+      overflow: hidden;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 13px;
+      line-height: 1.6;
+      color: #344054;
+      display: grid;
+      grid-template-columns: 48px minmax(0, 1fr);
+    }
+
+    .run-code-lines {
+      padding: 10px 0;
+      background: #f2f4f7;
+      color: #667085;
+      text-align: right;
+      user-select: none;
+    }
+
+    .run-code-lines span,
+    .run-code-content span {
+      display: block;
+      min-height: 20px;
+      padding: 0 10px;
+      white-space: pre;
+    }
+
+    .run-code-content {
+      padding: 10px 0;
+      overflow: auto;
+    }
+
+    .run-modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      padding: 14px 22px;
+      border-top: 1px solid var(--line);
+      background: #fbfcfe;
+    }
+
     .timeline {
       display: grid;
       gap: 10px;
@@ -1657,7 +1932,7 @@
               <button class="btn" id="backToListBtn">返回列表</button>
               <button class="btn">保存草稿</button>
               <button class="btn primary">保存并发布</button>
-              <button class="btn primary">保存并执行</button>
+              <button class="btn primary" id="saveAndRunBtn">保存并执行</button>
             </div>
           </div>
         </div>
@@ -1686,6 +1961,189 @@
       </div>
       <div class="tabs" id="tabs"></div>
       <div class="drawer-body" id="detailBody"></div>
+    </div>
+  </div>
+
+  <div class="run-modal" id="runConfirmModal">
+    <div class="run-modal-mask" id="runConfirmMask"></div>
+    <div class="run-modal-panel">
+      <div class="run-modal-head">
+        <div class="run-modal-title">当前节点设置</div>
+      </div>
+      <div class="run-modal-body">
+        <div class="run-form-grid">
+          <div class="run-field">
+            <label class="run-label">节点名称<span class="run-required">*</span></label>
+            <input class="run-input" id="runNodeName" value="DF_SYNC_TASK" />
+          </div>
+          <div class="run-field">
+            <label class="run-label">运行标志</label>
+            <div class="run-radio-row">
+              <label class="run-radio"><input type="radio" name="runFlag" value="YES" checked />正常</label>
+              <label class="run-radio"><input type="radio" name="runFlag" value="NO" />禁止执行</label>
+            </div>
+          </div>
+          <div class="run-field">
+            <label class="run-label">描述</label>
+            <textarea class="run-textarea" id="runDescription">由同步任务页面自动生成，来源 oracle (ORACLE) -> mysql (MYSQL)</textarea>
+          </div>
+          <div class="run-two-col">
+            <div class="run-field">
+              <label class="run-label">任务优先级<span class="run-required">*</span></label>
+              <select class="run-select" id="runPriority">
+                <option value="HIGHEST">HIGHEST</option>
+                <option value="HIGH">HIGH</option>
+                <option value="MEDIUM" selected>MEDIUM</option>
+                <option value="LOW">LOW</option>
+                <option value="LOWEST">LOWEST</option>
+              </select>
+            </div>
+            <div class="run-field">
+              <label class="run-label">Worker分组<span class="run-required">*</span></label>
+              <select class="run-select" id="runWorkerGroup">
+                <option value="default">default</option>
+                <option value="seatunnel_cluster">seatunnel_cluster</option>
+              </select>
+            </div>
+          </div>
+          <div class="run-two-col">
+            <div class="run-field">
+              <label class="run-label">环境名称</label>
+              <select class="run-select" id="runEnvironment">
+                <option value="">请选择</option>
+                <option value="prod">prod-seatunnel-env</option>
+                <option value="test">test-seatunnel-env</option>
+              </select>
+            </div>
+            <div class="run-field">
+              <label class="run-label">任务组名称</label>
+              <select class="run-select" id="runTaskGroup">
+                <option value="">请选择</option>
+                <option value="sync">dataflow-sync-task-group</option>
+              </select>
+            </div>
+            <div class="run-field">
+              <label class="run-label">组内优先级</label>
+              <div class="run-inline-unit"><input id="runTaskGroupPriority" value="0" /><span></span><button type="button">−</button><button type="button">＋</button></div>
+            </div>
+          </div>
+          <div class="run-three-col">
+            <div class="run-field">
+              <label class="run-label">失败重试次数</label>
+              <div class="run-inline-unit"><input id="runFailRetryTimes" value="0" /><span>次</span><button type="button">−</button><button type="button">＋</button></div>
+            </div>
+            <div class="run-field">
+              <label class="run-label">失败重试间隔</label>
+              <div class="run-inline-unit"><input id="runFailRetryInterval" value="1" /><span>分</span><button type="button">−</button><button type="button">＋</button></div>
+            </div>
+            <div class="run-field">
+              <label class="run-label">延时执行时间</label>
+              <div class="run-inline-unit"><input id="runDelayTime" value="0" /><span>分</span><button type="button">−</button><button type="button">＋</button></div>
+            </div>
+          </div>
+          <div class="run-two-col">
+            <div class="run-field">
+              <label class="run-label">CPU配额</label>
+              <div class="run-inline-unit"><input id="runCpuQuota" value="-1" /><span>%</span><button type="button">−</button><button type="button">＋</button></div>
+            </div>
+            <div class="run-field">
+              <label class="run-label">最大内存</label>
+              <div class="run-inline-unit"><input id="runMemoryMax" value="-1" /><span>MB</span><button type="button">−</button><button type="button">＋</button></div>
+            </div>
+          </div>
+          <div class="run-field">
+            <label class="run-label">超时告警</label>
+            <div class="run-switch-row">
+              <button class="run-switch" id="runTimeoutSwitch" type="button" aria-label="超时告警"></button>
+            </div>
+          </div>
+          <div class="run-two-col run-hidden" id="runTimeoutFields">
+            <div class="run-field">
+              <label class="run-label">超时策略</label>
+              <select class="run-select" id="runTimeoutStrategy">
+                <option value="WARN">超时告警</option>
+                <option value="FAILED">超时失败</option>
+                <option value="WARNFAILED">超时告警并失败</option>
+              </select>
+            </div>
+            <div class="run-field">
+              <label class="run-label">超时时长</label>
+              <div class="run-inline-unit"><input id="runTimeout" value="30" /><span>分</span><button type="button">−</button><button type="button">＋</button></div>
+            </div>
+          </div>
+          <div class="run-field">
+            <label class="run-label">启动脚本<span class="run-required">*</span></label>
+            <select class="run-select" id="runStartupScript">
+              <option value="seatunnel.sh">seatunnel.sh</option>
+              <option value="start-seatunnel-flink-13-connector-v2.sh">start-seatunnel-flink-13-connector-v2.sh</option>
+              <option value="start-seatunnel-flink-15-connector-v2.sh">start-seatunnel-flink-15-connector-v2.sh</option>
+              <option value="start-seatunnel-flink-connector-v2.sh">start-seatunnel-flink-connector-v2.sh</option>
+              <option value="start-seatunnel-flink.sh">start-seatunnel-flink.sh</option>
+              <option value="start-seatunnel-spark-2-connector-v2.sh">start-seatunnel-spark-2-connector-v2.sh</option>
+              <option value="start-seatunnel-spark-3-connector-v2.sh">start-seatunnel-spark-3-connector-v2.sh</option>
+              <option value="start-seatunnel-spark-connector-v2.sh">start-seatunnel-spark-connector-v2.sh</option>
+              <option value="start-seatunnel-spark.sh">start-seatunnel-spark.sh</option>
+            </select>
+          </div>
+          <div class="run-field run-hidden" id="runModeField">
+            <label class="run-label">运行模式</label>
+            <select class="run-select" id="runMode">
+              <option value="NONE">none</option>
+              <option value="RUN" selected>run</option>
+              <option value="RUN_APPLICATION">run-application</option>
+            </select>
+          </div>
+          <div class="run-field">
+            <label class="run-label">选项参数</label>
+            <textarea class="run-textarea" id="runOptionArgs" placeholder="请输入选项参数"></textarea>
+          </div>
+          <div class="run-field" id="runDeployField">
+            <label class="run-label">部署方式</label>
+            <div class="run-radio-row">
+              <label class="run-radio" data-deploy-option="cluster"><input type="radio" name="runDeployMode" value="cluster" />cluster</label>
+              <label class="run-radio" data-deploy-option="client"><input type="radio" name="runDeployMode" value="client" />client</label>
+              <label class="run-radio" data-deploy-option="local"><input type="radio" name="runDeployMode" value="local" checked />local</label>
+            </div>
+          </div>
+          <div class="run-two-col run-hidden" id="runSparkMasterFields">
+            <div class="run-field">
+              <label class="run-label">Master</label>
+              <select class="run-select" id="runMaster">
+                <option value="YARN">yarn</option>
+                <option value="LOCAL">local</option>
+                <option value="SPARK">spark://</option>
+                <option value="MESOS">mesos://</option>
+              </select>
+            </div>
+            <div class="run-field">
+              <label class="run-label">Master URL</label>
+              <input class="run-input" id="runMasterUrl" placeholder="请输入 Master URL" />
+            </div>
+          </div>
+          <div class="run-field">
+            <label class="run-label">自定义配置</label>
+            <div class="run-switch-row">
+              <button class="run-switch on" id="runCustomSwitch" type="button" aria-label="自定义配置"></button>
+            </div>
+          </div>
+          <div class="run-field" id="runScriptField">
+            <label class="run-label">脚本<span class="run-required">*</span></label>
+            <pre class="run-code" id="runScriptPreview"></pre>
+          </div>
+          <div class="run-field run-hidden" id="runResourceField">
+            <label class="run-label">资源文件</label>
+            <input class="run-input" value="请选择资源文件" />
+          </div>
+          <div class="run-field">
+            <label class="run-label">自定义参数</label>
+            <textarea class="run-textarea" id="runLocalParams" placeholder="参数名=参数值，每行一个"></textarea>
+          </div>
+        </div>
+      </div>
+      <div class="run-modal-actions">
+        <button class="btn" id="runCancelBtn">取消</button>
+        <button class="btn primary" id="runConfirmBtn">确定</button>
+      </div>
     </div>
   </div>
 
@@ -2333,6 +2791,117 @@
       showToast('已回填历史同步任务配置。');
     }
 
+    function buildRunScript(task) {
+      const current = task || state.editingTask || state.selectedTask || tasks[0];
+      const sourceDriver = current.sourceType === 'ORACLE' ? 'oracle.jdbc.OracleDriver' : 'com.mysql.cj.jdbc.Driver';
+      const targetConnector = current.targetType === 'DORIS' ? 'Doris' : current.targetType === 'ORACLE' ? 'Oracle' : 'Jdbc';
+      return [
+        'env {',
+        '  execution.parallelism = 1',
+        '  job.mode = "BATCH"',
+        '}',
+        '',
+        'source {',
+        '  Jdbc {',
+        `    url = "jdbc:${current.sourceType.toLowerCase()}://127.0.0.1:1521/FREEPDB1"`,
+        `    driver = "${sourceDriver}"`,
+        '    user = "system"',
+        '    password = "******"',
+        `    query = "select ${current.mappings.map(row => row[0]).join(', ')} from ${current.sourcePath}"`,
+        '    result_table_name = "sync_source"',
+        '  }',
+        '}',
+        '',
+        'transform {',
+        '  Sql {',
+        '    source_table_name = "sync_source"',
+        '    result_table_name = "sync_mapped"',
+        `    query = "select ${current.mappings.map(row => `${row[0]} as ${row[1]}`).join(', ')} from sync_source"`,
+        '  }',
+        '}',
+        '',
+        'sink {',
+        `  ${targetConnector} {`,
+        '    source_table_name = "sync_mapped"',
+        `    table = "${current.targetPath}"`,
+        current.targetType === 'DORIS' ? '    fenodes = "doris-fe:8030"' : '    generate_sink_sql = true',
+        '  }',
+        '}'
+      ].join('\\n');
+    }
+
+    function renderRunScript(script) {
+      const lines = script.split('\\n');
+      document.getElementById('runScriptPreview').innerHTML = `
+        <div class="run-code-lines">${lines.map((_, index) => `<span>${index + 1}</span>`).join('')}</div>
+        <div class="run-code-content">${lines.map(line => `<span>${line.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')}</span>`).join('')}</div>
+      `;
+    }
+
+    function setRunDeployMode(mode) {
+      const option = document.querySelector(`input[name="runDeployMode"][value="${mode}"]`);
+      if (option) option.checked = true;
+    }
+
+    function updateRunSeaTunnelVisibility() {
+      const startupScript = document.getElementById('runStartupScript').value;
+      const isFlink = startupScript.includes('flink');
+      const isSpark = startupScript.includes('spark');
+      const isSeatunnel = startupScript === 'seatunnel.sh';
+      const deployField = document.getElementById('runDeployField');
+      const runModeField = document.getElementById('runModeField');
+      const optionArgsField = document.getElementById('runOptionArgs').closest('.run-field');
+      const sparkMasterFields = document.getElementById('runSparkMasterFields');
+      const customEnabled = document.getElementById('runCustomSwitch').classList.contains('on');
+      const deployMode = document.querySelector('input[name="runDeployMode"]:checked')?.value || 'local';
+      const master = document.getElementById('runMaster').value;
+
+      runModeField.classList.toggle('run-hidden', !isFlink);
+      optionArgsField.classList.toggle('run-hidden', !(isFlink || isSeatunnel));
+      deployField.classList.toggle('run-hidden', !(isSpark || isSeatunnel));
+
+      document.querySelectorAll('[data-deploy-option]').forEach(option => {
+        const value = option.dataset.deployOption;
+        const visible = value === 'cluster' || (value === 'client' && isSpark) || (value === 'local' && isSeatunnel);
+        option.style.display = visible ? 'inline-flex' : 'none';
+      });
+
+      if (isSeatunnel && deployMode !== 'cluster' && deployMode !== 'local') setRunDeployMode('local');
+      if (isSpark && deployMode !== 'cluster' && deployMode !== 'client') setRunDeployMode('client');
+
+      const activeDeployMode = document.querySelector('input[name="runDeployMode"]:checked')?.value || 'local';
+      const showSparkMaster = isSpark && activeDeployMode !== 'local';
+      sparkMasterFields.classList.toggle('run-hidden', !showSparkMaster);
+      document.getElementById('runMasterUrl').closest('.run-field').classList.toggle(
+        'run-hidden',
+        !(showSparkMaster && (master === 'SPARK' || master === 'MESOS'))
+      );
+      document.getElementById('runScriptField').classList.toggle('run-hidden', !customEnabled);
+      document.getElementById('runResourceField').classList.toggle('run-hidden', customEnabled);
+      document.getElementById('runTimeoutFields').classList.toggle(
+        'run-hidden',
+        !document.getElementById('runTimeoutSwitch').classList.contains('on')
+      );
+    }
+
+    function openRunConfirm(task) {
+      const current = task || state.editingTask || state.selectedTask || tasks[0];
+      document.getElementById('runNodeName').value = `DF_${current.name}`.replace(/[^a-zA-Z0-9_]/g, '_').slice(0, 120);
+      document.getElementById('runDescription').value = `由同步任务页面自动生成，来源 ${current.source} (${current.sourceType}) -> ${current.target} (${current.targetType})`;
+      renderRunScript(buildRunScript(current));
+      document.getElementById('runOptionArgs').value = '';
+      document.getElementById('runStartupScript').value = 'seatunnel.sh';
+      document.querySelector('input[name="runDeployMode"][value="local"]').checked = true;
+      document.getElementById('runCustomSwitch').classList.add('on');
+      document.getElementById('runTimeoutSwitch').classList.remove('on');
+      updateRunSeaTunnelVisibility();
+      document.getElementById('runConfirmModal').classList.add('open');
+    }
+
+    function closeRunConfirm() {
+      document.getElementById('runConfirmModal').classList.remove('open');
+    }
+
     document.getElementById('searchInput').addEventListener('input', event => {
       state.keyword = event.target.value;
       renderRows();
@@ -2370,7 +2939,7 @@
     document.getElementById('closeDrawerBtn').addEventListener('click', closeDetail);
     document.getElementById('drawerMask').addEventListener('click', closeDetail);
     document.getElementById('editFromDetailBtn').addEventListener('click', () => openEditor(state.selectedTask.id));
-    document.getElementById('runFromDetailBtn').addEventListener('click', () => showToast('已提交一次性运行。'));
+    document.getElementById('runFromDetailBtn').addEventListener('click', () => openRunConfirm(state.selectedTask));
     document.getElementById('scheduleFromDetailBtn').addEventListener('click', () => showToast('打开同步任务专用调度弹框。'));
     document.getElementById('detailBody').addEventListener('click', event => {
       const target = event.target.closest('[data-edit-inline]');
@@ -2379,6 +2948,32 @@
     document.getElementById('backToListBtn').addEventListener('click', () => {
       document.getElementById('editorShell').classList.remove('open');
       document.getElementById('listView').style.display = 'block';
+    });
+    document.getElementById('saveAndRunBtn').addEventListener('click', () => openRunConfirm(state.editingTask));
+    document.getElementById('runConfirmMask').addEventListener('click', closeRunConfirm);
+    document.getElementById('runCancelBtn').addEventListener('click', closeRunConfirm);
+    document.getElementById('runStartupScript').addEventListener('change', event => {
+      const startupScript = event.target.value;
+      if (startupScript === 'seatunnel.sh') setRunDeployMode('local');
+      if (startupScript.includes('spark')) setRunDeployMode('client');
+      updateRunSeaTunnelVisibility();
+    });
+    document.querySelectorAll('input[name="runDeployMode"]').forEach(input => {
+      input.addEventListener('change', updateRunSeaTunnelVisibility);
+    });
+    document.getElementById('runMaster').addEventListener('change', updateRunSeaTunnelVisibility);
+    document.getElementById('runTimeoutSwitch').addEventListener('click', event => {
+      event.currentTarget.classList.toggle('on');
+      updateRunSeaTunnelVisibility();
+    });
+    document.getElementById('runCustomSwitch').addEventListener('click', event => {
+      event.currentTarget.classList.toggle('on');
+      updateRunSeaTunnelVisibility();
+    });
+    document.getElementById('runConfirmBtn').addEventListener('click', () => {
+      const mode = document.querySelector('input[name="runDeployMode"]:checked')?.value || 'local';
+      closeRunConfirm();
+      showToast(`已确认使用 ${mode} 方式提交 SeaTunnel 任务。`);
     });
 
     render();

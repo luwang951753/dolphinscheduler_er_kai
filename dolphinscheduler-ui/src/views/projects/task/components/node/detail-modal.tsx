@@ -214,6 +214,22 @@ const NodeDetailModal = defineComponent({
       initHeaderLinks(props.workflowInstance, props.data.taskType)
     }
 
+    const hydrateDetailForm = async () => {
+      if (!props.show) return
+      initHeaderLinks(props.workflowInstance, props.data.taskType)
+      taskStore.init()
+      const nodeData = formatModel(props.data)
+      restructureNodeData(nodeData)
+      await nextTick()
+      const formApi = detailRef.value?.value
+      if (!formApi?.setValues) {
+        await nextTick()
+        detailRef.value?.value?.setValues?.(nodeData)
+        return
+      }
+      formApi.setValues(nodeData)
+    }
+
     provide(
       'data',
       computed(() => ({
@@ -231,15 +247,8 @@ const NodeDetailModal = defineComponent({
 
     watch(
       () => [props.show, props.data],
-      async () => {
-        if (!props.show) return
-        initHeaderLinks(props.workflowInstance, props.data.taskType)
-        taskStore.init()
-        const nodeData = formatModel(props.data)
-        await nextTick()
-        restructureNodeData(nodeData)
-        detailRef.value.value.setValues(nodeData)
-      }
+      hydrateDetailForm,
+      { immediate: true, deep: true }
     )
 
     return () => (

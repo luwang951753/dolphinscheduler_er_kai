@@ -17,14 +17,14 @@
 
 package org.apache.dolphinscheduler.api.service;
 
-import org.apache.dolphinscheduler.api.dto.DatasourceColumnDto;
-import org.apache.dolphinscheduler.api.dto.DatasourceTableCreateRequest;
 import org.apache.dolphinscheduler.api.dto.DataPreviewQueryRequest;
 import org.apache.dolphinscheduler.api.dto.DataPreviewQueryResult;
 import org.apache.dolphinscheduler.api.dto.DataPreviewSqlQueryRequest;
 import org.apache.dolphinscheduler.api.dto.DataPreviewTableStructureResult;
 import org.apache.dolphinscheduler.api.dto.DataPreviewViewRequest;
 import org.apache.dolphinscheduler.api.dto.DataPreviewViewResponse;
+import org.apache.dolphinscheduler.api.dto.DatasourceColumnDto;
+import org.apache.dolphinscheduler.api.dto.DatasourceTableCreateRequest;
 import org.apache.dolphinscheduler.api.utils.PageInfo;
 import org.apache.dolphinscheduler.dao.entity.DataSource;
 import org.apache.dolphinscheduler.dao.entity.User;
@@ -195,7 +195,8 @@ public interface DataSourceService {
      * @param tableName table name
      * @return column metadata list
      */
-    List<DatasourceColumnDto> getTableColumnMetas(Integer datasourceId, String database, String schema, String tableName);
+    List<DatasourceColumnDto> getTableColumnMetas(Integer datasourceId, String database, String schema,
+                                                  String tableName);
 
     /**
      * get table columns with type metadata after datasource permission check

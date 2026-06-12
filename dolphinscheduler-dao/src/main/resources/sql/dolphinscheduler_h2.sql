@@ -876,6 +876,32 @@ CREATE TABLE t_ds_data_governance_lineage
 );
 
 -- ----------------------------
+-- Table structure for t_ds_dataflow_sync_instance_stat
+-- ----------------------------
+DROP TABLE IF EXISTS t_ds_dataflow_sync_instance_stat CASCADE;
+CREATE TABLE t_ds_dataflow_sync_instance_stat
+(
+    id                       int(11) NOT NULL AUTO_INCREMENT,
+    project_code             bigint(20) NOT NULL,
+    workflow_definition_code bigint(20) NOT NULL,
+    workflow_instance_id     int(11) NOT NULL,
+    task_instance_id         int(11) DEFAULT NULL,
+    read_rows                bigint(20) DEFAULT NULL,
+    write_rows               bigint(20) DEFAULT NULL,
+    failed_rows              bigint(20) DEFAULT NULL,
+    duration_seconds         int(11) DEFAULT NULL,
+    run_status               varchar(64) DEFAULT NULL,
+    stat_source              varchar(64) DEFAULT NULL,
+    payload_json             text DEFAULT NULL,
+    create_time              datetime DEFAULT NULL,
+    update_time              datetime DEFAULT NULL,
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_dataflow_sync_instance (project_code, workflow_definition_code, workflow_instance_id),
+    KEY idx_dataflow_sync_workflow (project_code, workflow_definition_code),
+    KEY idx_dataflow_sync_task_instance (task_instance_id)
+);
+
+-- ----------------------------
 -- Table structure for t_ds_relation_workflow_instance
 -- ----------------------------
 DROP TABLE IF EXISTS t_ds_relation_workflow_instance CASCADE;

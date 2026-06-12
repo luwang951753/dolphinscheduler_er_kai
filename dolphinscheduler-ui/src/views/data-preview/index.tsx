@@ -67,7 +67,7 @@ import type {
 } from '@/service/modules/data-source/types'
 import styles from './index.module.scss'
 
-type SupportedDatasourceType = 'MYSQL' | 'POSTGRESQL' | 'ORACLE'
+type SupportedDatasourceType = 'MYSQL' | 'POSTGRESQL' | 'ORACLE' | 'DORIS'
 type FilterOperator = '=' | '!=' | '>' | '>=' | '<' | '<=' | 'CONTAINS'
 type ActivePanel = 'columns' | 'filters' | 'sorts' | 'joins' | null
 type JoinMode = 'manual' | 'lookup'
@@ -154,7 +154,7 @@ interface SqlHistoryItem {
   meta: string
 }
 
-const SUPPORTED_TYPES: SupportedDatasourceType[] = ['MYSQL', 'POSTGRESQL', 'ORACLE']
+const SUPPORTED_TYPES: SupportedDatasourceType[] = ['MYSQL', 'POSTGRESQL', 'ORACLE', 'DORIS']
 const PAGE_SIZE_OPTIONS = [20, 50, 100, 200]
 const FILTER_OPERATOR_OPTIONS: Array<{ label: string; value: FilterOperator }> = [
   { label: '等于', value: '=' },
@@ -306,7 +306,7 @@ const cloneJoin = (item: JoinConfig): JoinConfig => ({
 })
 
 const quoteIdentifier = (dbType: SupportedDatasourceType, identifier: string) => {
-  const quote = dbType === 'MYSQL' ? '`' : '"'
+  const quote = dbType === 'MYSQL' || dbType === 'DORIS' ? '`' : '"'
   return `${quote}${identifier.split(quote).join(quote + quote)}${quote}`
 }
 
@@ -324,7 +324,7 @@ const buildTableReference = (
   schema: string | null | undefined,
   tableName: string
 ) => {
-  if (dbType === 'MYSQL') {
+  if (dbType === 'MYSQL' || dbType === 'DORIS') {
     return `${quoteIdentifier(dbType, database)}.${quoteIdentifier(dbType, tableName)}`
   }
   if (schema) {
@@ -358,7 +358,17 @@ const resolvePreviewSchema = (
 const datasourceBadgeText = (type?: SupportedDatasourceType) => {
   if (type === 'POSTGRESQL') return 'PG'
   if (type === 'ORACLE') return 'OR'
+  if (type === 'DORIS') return 'DO'
   return 'MY'
+}
+
+const formatDateTimeText = (value: string) => {
+  const text = value.trim()
+  const matched = text.match(
+    /^(\d{4}-\d{2}-\d{2})[T\s](\d{2}:\d{2})(?::(\d{2}))?(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?$/
+  )
+  if (!matched) return null
+  return `${matched[1]} ${matched[2]}:${matched[3] || '00'}`
 }
 
 const formatCellValue = (value: unknown) => {
@@ -368,13 +378,27 @@ const formatCellValue = (value: unknown) => {
   if (typeof value === 'object') {
     return JSON.stringify(value)
   }
-  return String(value)
+  const text = String(value)
+  return formatDateTimeText(text) || text
 }
 
 const sanitizeCsvCellValue = (value: unknown) => {
   const text = formatCellValue(value)
   return /^[\t\r\n ]*[=+\-@]/.test(text) ? `'${text}` : text
 }
+
+const isLowValueDefaultPreviewTable = (tableName: string) => {
+  const normalized = tableName.toUpperCase()
+  return normalized.startsWith('QRTZ_')
+    || normalized.startsWith('T_DS_')
+    || normalized.startsWith('MVIEW$_')
+    || normalized.startsWith('AQ$_')
+    || normalized === 'HELP'
+}
+
+const pickInitialPreviewTable = (tables: string[]) => (
+  tables.find((tableName) => !isLowValueDefaultPreviewTable(tableName)) || tables[0] || null
+)
 
 export default defineComponent({
   name: 'data-preview',
@@ -391,6 +415,7 @@ export default defineComponent({
       loadingPreview: false,
       loadingStructure: false,
       loadingSql: false,
+      sqlRunningAction: null as 'current' | 'all' | 'explain' | null,
       datasourceOptions: [] as DatasourceOption[],
       datasourceId: null as number | null,
       selectedDatasourceType: null as SupportedDatasourceType | null,
@@ -450,6 +475,8 @@ export default defineComponent({
       pageNo: 1,
       pageSize: 50,
       rowCount: 0,
+      totalCount: 0,
+      jumpPageDraft: '1',
       executedAt: '',
       elapsedMs: 0,
       previewError: '',
@@ -487,10 +514,16 @@ export default defineComponent({
     )
     const pageSizeSelectOptions = computed(() =>
       PAGE_SIZE_OPTIONS.map((item) => ({
-        label: `${item} 行`,
+        label: `${item} / 页`,
         value: item
       }))
     )
+    const totalPages = computed(() => {
+      if (!state.totalCount || !state.pageSize) {
+        return 1
+      }
+      return Math.max(1, Math.ceil(state.totalCount / state.pageSize))
+    })
     const filteredTables = computed(() => {
       const keyword = state.tableSearch.trim().toLowerCase()
       if (!keyword) {
@@ -791,16 +824,10 @@ export default defineComponent({
       }
       state.loadingDatasources = true
       try {
-        const [mysqlList, postgresqlList, oracleList] = await Promise.all([
-          queryDataSourceList({ type: 'MYSQL' }),
-          queryDataSourceList({ type: 'POSTGRESQL' }),
-          queryDataSourceList({ type: 'ORACLE' })
-        ])
-        const list = [
-          ...normalizeList(mysqlList),
-          ...normalizeList(postgresqlList),
-          ...normalizeList(oracleList)
-        ] as DatasourceRecord[]
+        const responses = await Promise.all(
+          SUPPORTED_TYPES.map((type) => queryDataSourceList({ type }))
+        )
+        const list = responses.flatMap((item) => normalizeList(item)) as DatasourceRecord[]
         state.datasourceOptions = list
           .filter((item) => SUPPORTED_TYPES.includes(item.type))
           .map((item) => ({
@@ -849,7 +876,7 @@ export default defineComponent({
         const tableResult = normalizeTableList(res)
         state.tables = tableResult.tables
         state.tableComments = tableResult.comments
-        state.selectedTable = state.tables[0] || null
+        state.selectedTable = pickInitialPreviewTable(state.tables)
         if (state.datasourceId && state.database && state.selectedTable) {
           state.recentTables = [state.selectedTable]
           state.openedTabs = [
@@ -999,15 +1026,42 @@ export default defineComponent({
         state.pageNo = result.pageNo || pageNo
         state.pageSize = result.pageSize || state.pageSize
         state.rowCount = result.rowCount ?? state.rows.length
+        state.totalCount = result.totalCount ?? state.rowCount
+        state.jumpPageDraft = String(state.pageNo)
         state.executedAt = result.executedAt || ''
         state.elapsedMs = result.elapsedMs || 0
         state.warnings = result.warnings || []
       } catch (error) {
         state.rows = []
         state.rowCount = 0
+        state.totalCount = 0
+        state.jumpPageDraft = '1'
         state.previewError = '查询失败，请检查筛选、排序、表权限或数据源连接状态。'
       } finally {
         state.loadingPreview = false
+      }
+    }
+
+    const changePageSize = async (value: number) => {
+      state.pageSize = value
+      state.pageNo = 1
+      state.jumpPageDraft = '1'
+      if (state.selectedTable && state.workspaceMode === 'data') {
+        await runPreview(1)
+      }
+    }
+
+    const jumpToPage = async () => {
+      if (!state.selectedTable || state.workspaceMode !== 'data') {
+        return
+      }
+      const parsed = Number.parseInt(state.jumpPageDraft, 10)
+      const nextPage = Number.isFinite(parsed)
+        ? Math.min(Math.max(parsed, 1), totalPages.value)
+        : state.pageNo
+      state.jumpPageDraft = String(nextPage)
+      if (nextPage !== state.pageNo) {
+        await runPreview(nextPage)
       }
     }
 
@@ -1151,14 +1205,20 @@ export default defineComponent({
       addSortRow(state.columns[0]?.name, 'ASC')
     }
 
-    const removeFilterRow = (id: number) => {
+    const removeFilterRow = async (id: number) => {
       state.filters = state.filters.filter((item) => item.id !== id)
       markViewDirty()
+      if (state.selectedTable) {
+        await runPreview(1)
+      }
     }
 
-    const removeSortRow = (id: number) => {
+    const removeSortRow = async (id: number) => {
       state.sorts = state.sorts.filter((item) => item.id !== id)
       markViewDirty()
+      if (state.selectedTable) {
+        await runPreview(1)
+      }
     }
 
     const toggleHeaderSort = async (field: string) => {
@@ -1256,6 +1316,7 @@ export default defineComponent({
         return
       }
       state.loadingSql = true
+      state.sqlRunningAction = executeAll ? 'all' : 'current'
       state.sqlError = ''
       state.sqlMessage = 'SQL 执行中...'
       try {
@@ -1284,6 +1345,7 @@ export default defineComponent({
         state.sqlResultMode = 'message'
       } finally {
         state.loadingSql = false
+        state.sqlRunningAction = null
       }
     }
 
@@ -1293,6 +1355,7 @@ export default defineComponent({
         return
       }
       state.loadingSql = true
+      state.sqlRunningAction = 'explain'
       state.sqlError = ''
       try {
         const result = (await explainDataPreviewSql(request)) as IDataPreviewQueryResult
@@ -1311,6 +1374,7 @@ export default defineComponent({
         state.sqlResultMode = 'message'
       } finally {
         state.loadingSql = false
+        state.sqlRunningAction = null
       }
     }
 
@@ -1471,7 +1535,10 @@ export default defineComponent({
       const link = document.createElement('a')
       link.href = url
       link.download = `${state.selectedTable || 'data-preview'}-${Date.now()}.csv`
+      link.style.display = 'none'
+      document.body.appendChild(link)
       link.click()
+      document.body.removeChild(link)
       URL.revokeObjectURL(url)
       window.$message.success('已导出当前结果 CSV。')
     }
@@ -1804,6 +1871,7 @@ export default defineComponent({
       databaseSelectOptions,
       columnSelectOptions,
       pageSizeSelectOptions,
+      totalPages,
       filteredTables,
       recentTableList,
       filteredColumnList,
@@ -1830,6 +1898,8 @@ export default defineComponent({
       removeFilterRow,
       removeSortRow,
       runPreview,
+      changePageSize,
+      jumpToPage,
       runSql,
       explainSql,
       reloadCurrentTable,
@@ -1907,9 +1977,6 @@ export default defineComponent({
                 ? this.state.selectedTable
                 : '未选择表'}
             </strong>
-            <span class={styles.pill}>{this.visibleColumns.length} 字段</span>
-            <span class={styles.pill}>{this.state.filters.length} 筛选</span>
-            <span class={styles.pill}>{this.state.sorts.length} 排序</span>
             {this.state.joinApplied ? (
               <span class={styles.pill}>{this.state.joinConfigs.length} 关联</span>
             ) : null}
@@ -2296,17 +2363,6 @@ export default defineComponent({
                   }}
                 </NButton>
                 <div class={styles.toolbarSpacer}></div>
-                <NSelect
-                  class={styles.pageSizeSelector}
-                  value={this.state.pageSize}
-                  options={this.pageSizeSelectOptions}
-                  size='small'
-                  onUpdateValue={(value) => {
-                    this.state.pageSize = value as number
-                    this.state.viewDirty = true
-                    void this.runPreview(1)
-                  }}
-                />
               </div>
             ) : null}
 
@@ -2357,7 +2413,7 @@ export default defineComponent({
                         />
                         <button
                           class={styles.conditionRemove}
-                          onClick={() => this.removeFilterRow(filter.id)}
+                          onClick={() => void this.removeFilterRow(filter.id)}
                         >
                           ×
                         </button>
@@ -2411,7 +2467,7 @@ export default defineComponent({
                         <span class={styles.sortIndex}>{index + 1}</span>
                         <button
                           class={styles.conditionRemove}
-                          onClick={() => this.removeSortRow(sort.id)}
+                          onClick={() => void this.removeSortRow(sort.id)}
                         >
                           ×
                         </button>
@@ -2604,9 +2660,9 @@ export default defineComponent({
                   <div class={styles.sqlTop}>
                     <div class={styles.sqlEditorShell}>
                       <div class={styles.sqlToolbar}>
-                        <NButton type='primary' size='small' loading={this.state.loadingSql} onClick={() => void this.runSql(false)}>执行选中/当前语句</NButton>
-                        <NButton size='small' loading={this.state.loadingSql} onClick={() => void this.runSql(true)}>执行全部</NButton>
-                        <NButton size='small' loading={this.state.loadingSql} onClick={() => void this.explainSql()}>执行计划</NButton>
+                        <NButton type='primary' size='small' loading={this.state.sqlRunningAction === 'current'} disabled={this.state.loadingSql && this.state.sqlRunningAction !== 'current'} onClick={() => void this.runSql(false)}>执行选中/当前语句</NButton>
+                        <NButton size='small' loading={this.state.sqlRunningAction === 'all'} disabled={this.state.loadingSql && this.state.sqlRunningAction !== 'all'} onClick={() => void this.runSql(true)}>执行全部</NButton>
+                        <NButton size='small' loading={this.state.sqlRunningAction === 'explain'} disabled={this.state.loadingSql && this.state.sqlRunningAction !== 'explain'} onClick={() => void this.explainSql()}>执行计划</NButton>
                         <NButton size='small' onClick={() => { this.state.sqlText = this.defaultReadonlySql }}>格式化</NButton>
                         <NButton size='small' onClick={() => { this.state.sqlText = '' }}>清空</NButton>
                         <div class={styles.toolbarSpacer}></div>
@@ -2732,25 +2788,52 @@ export default defineComponent({
               </div>
               <div class={styles.pager}>
                 {this.state.workspaceMode === 'data' ? (
-                  <>
-                <button
-                  class={styles.miniButton}
-                  disabled={this.state.pageNo <= 1 || !this.state.selectedTable}
-                  onClick={() => void this.runPreview(this.state.pageNo - 1)}
-                >
-                  ‹
-                </button>
-                <span>第 {this.state.pageNo} 页</span>
-                <button
-                  class={styles.miniButton}
-                  disabled={
-                    !this.state.selectedTable || this.state.rows.length < this.state.pageSize
-                  }
-                  onClick={() => void this.runPreview(this.state.pageNo + 1)}
-                >
-                  ›
-                </button>
-                  </>
+                  <div class={styles.paginationBar}>
+                    <span class={styles.totalCount}>总条目为: {this.state.totalCount}</span>
+                    <button
+                      class={styles.pageNavButton}
+                      disabled={this.state.pageNo <= 1 || !this.state.selectedTable}
+                      onClick={() => void this.runPreview(this.state.pageNo - 1)}
+                    >
+                      ‹
+                    </button>
+                    <button class={[styles.pageNumberButton, styles.pageNumberButtonActive]}>
+                      {this.state.pageNo}
+                    </button>
+                    <button
+                      class={styles.pageNavButton}
+                      disabled={
+                        !this.state.selectedTable || this.state.pageNo >= this.totalPages
+                      }
+                      onClick={() => void this.runPreview(this.state.pageNo + 1)}
+                    >
+                      ›
+                    </button>
+                    <NSelect
+                      class={styles.footerPageSizeSelector}
+                      value={this.state.pageSize}
+                      options={this.pageSizeSelectOptions}
+                      disabled={!this.state.selectedTable}
+                      onUpdateValue={(value) => void this.changePageSize(value as number)}
+                    />
+                    <span class={styles.jumpLabel}>跳至</span>
+                    <NInput
+                      class={styles.jumpInput}
+                      size='small'
+                      value={this.state.jumpPageDraft}
+                      disabled={!this.state.selectedTable}
+                      inputProps={{ inputmode: 'numeric' }}
+                      onUpdateValue={(value) => {
+                        this.state.jumpPageDraft = value.replace(/[^\d]/g, '')
+                      }}
+                      onKeydown={(event) => {
+                        if (event.key === 'Enter') {
+                          void this.jumpToPage()
+                        }
+                      }}
+                      onBlur={() => void this.jumpToPage()}
+                    />
+                  </div>
                 ) : (
                   <span>{this.state.workspaceMode === 'sql' ? '只读 SQL 控制台' : '元数据视图'}</span>
                 )}
@@ -2916,7 +2999,7 @@ export default defineComponent({
                           />
                           <button
                             class={styles.inlineIconButton}
-                            onClick={() => this.removeFilterRow(filter.id)}
+                            onClick={() => void this.removeFilterRow(filter.id)}
                           >
                             <NIcon size={14}>
                               <MinusCircleOutlined />
@@ -2980,7 +3063,7 @@ export default defineComponent({
                           <div class={styles.stackRowHint}>支持多字段顺序叠加</div>
                           <button
                             class={styles.inlineIconButton}
-                            onClick={() => this.removeSortRow(sort.id)}
+                            onClick={() => void this.removeSortRow(sort.id)}
                           >
                             <NIcon size={14}>
                               <MinusCircleOutlined />

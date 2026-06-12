@@ -91,11 +91,14 @@ export function useDataList() {
 
   const filterVisibleMenus = (menus: any[]): any[] =>
     menus
-      .filter((menu) => !menu.modulePermission || canShowModule(menu.modulePermission))
       .map((menu) => ({
         ...menu,
         children: menu.children ? filterVisibleMenus(menu.children) : menu.children
       }))
+      .filter((menu) => {
+        const hasVisibleChildren = Array.isArray(menu.children) && menu.children.length > 0
+        return hasVisibleChildren || !menu.modulePermission || canShowModule(menu.modulePermission)
+      })
 
   const state = reactive({
     isShowSide: false,
@@ -186,32 +189,12 @@ export function useDataList() {
         ]
       },
       {
-        label: () => h(NEllipsis, null, { default: () => t('menu.resources') }),
-        key: 'resource',
-        icon: renderIcon(FolderOutlined),
-        modulePermission: 'resources:view',
-        children: [
-          {
-            label: t('menu.file_manage'),
-            key: '/resource/file-manage',
-            icon: renderIcon(FileSearchOutlined)
-          },
-          {
-            label: t('menu.task_group_manage'),
-            key: 'task-group-manage',
-            icon: renderIcon(GroupOutlined),
-            children: [
-              {
-                label: t('menu.task_group_option'),
-                key: '/resource/task-group-option'
-              },
-              {
-                label: t('menu.task_group_queue'),
-                key: '/resource/task-group-queue'
-              }
-            ]
-          }
-        ]
+        label: () =>
+          h(NEllipsis, null, { default: () => t('menu.whitepaper') }),
+        key: 'whitepaper',
+        icon: renderIcon(FileSearchOutlined),
+        modulePermission: 'whitepaper:view',
+        children: []
       },
       {
         label: () =>
@@ -250,7 +233,13 @@ export function useDataList() {
         key: 'data-governance',
         icon: renderIcon(ApartmentOutlined),
         modulePermission: 'data-governance:view',
-        children: []
+        children: [
+          {
+            label: t('menu.asset_catalog'),
+            key: '/data-governance',
+            icon: renderIcon(ApartmentOutlined)
+          }
+        ]
       },
       {
         label: () =>
@@ -272,6 +261,34 @@ export function useDataList() {
         icon: renderIcon(DesktopOutlined),
         modulePermission: 'monitor:view',
         children: [
+          {
+            label: t('menu.resources'),
+            key: 'resource',
+            icon: renderIcon(FolderOutlined),
+            modulePermission: 'resources:view',
+            children: [
+              {
+                label: t('menu.file_manage'),
+                key: '/resource/file-manage',
+                icon: renderIcon(FileSearchOutlined)
+              },
+              {
+                label: t('menu.task_group_manage'),
+                key: 'task-group-manage',
+                icon: renderIcon(GroupOutlined),
+                children: [
+                  {
+                    label: t('menu.task_group_option'),
+                    key: '/resource/task-group-option'
+                  },
+                  {
+                    label: t('menu.task_group_queue'),
+                    key: '/resource/task-group-queue'
+                  }
+                ]
+              }
+            ]
+          },
           {
             label: t('menu.instance_statistics'),
             key: '/monitor/instance-statistics',
@@ -404,7 +421,7 @@ export function useDataList() {
       'data-return',
       'data-issue',
       'monitor',
-      'resource',
+      'whitepaper',
       'security'
     ]
     const headerLabels: Record<string, string> = {
@@ -415,6 +432,7 @@ export function useDataList() {
       'sync-task': '同步',
       'data-preview': '预览',
       'theme-library': '主题库',
+      whitepaper: '白皮书',
       'data-governance': '治理',
       'data-return': '回传',
       'data-issue': '下发',

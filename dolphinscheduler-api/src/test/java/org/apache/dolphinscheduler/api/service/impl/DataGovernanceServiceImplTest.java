@@ -18,6 +18,7 @@
 package org.apache.dolphinscheduler.api.service.impl;
 
 import org.apache.dolphinscheduler.common.enums.WorkflowExecutionStatus;
+import org.apache.dolphinscheduler.spi.enums.DbType;
 
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -49,5 +50,10 @@ public class DataGovernanceServiceImplTest {
         Assertions.assertNull(DataGovernanceServiceImpl.toLineageRunStatus(WorkflowExecutionStatus.RUNNING_EXECUTION));
         Assertions.assertNull(DataGovernanceServiceImpl.toLineageRunStatus(WorkflowExecutionStatus.SUBMITTED_SUCCESS));
         Assertions.assertNull(DataGovernanceServiceImpl.toLineageRunStatus(null));
+    }
+
+    @Test
+    public void shouldSupportDorisForGovernanceAssetsAndLineage() {
+        Assertions.assertTrue(DataGovernanceServiceImpl.isSupportedDatasourceType(DbType.DORIS));
     }
 }

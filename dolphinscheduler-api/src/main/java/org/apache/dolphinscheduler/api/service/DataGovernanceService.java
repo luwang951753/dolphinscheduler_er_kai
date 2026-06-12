@@ -37,12 +37,12 @@ import java.util.List;
 public interface DataGovernanceService {
 
     List<Asset> queryAssets(
-            User loginUser,
-            Integer datasourceId,
-            String database,
-            String keyword,
-            String qualityStatus,
-            Integer limit);
+                            User loginUser,
+                            Integer datasourceId,
+                            String database,
+                            String keyword,
+                            String qualityStatus,
+                            Integer limit);
 
     List<Field> queryFields(User loginUser, String assetId);
 

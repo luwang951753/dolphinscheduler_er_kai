@@ -78,11 +78,13 @@ public class DataGovernanceStore {
         ruleMapper.selectList(new QueryWrapper<DataGovernanceRule>().lambda()
                 .orderByDesc(DataGovernanceRule::getUpdateTime)
                 .orderByDesc(DataGovernanceRule::getId))
-                .forEach(row -> state.rules.computeIfAbsent(row.getAssetId(), key -> new ArrayList<>()).add(toRule(row)));
+                .forEach(row -> state.rules.computeIfAbsent(row.getAssetId(), key -> new ArrayList<>())
+                        .add(toRule(row)));
         issueMapper.selectList(new QueryWrapper<DataGovernanceIssue>().lambda()
                 .orderByDesc(DataGovernanceIssue::getUpdateTime)
                 .orderByDesc(DataGovernanceIssue::getId))
-                .forEach(row -> state.issues.computeIfAbsent(row.getAssetId(), key -> new ArrayList<>()).add(toIssue(row)));
+                .forEach(row -> state.issues.computeIfAbsent(row.getAssetId(), key -> new ArrayList<>())
+                        .add(toIssue(row)));
         lineageMapper.selectList(new QueryWrapper<DataGovernanceLineage>().lambda()
                 .orderByDesc(DataGovernanceLineage::getUpdateTime)
                 .orderByDesc(DataGovernanceLineage::getId))
@@ -197,7 +199,8 @@ public class DataGovernanceStore {
         row.setStatus(issue.getStatus());
         row.setAbnormalCount(issue.getAbnormalCount());
         row.setDiscoveredAt(issue.getDiscoveredAt());
-        row.setResolvedAt(StringUtils.equals(issue.getStatus(), "RESOLVED") ? issue.getUpdatedAt() : row.getResolvedAt());
+        row.setResolvedAt(
+                StringUtils.equals(issue.getStatus(), "RESOLVED") ? issue.getUpdatedAt() : row.getResolvedAt());
         row.setPayloadJson(toJson(issue));
         row.setUpdateTime(now);
         if (row.getId() == null) {
@@ -210,18 +213,35 @@ public class DataGovernanceStore {
 
     @Transactional(rollbackFor = Exception.class)
     public void replaceLineage(String targetAssetId, LineageNode upstreamNode, LineageNode downstreamNode) {
+        List<LineageNode> upstreamNodes = new ArrayList<>();
+        if (upstreamNode != null) {
+            upstreamNodes.add(upstreamNode);
+        }
+        replaceLineages(targetAssetId, upstreamNodes, downstreamNode);
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public void replaceLineages(String targetAssetId, List<LineageNode> upstreamNodes, LineageNode downstreamNode) {
         lineageMapper.delete(new QueryWrapper<DataGovernanceLineage>().lambda()
                 .eq(DataGovernanceLineage::getAssetId, targetAssetId)
                 .eq(DataGovernanceLineage::getDirection, DIRECTION_UPSTREAM));
-        if (upstreamNode != null) {
-            saveLineage(targetAssetId, upstreamNode, DIRECTION_UPSTREAM);
+        List<LineageNode> safeUpstreamNodes = upstreamNodes == null ? new ArrayList<>() : upstreamNodes;
+        for (LineageNode upstreamNode : safeUpstreamNodes) {
+            if (upstreamNode != null && StringUtils.isNotBlank(upstreamNode.getAssetId())) {
+                saveLineage(targetAssetId, upstreamNode, DIRECTION_UPSTREAM);
+            }
         }
         lineageMapper.delete(new QueryWrapper<DataGovernanceLineage>().lambda()
                 .eq(DataGovernanceLineage::getAssetId, targetAssetId)
                 .eq(DataGovernanceLineage::getRelatedAssetId, targetAssetId)
                 .eq(DataGovernanceLineage::getDirection, DIRECTION_DOWNSTREAM));
-        if (upstreamNode != null && upstreamNode.getAssetId() != null && downstreamNode != null
-                && downstreamNode.getAssetId() != null) {
+        if (downstreamNode == null || StringUtils.isBlank(downstreamNode.getAssetId())) {
+            return;
+        }
+        for (LineageNode upstreamNode : safeUpstreamNodes) {
+            if (upstreamNode == null || StringUtils.isBlank(upstreamNode.getAssetId())) {
+                continue;
+            }
             lineageMapper.delete(new QueryWrapper<DataGovernanceLineage>().lambda()
                     .eq(DataGovernanceLineage::getAssetId, upstreamNode.getAssetId())
                     .eq(DataGovernanceLineage::getRelatedAssetId, targetAssetId)
@@ -236,6 +256,24 @@ public class DataGovernanceStore {
 
     public List<LineageNode> getDownstream(String assetId) {
         return getLineage(assetId, DIRECTION_DOWNSTREAM);
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public int deleteLineageBySyncTaskName(String syncTaskName) {
+        if (StringUtils.isBlank(syncTaskName)) {
+            return 0;
+        }
+        return lineageMapper.delete(new QueryWrapper<DataGovernanceLineage>().lambda()
+                .eq(DataGovernanceLineage::getSyncTaskName, syncTaskName));
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public int deleteLineageBySyncTaskNamePrefix(String syncTaskNamePrefix) {
+        if (StringUtils.isBlank(syncTaskNamePrefix)) {
+            return 0;
+        }
+        return lineageMapper.delete(new QueryWrapper<DataGovernanceLineage>().lambda()
+                .likeRight(DataGovernanceLineage::getSyncTaskName, syncTaskNamePrefix));
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -321,7 +359,8 @@ public class DataGovernanceStore {
         issue.setStatus(StringUtils.defaultIfBlank(issue.getStatus(), row.getStatus()));
         issue.setAbnormalCount(issue.getAbnormalCount() == null ? row.getAbnormalCount() : issue.getAbnormalCount());
         issue.setDiscoveredAt(StringUtils.defaultIfBlank(issue.getDiscoveredAt(), row.getDiscoveredAt()));
-        issue.setUpdatedAt(StringUtils.defaultIfBlank(issue.getUpdatedAt(), row.getUpdateTime() == null ? null : row.getUpdateTime().toString()));
+        issue.setUpdatedAt(StringUtils.defaultIfBlank(issue.getUpdatedAt(),
+                row.getUpdateTime() == null ? null : row.getUpdateTime().toString()));
         return issue;
     }
 

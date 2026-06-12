@@ -94,6 +94,50 @@
   font-size: 15px;
 }
 
+.tabTitle span {
+  color: #667085;
+  font-size: 12px;
+}
+
+.targetTabs {
+  :global(.n-tabs-nav-scroll-content) {
+    padding: 0 14px;
+  }
+
+  :global(.n-tabs-tab-wrapper) {
+    flex: 0 0 auto;
+  }
+
+  :global(.n-tabs-tab) {
+    padding: 10px 10px 9px;
+  }
+
+  :global(.n-tabs-tab-pad) {
+    width: 16px;
+  }
+}
+
+.targetTabLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 180px;
+  min-width: 0;
+  overflow: hidden;
+  line-height: 22px;
+  vertical-align: middle;
+}
+
+.targetTabText {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.targetTabCount {
+  flex: 0 0 auto;
+}
+
 .tableWrap {
   padding: 10px 14px 14px;
 }
@@ -110,43 +154,6 @@
 
 .emptyHint {
   padding: 40px 0;
-}
-
-.mappingModal {
-  width: 520px;
-  max-width: calc(100vw - 48px);
-}
-
-.mappingTip {
-  margin: 0 0 14px;
-  color: #667085;
-  font-size: 12px;
-  line-height: 18px;
-}
-
-.mappingList {
-  display: grid;
-  gap: 10px;
-}
-
-.mappingRow {
-  display: grid;
-  grid-template-columns: 150px minmax(0, 1fr);
-  gap: 10px;
-  align-items: center;
-}
-
-.mappingRow span {
-  color: #344054;
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.modalActions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-top: 16px;
 }
 
 @media (max-width: 1320px) {

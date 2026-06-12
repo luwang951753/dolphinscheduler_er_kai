@@ -45,6 +45,11 @@ export const MODULE_PERMISSION_OPTIONS: ModulePermissionOption[] = [
     description: '允许访问主题库模块，查看主题、业务项和分析场景。'
   },
   {
+    label: '白皮书',
+    value: 'whitepaper:view',
+    description: '允许访问白皮书模块，配置报表数据集和编辑报告模板。'
+  },
+  {
     label: '治理',
     value: 'data-governance:view',
     description: '允许访问数据治理模块，查看血缘、质量和治理事项。'

@@ -74,7 +74,7 @@ const props = {
 const Modal = defineComponent({
   name: 'Modal',
   props,
-  emits: ['cancel', 'confirm', 'jumpLink', 'maskClick'],
+  emits: ['update:show', 'cancel', 'confirm', 'jumpLink', 'maskClick'],
   setup(props, ctx) {
     const { t } = useI18n()
 
@@ -90,7 +90,11 @@ const Modal = defineComponent({
       ctx.emit('maskClick')
     }
 
-    return { t, onCancel, onConfirm, onMaskClick }
+    const onUpdateShow = (show: boolean) => {
+      ctx.emit('update:show', show)
+    }
+
+    return { t, onCancel, onConfirm, onMaskClick, onUpdateShow }
   },
   render() {
     const {
@@ -99,13 +103,15 @@ const Modal = defineComponent({
       onCancel,
       onConfirm,
       onMaskClick,
+      onUpdateShow,
       confirmDisabled,
       confirmLoading
     } = this
 
     return (
       <NModal
-        v-model={[this.show, 'show']}
+        show={this.show}
+        onUpdateShow={onUpdateShow}
         class={styles.container}
         mask-closable={false}
         auto-focus={this.autoFocus}

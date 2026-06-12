@@ -34,6 +34,7 @@
   align-content: center;
   min-height: 60px;
   padding: 8px 10px 8px 14px;
+  text-align: left;
 }
 
 .metric::before {
@@ -58,6 +59,22 @@
 .metric strong {
   font-size: 19px;
   line-height: 1;
+}
+
+.emptyBlock {
+  display: grid;
+  place-items: center;
+  min-height: 72px;
+  border: 1px dashed #d9e3f0;
+  border-radius: 8px;
+  background: #fbfdff;
+  color: #667085;
+  font-size: 12px;
+}
+
+.metrics .emptyBlock {
+  grid-column: 1 / -1;
+  min-height: 60px;
 }
 
 .grid {
@@ -159,6 +176,65 @@
   border-radius: 7px;
   background: #fbfdff;
   font-size: 11px;
+  text-align: left;
+}
+
+button.metric,
+button.row,
+button.domain {
+  width: 100%;
+  border: 1px solid #e7edf5;
+  color: inherit;
+  font: inherit;
+}
+
+button.metric {
+  border-color: #d9e3f0;
+}
+
+button.node {
+  width: auto;
+  color: inherit;
+  font: inherit;
+}
+
+button:disabled {
+  opacity: 1;
+}
+
+.clickable {
+  cursor: pointer;
+  transition:
+    border-color 0.16s ease,
+    box-shadow 0.16s ease,
+    transform 0.16s ease;
+}
+
+.clickable:hover {
+  border-color: #8bb8f2;
+  box-shadow: 0 8px 18px rgba(31, 95, 191, 0.12);
+}
+
+.clickablePanel {
+  cursor: pointer;
+  transition:
+    border-color 0.16s ease,
+    box-shadow 0.16s ease;
+}
+
+.clickablePanel:hover {
+  border-color: #8bb8f2;
+  box-shadow: 0 8px 18px rgba(31, 95, 191, 0.12);
+}
+
+.clickablePanel:focus-visible {
+  outline: 2px solid rgba(31, 95, 191, 0.36);
+  outline-offset: 2px;
+}
+
+.clickable:focus-visible {
+  outline: 2px solid rgba(31, 95, 191, 0.36);
+  outline-offset: 2px;
 }
 
 .row strong {
@@ -254,6 +330,7 @@
   border: 1px solid #e7edf5;
   border-radius: 7px;
   background: #fbfdff;
+  text-align: left;
 }
 
 .domainTop {

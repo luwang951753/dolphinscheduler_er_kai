@@ -34,7 +34,8 @@ export default {
       meta: {
         title: '数据治理',
         activeMenu: 'data-governance',
-        showSide: false,
+        activeSide: '/data-governance',
+        showSide: true,
         auth: [],
         modulePermission: 'data-governance:view'
       }

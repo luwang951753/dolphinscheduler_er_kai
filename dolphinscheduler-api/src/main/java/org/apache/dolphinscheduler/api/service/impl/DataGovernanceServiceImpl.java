@@ -36,8 +36,8 @@ import org.apache.dolphinscheduler.api.enums.Status;
 import org.apache.dolphinscheduler.api.exceptions.ServiceException;
 import org.apache.dolphinscheduler.api.service.DataGovernanceService;
 import org.apache.dolphinscheduler.api.service.DataGovernanceStore;
-import org.apache.dolphinscheduler.common.enums.WorkflowExecutionStatus;
 import org.apache.dolphinscheduler.common.enums.AuthorizationType;
+import org.apache.dolphinscheduler.common.enums.WorkflowExecutionStatus;
 import org.apache.dolphinscheduler.dao.entity.DataSource;
 import org.apache.dolphinscheduler.dao.entity.User;
 import org.apache.dolphinscheduler.dao.entity.WorkflowDefinition;
@@ -60,7 +60,6 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -101,23 +100,34 @@ public class DataGovernanceServiceImpl extends BaseServiceImpl implements DataGo
 
     @Override
     public List<Asset> queryAssets(
-            User loginUser,
-            Integer datasourceId,
-            String database,
-            String keyword,
-            String qualityStatus,
-            Integer limit) {
-        if (datasourceId == null || StringUtils.isBlank(database)) {
-            return Collections.emptyList();
-        }
+                                   User loginUser,
+                                   Integer datasourceId,
+                                   String database,
+                                   String keyword,
+                                   String qualityStatus,
+                                   Integer limit) {
         String normalizedKeyword = normalizeAssetKeyword(keyword);
-        DataSource dataSource = getDatasource(loginUser, datasourceId);
         int queryLimit = normalizeAssetLimit(limit);
-        return discoverDatasourceAssets(dataSource, database, normalizedKeyword, queryLimit).stream()
+        Map<String, Asset> assets = new java.util.LinkedHashMap<>();
+        if (datasourceId != null && StringUtils.isNotBlank(database)) {
+            DataSource dataSource = getDatasource(loginUser, datasourceId);
+            discoverDatasourceAssets(dataSource, database, normalizedKeyword, queryLimit).stream()
+                    .map(this::mergePersistedAssetState)
+                    .forEach(asset -> assets.put(asset.getId(), asset));
+        } else if (StringUtils.isNotBlank(normalizedKeyword)) {
+            discoverKeywordDatasourceAssets(loginUser, normalizedKeyword, queryLimit).stream()
+                    .map(this::mergePersistedAssetState)
+                    .forEach(asset -> assets.put(asset.getId(), asset));
+        }
+        discoverLineageAssets(loginUser, datasourceId, database).stream()
                 .map(this::mergePersistedAssetState)
+                .forEach(asset -> assets.putIfAbsent(asset.getId(), asset));
+        return assets.values().stream()
                 .filter(asset -> matchesKeyword(asset, normalizedKeyword))
                 .filter(asset -> StringUtils.isBlank(qualityStatus)
                         || StringUtils.equalsIgnoreCase(qualityStatus, asset.getQualityStatus()))
+                .peek(asset -> fillAssetFieldCount(loginUser, asset))
+                .limit(queryLimit)
                 .collect(Collectors.toList());
     }
 
@@ -245,9 +255,11 @@ public class DataGovernanceServiceImpl extends BaseServiceImpl implements DataGo
         String sourceSchema = normalizeSchema(sourceDataSource, request.getSourceSchema());
         String targetSchema = normalizeSchema(targetDataSource, request.getTargetSchema());
         String sourceAssetId =
-                buildAssetId(sourceDataSource.getId(), request.getSourceDatabase(), sourceSchema, request.getSourceTable());
+                buildAssetId(sourceDataSource.getId(), request.getSourceDatabase(), sourceSchema,
+                        request.getSourceTable());
         String targetAssetId =
-                buildAssetId(targetDataSource.getId(), request.getTargetDatabase(), targetSchema, request.getTargetTable());
+                buildAssetId(targetDataSource.getId(), request.getTargetDatabase(), targetSchema,
+                        request.getTargetTable());
         parseAssetId(sourceAssetId);
         parseAssetId(targetAssetId);
 
@@ -257,7 +269,8 @@ public class DataGovernanceServiceImpl extends BaseServiceImpl implements DataGo
 
         LineageNode upstream = new LineageNode();
         upstream.setAssetId(sourceAssetId);
-        upstream.setAssetName(buildLineageAssetName(sourceDataSource, request.getSourceDatabase(), sourceSchema, request.getSourceTable()));
+        upstream.setAssetName(buildLineageAssetName(sourceDataSource, request.getSourceDatabase(), sourceSchema,
+                request.getSourceTable()));
         upstream.setRelationType("源表");
         upstream.setSyncTaskName(syncTaskName);
         upstream.setLastRunStatus(lastRunStatus);
@@ -266,7 +279,8 @@ public class DataGovernanceServiceImpl extends BaseServiceImpl implements DataGo
 
         LineageNode downstream = new LineageNode();
         downstream.setAssetId(targetAssetId);
-        downstream.setAssetName(buildLineageAssetName(targetDataSource, request.getTargetDatabase(), targetSchema, request.getTargetTable()));
+        downstream.setAssetName(buildLineageAssetName(targetDataSource, request.getTargetDatabase(), targetSchema,
+                request.getTargetTable()));
         downstream.setRelationType("目标表");
         downstream.setSyncTaskName(syncTaskName);
         downstream.setLastRunStatus(lastRunStatus);
@@ -307,8 +321,10 @@ public class DataGovernanceServiceImpl extends BaseServiceImpl implements DataGo
             result.setMessage("工作流实例尚未终态，未修改血缘状态。");
             return result;
         }
-        String repairedAt = workflowInstance.getEndTime() == null ? now() : TIME_FORMATTER.format(
-                workflowInstance.getEndTime().toInstant().atZone(java.time.ZoneId.systemDefault()).toLocalDateTime());
+        String repairedAt = workflowInstance.getEndTime() == null ? now()
+                : TIME_FORMATTER.format(
+                        workflowInstance.getEndTime().toInstant().atZone(java.time.ZoneId.systemDefault())
+                                .toLocalDateTime());
         int repairedRows = dataGovernanceStore.repairRunningLineageStatus(syncTaskName, lineageStatus, repairedAt);
         result.setRepairedStatus(lineageStatus);
         result.setRepairedAt(repairedAt);
@@ -333,7 +349,8 @@ public class DataGovernanceServiceImpl extends BaseServiceImpl implements DataGo
             try {
                 results.add(trialRun(loginUser, assetId, request));
             } catch (Exception ex) {
-                log.warn("Run after-sync data governance rule failed, assetId:{}, ruleId:{}.", assetId, rule.getId(), ex);
+                log.warn("Run after-sync data governance rule failed, assetId:{}, ruleId:{}.", assetId, rule.getId(),
+                        ex);
             }
         }
         return results;
@@ -351,12 +368,14 @@ public class DataGovernanceServiceImpl extends BaseServiceImpl implements DataGo
     }
 
     private WorkflowInstance findLatestWorkflowInstance(String syncTaskName) {
-        WorkflowDefinition definition = workflowDefinitionMapper.selectOne(new QueryWrapper<WorkflowDefinition>().lambda()
-                .eq(WorkflowDefinition::getName, syncTaskName)
-                .orderByDesc(WorkflowDefinition::getUpdateTime)
-                .last("limit 1"));
+        WorkflowDefinition definition =
+                workflowDefinitionMapper.selectOne(new QueryWrapper<WorkflowDefinition>().lambda()
+                        .eq(WorkflowDefinition::getName, syncTaskName)
+                        .orderByDesc(WorkflowDefinition::getUpdateTime)
+                        .last("limit 1"));
         if (definition != null) {
-            List<WorkflowInstance> instances = workflowInstanceMapper.queryByWorkflowDefinitionCode(definition.getCode(), 1);
+            List<WorkflowInstance> instances =
+                    workflowInstanceMapper.queryByWorkflowDefinitionCode(definition.getCode(), 1);
             if (!instances.isEmpty()) {
                 return instances.get(0);
             }
@@ -412,7 +431,8 @@ public class DataGovernanceServiceImpl extends BaseServiceImpl implements DataGo
                 + ") quality_check";
     }
 
-    private List<Asset> discoverDatasourceAssets(DataSource dataSource, String databaseFilter, String keyword, int limit) {
+    private List<Asset> discoverDatasourceAssets(DataSource dataSource, String databaseFilter, String keyword,
+                                                 int limit) {
         BaseConnectionParam connectionParam = buildConnectionParam(dataSource);
         Connection connection = DataSourceUtils.getConnection(dataSource.getType(), connectionParam);
         if (connection == null) {
@@ -458,6 +478,7 @@ public class DataGovernanceServiceImpl extends BaseServiceImpl implements DataGo
                     asset.setDescription(StringUtils.trimToEmpty(tableRs.getString("REMARKS")));
                     asset.setFullName(buildFullName(dataSource, database, schema, asset.getTableName()));
                     asset.setId(buildAssetId(dataSource.getId(), database, schema, asset.getTableName()));
+                    asset.setFieldCount(countTableFields(metaData, catalog, schema, asset.getTableName()));
                     asset.setQualityStatus("NOT_CONFIGURED");
                     assets.add(asset);
                     if (assets.size() >= limit) {
@@ -476,6 +497,83 @@ public class DataGovernanceServiceImpl extends BaseServiceImpl implements DataGo
             closeResult(tableRs);
             releaseConnection(connection);
         }
+    }
+
+    private List<Asset> discoverKeywordDatasourceAssets(User loginUser, String keyword, int limit) {
+        List<Asset> assets = new ArrayList<>();
+        List<DataSource> dataSources = dataSourceMapper.selectList(new QueryWrapper<DataSource>().lambda()
+                .orderByAsc(DataSource::getId));
+        for (DataSource dataSource : dataSources) {
+            if (assets.size() >= limit || !isSupported(dataSource) || !canReadDatasource(loginUser, dataSource.getId())) {
+                continue;
+            }
+            int remaining = limit - assets.size();
+            try {
+                assets.addAll(discoverDatasourceAssets(dataSource, null, keyword, remaining));
+            } catch (Exception ex) {
+                log.warn("Skip data governance keyword discovery for datasourceId:{}.", dataSource.getId(), ex);
+            }
+        }
+        return assets;
+    }
+
+    private List<Asset> discoverLineageAssets(User loginUser, Integer datasourceId, String database) {
+        DataGovernanceStore.StoreState state = dataGovernanceStore.snapshot();
+        Set<String> assetIds = new LinkedHashSet<>();
+        assetIds.addAll(state.getUpstream().keySet());
+        assetIds.addAll(state.getDownstream().keySet());
+        state.getUpstream().values().forEach(nodes -> nodes.forEach(node -> assetIds.add(node.getAssetId())));
+        state.getDownstream().values().forEach(nodes -> nodes.forEach(node -> assetIds.add(node.getAssetId())));
+        List<Asset> assets = new ArrayList<>();
+        for (String assetId : assetIds) {
+            AssetRef assetRef;
+            try {
+                assetRef = parseAssetId(assetId);
+            } catch (ServiceException ex) {
+                continue;
+            }
+            if (datasourceId != null && !datasourceId.equals(assetRef.datasourceId)) {
+                continue;
+            }
+            if (StringUtils.isNotBlank(database) && !StringUtils.equalsIgnoreCase(database, assetRef.database)) {
+                continue;
+            }
+            DataSource dataSource;
+            try {
+                dataSource = getDatasource(loginUser, assetRef.datasourceId);
+            } catch (ServiceException ex) {
+                continue;
+            }
+            Asset asset = new Asset();
+            asset.setId(assetRef.assetId);
+            asset.setDatasourceId(dataSource.getId());
+            asset.setDatasourceName(dataSource.getName());
+            asset.setDatasourceType(dataSource.getType().name());
+            asset.setDatabase(assetRef.database);
+            asset.setSchema(StringUtils.trimToEmpty(assetRef.schema));
+            asset.setTableName(assetRef.tableName);
+            asset.setTableType("SQL_LINEAGE");
+            asset.setFullName(buildFullName(dataSource, assetRef.database, assetRef.schema, assetRef.tableName));
+            try {
+                asset.setFieldCount(queryFields(dataSource, assetRef.database, assetRef.schema, assetRef.tableName).size());
+            } catch (Exception ex) {
+                log.warn("Resolve lineage asset field count failed, assetId:{}.", assetId, ex);
+            }
+            asset.setQualityStatus("NOT_CONFIGURED");
+            assets.add(asset);
+        }
+        return assets;
+    }
+
+    private int countTableFields(DatabaseMetaData metaData, String catalog, String schema, String tableName)
+            throws java.sql.SQLException {
+        int count = 0;
+        try (ResultSet columnRs = metaData.getColumns(catalog, schema, tableName, "%")) {
+            while (columnRs != null && columnRs.next()) {
+                count++;
+            }
+        }
+        return count;
     }
 
     private int normalizeAssetLimit(Integer limit) {
@@ -510,15 +608,18 @@ public class DataGovernanceServiceImpl extends BaseServiceImpl implements DataGo
         List<QualityRule> rules = dataGovernanceStore.getRules(asset.getId());
         List<Issue> issues = dataGovernanceStore.getIssues(asset.getId());
         asset.setRuleCount(rules.size());
-        asset.setIssueCount((int) issues.stream().filter(issue -> !StringUtils.equals(issue.getStatus(), "RESOLVED")).count());
-        QualityRule lastRule = rules.stream().filter(rule -> StringUtils.isNotBlank(rule.getLastRunAt())).findFirst().orElse(null);
+        asset.setIssueCount(
+                (int) issues.stream().filter(issue -> !StringUtils.equals(issue.getStatus(), "RESOLVED")).count());
+        QualityRule lastRule =
+                rules.stream().filter(rule -> StringUtils.isNotBlank(rule.getLastRunAt())).findFirst().orElse(null);
         if (lastRule != null) {
             asset.setLastCheckTime(lastRule.getLastRunAt());
         }
         if (asset.getIssueCount() != null && asset.getIssueCount() > 0) {
             asset.setQualityStatus("FAILED");
         } else if (!rules.isEmpty()) {
-            asset.setQualityStatus(rules.stream().anyMatch(rule -> StringUtils.equals(rule.getStatus(), "PASS")) ? "PASS" : "NOT_RUN");
+            asset.setQualityStatus(
+                    rules.stream().anyMatch(rule -> StringUtils.equals(rule.getStatus(), "PASS")) ? "PASS" : "NOT_RUN");
         }
         List<LineageNode> upstream = dataGovernanceStore.getUpstream(asset.getId());
         if (!upstream.isEmpty()) {
@@ -526,6 +627,18 @@ public class DataGovernanceServiceImpl extends BaseServiceImpl implements DataGo
         }
         asset.setUpdateTime(now());
         return asset;
+    }
+
+    private void fillAssetFieldCount(User loginUser, Asset asset) {
+        if (asset == null || asset.getFieldCount() != null) {
+            return;
+        }
+        try {
+            DataSource dataSource = getDatasource(loginUser, asset.getDatasourceId());
+            asset.setFieldCount(queryFields(dataSource, asset.getDatabase(), asset.getSchema(), asset.getTableName()).size());
+        } catch (Exception ex) {
+            log.warn("Resolve data governance asset field count failed, assetId:{}.", asset == null ? null : asset.getId(), ex);
+        }
     }
 
     private List<Field> queryFields(DataSource dataSource, String database, String schema, String tableName) {
@@ -575,7 +688,7 @@ public class DataGovernanceServiceImpl extends BaseServiceImpl implements DataGo
             throw new ServiceException(Status.DATASOURCE_CONNECT_FAILED);
         }
         try (Statement statement = connection.createStatement()) {
-            if (dataSource.getType() == DbType.MYSQL) {
+            if (isMysqlLike(dataSource.getType())) {
                 connection.setCatalog(assetRef.database);
             } else if (dataSource.getType() == DbType.POSTGRESQL) {
                 connection.setSchema(StringUtils.defaultIfBlank(assetRef.schema, DEFAULT_SCHEMA));
@@ -631,7 +744,8 @@ public class DataGovernanceServiceImpl extends BaseServiceImpl implements DataGo
 
     private void closeRuleIssues(String assetId, QualityRule rule, String updatedAt) {
         for (Issue issue : dataGovernanceStore.getIssues(assetId)) {
-            if (StringUtils.equals(issue.getRuleId(), rule.getId()) && !StringUtils.equals(issue.getStatus(), "RESOLVED")) {
+            if (StringUtils.equals(issue.getRuleId(), rule.getId())
+                    && !StringUtils.equals(issue.getStatus(), "RESOLVED")) {
                 issue.setStatus("RESOLVED");
                 issue.setUpdatedAt(updatedAt);
                 dataGovernanceStore.saveIssue(assetId, issue);
@@ -667,8 +781,9 @@ public class DataGovernanceServiceImpl extends BaseServiceImpl implements DataGo
             throw new ServiceException(Status.REQUEST_PARAMS_NOT_VALID_ERROR);
         }
         String field = quote(dbType, request.getFieldName());
-        Map<String, Object> conditions = request.getConditions() == null ? Collections.emptyMap() : request.getConditions();
-        String castAsText = dbType == DbType.MYSQL
+        Map<String, Object> conditions =
+                request.getConditions() == null ? Collections.emptyMap() : request.getConditions();
+        String castAsText = isMysqlLike(dbType)
                 ? "TRIM(CAST(" + field + " AS CHAR))"
                 : "TRIM(CAST(" + field + " AS VARCHAR))";
         switch (type) {
@@ -678,7 +793,8 @@ public class DataGovernanceServiceImpl extends BaseServiceImpl implements DataGo
                 }
                 return field + " IS NULL OR " + castAsText + " = ''";
             case "UNIQUE":
-                return field + " IN (SELECT " + field + " FROM " + table + " GROUP BY " + field + " HAVING COUNT(1) > 1)";
+                return field + " IN (SELECT " + field + " FROM " + table + " GROUP BY " + field
+                        + " HAVING COUNT(1) > 1)";
             case "RANGE":
                 return field + " < " + valueOrDefault(conditions.get("min"), "0") + " OR "
                         + field + " > " + valueOrDefault(conditions.get("max"), "999999999");
@@ -686,7 +802,7 @@ public class DataGovernanceServiceImpl extends BaseServiceImpl implements DataGo
                 return field + " NOT IN (" + enumValues(conditions.get("values")) + ")";
             case "REGEX":
                 String pattern = StringUtils.defaultIfBlank(String.valueOf(conditions.get("pattern")), ".*");
-                if (dbType == DbType.MYSQL) {
+                if (isMysqlLike(dbType)) {
                     return field + " IS NULL OR " + field + " NOT REGEXP '" + pattern.replace("'", "''") + "'";
                 }
                 return field + " IS NULL OR " + field + " !~ '" + pattern.replace("'", "''") + "'";
@@ -717,7 +833,8 @@ public class DataGovernanceServiceImpl extends BaseServiceImpl implements DataGo
         if (StringUtils.isBlank(normalized) || !lower.matches("^(select|with)\\b[\\s\\S]*")) {
             throw new ServiceException(Status.DATA_PREVIEW_QUERY_ERROR);
         }
-        if (lower.matches("[\\s\\S]*\\b(insert|update|delete|drop|truncate|alter|create|grant|revoke|merge|replace|call)\\b[\\s\\S]*")) {
+        if (lower.matches(
+                "[\\s\\S]*\\b(insert|update|delete|drop|truncate|alter|create|grant|revoke|merge|replace|call)\\b[\\s\\S]*")) {
             throw new ServiceException(Status.DATA_PREVIEW_QUERY_ERROR);
         }
         if (!lower.contains("abnormal_count")) {
@@ -774,9 +891,14 @@ public class DataGovernanceServiceImpl extends BaseServiceImpl implements DataGo
     }
 
     private boolean isSupported(DataSource dataSource) {
-        return dataSource != null && (dataSource.getType() == DbType.MYSQL
-                || dataSource.getType() == DbType.POSTGRESQL
-                || dataSource.getType() == DbType.ORACLE);
+        return dataSource != null && isSupportedDatasourceType(dataSource.getType());
+    }
+
+    static boolean isSupportedDatasourceType(DbType dbType) {
+        return dbType == DbType.MYSQL
+                || dbType == DbType.DORIS
+                || dbType == DbType.POSTGRESQL
+                || dbType == DbType.ORACLE;
     }
 
     private boolean matchesKeyword(Asset asset, String keyword) {
@@ -792,7 +914,8 @@ public class DataGovernanceServiceImpl extends BaseServiceImpl implements DataGo
 
     private BaseConnectionParam buildConnectionParam(DataSource dataSource) {
         BaseConnectionParam connectionParam =
-                (BaseConnectionParam) DataSourceUtils.buildConnectionParams(dataSource.getType(), dataSource.getConnectionParams());
+                (BaseConnectionParam) DataSourceUtils.buildConnectionParams(dataSource.getType(),
+                        dataSource.getConnectionParams());
         if (connectionParam == null) {
             throw new ServiceException(Status.DATASOURCE_CONNECT_FAILED);
         }
@@ -817,7 +940,7 @@ public class DataGovernanceServiceImpl extends BaseServiceImpl implements DataGo
     }
 
     private String qualifiedTableName(DbType dbType, AssetRef assetRef) {
-        if (dbType == DbType.MYSQL) {
+        if (isMysqlLike(dbType)) {
             return quote(dbType, assetRef.database) + "." + quote(dbType, assetRef.tableName);
         }
         return quote(dbType, getQualifiedSchema(dbType, assetRef.schema)) + "." + quote(dbType, assetRef.tableName);
@@ -832,7 +955,7 @@ public class DataGovernanceServiceImpl extends BaseServiceImpl implements DataGo
 
     private String quote(DbType dbType, String identifier) {
         validateIdentifier(identifier);
-        if (dbType == DbType.MYSQL) {
+        if (isMysqlLike(dbType)) {
             return "`" + identifier.replace("`", "``") + "`";
         }
         return "\"" + identifier.replace("\"", "\"\"") + "\"";
@@ -864,7 +987,7 @@ public class DataGovernanceServiceImpl extends BaseServiceImpl implements DataGo
     }
 
     private List<org.apache.dolphinscheduler.api.dto.datagovernance.DataGovernanceDtos.FieldMapping> normalizeFieldMappings(
-            SyncTaskLineageRequest request) {
+                                                                                                                            SyncTaskLineageRequest request) {
         if (request.getFieldMappings() == null) {
             return new ArrayList<>();
         }
@@ -887,10 +1010,15 @@ public class DataGovernanceServiceImpl extends BaseServiceImpl implements DataGo
     }
 
     private boolean isSystemDatabase(DbType dbType, String database) {
-        if (dbType == DbType.MYSQL) {
-            return StringUtils.equalsAnyIgnoreCase(database, "information_schema", "mysql", "performance_schema", "sys");
+        if (isMysqlLike(dbType)) {
+            return StringUtils.equalsAnyIgnoreCase(database, "information_schema", "mysql", "performance_schema",
+                    "sys", "__internal_schema");
         }
         return StringUtils.equalsAnyIgnoreCase(database, "template0", "template1");
+    }
+
+    private boolean isMysqlLike(DbType dbType) {
+        return dbType == DbType.MYSQL || dbType == DbType.DORIS;
     }
 
     private String guessSensitiveTag(String fieldName) {

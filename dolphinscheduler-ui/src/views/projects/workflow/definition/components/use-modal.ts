@@ -16,7 +16,7 @@
  */
 
 import _, { cloneDeep, omit } from 'lodash'
-import { reactive, SetupContext } from 'vue'
+import { reactive, SetupContext, unref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import type { Router } from 'vue-router'
@@ -41,14 +41,23 @@ import { queryWorkerGroupsByProjectCode } from '@/service/modules/projects-worke
 
 export function useModal(
   state: any,
-  ctx: SetupContext<('update:show' | 'update:row' | 'updateList')[]>
+  ctx: SetupContext<('update:show' | 'update:row' | 'updateList')[]>,
+  projectCodeOverride?: number | { value: number | null | undefined }
 ) {
   const { t } = useI18n()
   const router: Router = useRouter()
   const route = useRoute()
 
+  const resolveProjectCode = () => {
+    const overrideProjectCode = Number(unref(projectCodeOverride as any))
+    if (Number.isFinite(overrideProjectCode) && overrideProjectCode > 0) {
+      return overrideProjectCode
+    }
+    return Number(route.params.projectCode)
+  }
+
   const variables = reactive<ITimingState>({
-    projectCode: Number(route.params.projectCode),
+    projectCode: resolveProjectCode(),
     workerGroups: [],
     tenantList: [],
     alertGroups: [],
@@ -248,7 +257,7 @@ export function useModal(
   const getPreviewSchedule = () => {
     state.timingFormRef.validate(async (valid: any) => {
       if (!valid) {
-        const projectCode = Number(router.currentRoute.value.params.projectCode)
+        const projectCode = resolveProjectCode()
 
         const start = format(
           new Date(state.timingForm.startEndTime[0]),
@@ -271,6 +280,13 @@ export function useModal(
       }
     })
   }
+
+  watch(
+    () => resolveProjectCode(),
+    (projectCode) => {
+      variables.projectCode = projectCode
+    }
+  )
 
   return {
     variables,

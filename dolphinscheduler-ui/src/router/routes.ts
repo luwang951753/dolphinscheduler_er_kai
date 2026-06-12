@@ -24,6 +24,7 @@ import datasourcePage from './modules/datasource'
 import syncTaskPage from './modules/sync-task'
 import dataPreviewPage from './modules/data-preview'
 import themeLibraryPage from './modules/theme-library'
+import whitepaperPage from './modules/whitepaper'
 import dataGovernancePage from './modules/data-governance'
 import dataReturnPage from './modules/data-return'
 import dataIssuePage from './modules/data-issue'
@@ -91,6 +92,7 @@ const basePage: RouteRecordRaw[] = [
   syncTaskPage,
   dataPreviewPage,
   themeLibraryPage,
+  whitepaperPage,
   dataGovernancePage,
   dataReturnPage,
   dataIssuePage,

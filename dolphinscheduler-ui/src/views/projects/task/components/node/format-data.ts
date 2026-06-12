@@ -223,23 +223,27 @@ export function formatParams(data: INodeData): {
   }
 
   if (data.taskType === 'SEATUNNEL') {
-    taskParams.startupScript = data.startupScript
-    taskParams.useCustom = data.useCustom
-    if (!data.useCustom) {
+    const seatunnelParams = (data as any).taskParams || {}
+    const useCustom = data.useCustom !== undefined ? data.useCustom : seatunnelParams.useCustom
+    taskParams.startupScript = data.startupScript || seatunnelParams.startupScript
+    taskParams.useCustom = useCustom !== false
+    if (useCustom === false) {
       taskParams.rawScript = ''
+    } else {
+      taskParams.rawScript = data.rawScript || seatunnelParams.rawScript || ''
     }
-    if (data.startupScript?.includes('flink')) {
-      taskParams.runMode = data.runMode
-      taskParams.others = data.others
+    if (taskParams.startupScript?.includes('flink')) {
+      taskParams.runMode = data.runMode || seatunnelParams.runMode
+      taskParams.others = data.others || seatunnelParams.others
     }
-    if (data.startupScript?.includes('spark')) {
-      taskParams.deployMode = data.deployMode
-      taskParams.master = data.master
-      taskParams.masterUrl = data.masterUrl
+    if (taskParams.startupScript?.includes('spark')) {
+      taskParams.deployMode = data.deployMode || seatunnelParams.deployMode
+      taskParams.master = data.master || seatunnelParams.master
+      taskParams.masterUrl = data.masterUrl || seatunnelParams.masterUrl
     }
-    if (data.startupScript === 'seatunnel.sh') {
-      taskParams.deployMode = data.deployMode
-      taskParams.others = data.others
+    if (taskParams.startupScript === 'seatunnel.sh') {
+      taskParams.deployMode = data.deployMode || seatunnelParams.deployMode
+      taskParams.others = data.others || seatunnelParams.others
     }
   }
 

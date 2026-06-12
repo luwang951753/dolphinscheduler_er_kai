@@ -15,14 +15,23 @@
  * limitations under the License.
  */
 
-import { computed, defineComponent, onMounted, reactive, ref, watch } from 'vue'
+import { computed, defineComponent, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import type { SelectOption } from 'naive-ui'
+import {
+  AimOutlined,
+  CompressOutlined,
+  FullscreenOutlined,
+  ReloadOutlined,
+  ZoomInOutlined,
+  ZoomOutOutlined
+} from '@vicons/antd'
 import {
   NButton,
   NCheckbox,
   NEmpty,
   NForm,
   NFormItem,
+  NIcon,
   NInput,
   NModal,
   NSelect,
@@ -62,6 +71,63 @@ import type {
 import styles from './index.module.scss'
 
 type DetailTab = 'overview' | 'fields' | 'quality' | 'lineage' | 'issues'
+type LineageViewMode = 'table' | 'field'
+type FieldLineageSide = 'source' | 'target'
+
+interface FieldLineageNode {
+  id: string
+  assetId: string
+  side: FieldLineageSide
+  title: string
+  subtitle: string
+  badge: string
+  fields: string[]
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+interface FieldLineageEdge {
+  id: string
+  sourceId: string
+  targetId: string
+  sourceField: string
+  targetField: string
+  badge: string
+}
+
+interface FieldLineageBadge {
+  id: string
+  x: number
+  y: number
+  count: number
+  badge: string
+}
+
+const LINEAGE_DEFAULT_VIEW = {
+  scale: 1,
+  translateX: 0,
+  translateY: 0
+}
+const LINEAGE_GRAPH_WIDTH = 1240
+const LINEAGE_NODE_WIDTH = 320
+const LINEAGE_NODE_BASE_HEIGHT = 92
+const LINEAGE_NODE_ROW_GAP = 190
+const LINEAGE_SOURCE_X = 40
+const LINEAGE_CENTER_X = 460
+const LINEAGE_TARGET_X = 880
+const FIELD_LINEAGE_CARD_WIDTH = 320
+const FIELD_LINEAGE_CARD_MIN_WIDTH = 260
+const FIELD_LINEAGE_CARD_MAX_WIDTH = 520
+const FIELD_LINEAGE_CARD_MIN_HEIGHT = 168
+const FIELD_LINEAGE_CARD_MAX_HEIGHT = 620
+const FIELD_LINEAGE_ROW_HEIGHT = 30
+const FIELD_LINEAGE_HEADER_HEIGHT = 82
+const FIELD_LINEAGE_GAP = 30
+const FIELD_LINEAGE_SOURCE_X = 36
+const FIELD_LINEAGE_CENTER_X = 460
+const FIELD_LINEAGE_TARGET_X = 884
 
 const qualityOptions: SelectOption[] = [
   { label: '全部质量状态', value: '' },
@@ -71,7 +137,7 @@ const qualityOptions: SelectOption[] = [
   { label: '失败', value: 'FAILED' }
 ]
 
-const SUPPORTED_DATASOURCE_TYPES = ['MYSQL', 'POSTGRESQL', 'ORACLE'] as const
+const SUPPORTED_DATASOURCE_TYPES = ['MYSQL', 'POSTGRESQL', 'ORACLE', 'DORIS'] as const
 const ASSET_QUERY_LIMIT = 80
 const SYSTEM_DATABASE_NAMES = new Set([
   'information_schema',
@@ -201,6 +267,7 @@ export default defineComponent({
     const sortMode = ref('UPDATED')
     const sidebarWidth = ref(220)
     const fields = ref<IGovernanceField[]>([])
+    const lineageFieldOrders = ref<Record<string, string[]>>({})
     const rules = ref<IGovernanceQualityRule[]>([])
     const issues = ref<IGovernanceIssue[]>([])
     const lineage = ref<IGovernanceLineage>({ upstream: [], downstream: [] })
@@ -209,6 +276,25 @@ export default defineComponent({
     const ruleFields = ref<IGovernanceField[]>([])
     const ruleModalVisible = ref(false)
     const metadataModalVisible = ref(false)
+    const lineageFullscreenVisible = ref(false)
+    const lineageViewMode = ref<LineageViewMode>('field')
+    const lineageViewport = reactive({ ...LINEAGE_DEFAULT_VIEW })
+    const fieldLineageNodeOffsets = reactive<Record<string, { x: number; y: number }>>({})
+    const fieldLineageNodeSizes = reactive<Record<string, { width: number; height: number }>>({})
+    const draggingFieldLineageNode = ref<{
+      nodeId: string
+      startClientX: number
+      startClientY: number
+      startX: number
+      startY: number
+    } | null>(null)
+    const resizingFieldLineageNode = ref<{
+      nodeId: string
+      startClientX: number
+      startClientY: number
+      startWidth: number
+      startHeight: number
+    } | null>(null)
     const trialResult = ref<IGovernanceTrialRunResult | null>(null)
     const ruleSqlMode = ref<'summary' | 'sql'>('summary')
     const currentAsset = computed(() =>
@@ -216,7 +302,7 @@ export default defineComponent({
     )
     const trimmedKeyword = computed(() => keyword.value.trim())
     const hasAssetScope = computed(() =>
-      Boolean(datasourceId.value && databaseFilter.value)
+      Boolean((datasourceId.value && databaseFilter.value) || trimmedKeyword.value)
     )
     const ruleAsset = computed(() =>
       assets.value.find((asset) => asset.id === ruleAssetId.value)
@@ -355,7 +441,7 @@ export default defineComponent({
       const ownerRate = total ? `${Math.round((configured / total) * 100)}%` : '0%'
       const passRate = total ? `${((passed / total) * 100).toFixed(1)}%` : '0.0%'
       return [
-        { label: '数据资产', value: total, hint: hasAssetScope.value ? `当前库最多展示 ${ASSET_QUERY_LIMIT} 张表` : '请先选择数据源和数据库' },
+        { label: '数据资产', value: total, hint: hasAssetScope.value ? `最多展示 ${ASSET_QUERY_LIMIT} 张表` : '选择数据源或输入表名查询' },
         { label: '有 Owner 资产', value: ownerRate, hint: `${Math.max(total - configured, 0)} 张表待补责任人` },
         { label: '质量通过率', value: passRate, hint: `${issueCount} 条规则异常` },
         { label: '血缘关系', value: lineageCount, hint: '来自同步任务' },
@@ -363,8 +449,333 @@ export default defineComponent({
       ]
     })
 
+    const lineageGraph = computed(() => {
+      if (!currentAsset.value) {
+        return { nodes: [], edges: [], height: 320 }
+      }
+      const upstream = lineage.value.upstream || []
+      const downstream = lineage.value.downstream || []
+      const sideCount = Math.max(upstream.length, downstream.length, 1)
+      const height = Math.max(320, 64 + sideCount * LINEAGE_NODE_ROW_GAP)
+      const centerHeight = 96
+      const centerY = Math.max(38, Math.floor((height - centerHeight) / 2))
+      const centerId = `current:${currentAsset.value.id}`
+      const nodes = [
+        ...upstream.map((node, index) => ({
+          id: `upstream:${node.assetId || node.assetName}:${index}`,
+          x: LINEAGE_SOURCE_X,
+          y: 48 + index * LINEAGE_NODE_ROW_GAP,
+          type: 'upstream',
+          title: node.assetName,
+          subtitle: node.syncTaskName || 'SQL / 同步任务',
+          badge: node.relationType || '上游表',
+          mappings: node.fieldMappings || []
+        })),
+        {
+          id: centerId,
+          x: LINEAGE_CENTER_X,
+          y: centerY,
+          type: 'current',
+          title: currentAsset.value.tableName,
+          subtitle: currentAsset.value.fullName,
+          badge: '当前资产',
+          mappings: []
+        },
+        ...downstream.map((node, index) => ({
+          id: `downstream:${node.assetId || node.assetName}:${index}`,
+          x: LINEAGE_TARGET_X,
+          y: 48 + index * LINEAGE_NODE_ROW_GAP,
+          type: 'downstream',
+          title: node.assetName,
+          subtitle: node.syncTaskName || 'SQL / 同步任务',
+          badge: node.relationType || '下游表',
+          mappings: node.fieldMappings || []
+        }))
+      ]
+      const edges = [
+        ...upstream.map((node, index) => ({
+          id: `upstream-edge:${index}`,
+          sourceId: `upstream:${node.assetId || node.assetName}:${index}`,
+          targetId: centerId,
+          count: node.fieldMappings?.length || 0
+        })),
+        ...downstream.map((node, index) => ({
+          id: `downstream-edge:${index}`,
+          sourceId: centerId,
+          targetId: `downstream:${node.assetId || node.assetName}:${index}`,
+          count: node.fieldMappings?.length || 0
+        }))
+      ]
+      return { nodes, edges, height }
+    })
+
+    const fieldLineageGroups = computed(() => {
+      if (!currentAsset.value) return []
+      const upstream = (lineage.value.upstream || []).map((node) => ({
+        direction: 'upstream' as const,
+        sourceId: node.assetId || node.assetName,
+        sourceTitle: node.assetName,
+        sourceSubtitle: node.syncTaskName || 'SQL / 同步任务',
+        targetId: currentAsset.value?.id || currentAsset.value?.fullName || '',
+        targetTitle: currentAsset.value?.fullName || '',
+        targetSubtitle: '当前资产',
+        badge: node.relationType || '上游表',
+        mappings: node.fieldMappings || []
+      }))
+      const downstream = (lineage.value.downstream || []).map((node) => ({
+        direction: 'downstream' as const,
+        sourceId: currentAsset.value?.id || currentAsset.value?.fullName || '',
+        sourceTitle: currentAsset.value?.fullName || '',
+        sourceSubtitle: '当前资产',
+        targetId: node.assetId || node.assetName,
+        targetTitle: node.assetName,
+        targetSubtitle: node.syncTaskName || 'SQL / 同步任务',
+        badge: node.relationType || '下游表',
+        mappings: node.fieldMappings || []
+      }))
+      return [...upstream, ...downstream]
+    })
+
+    const fieldLineageGraph = computed(() => {
+      const groups = fieldLineageGroups.value
+      if (!groups.length) return { nodes: [], edges: [], badges: [], height: 320 }
+
+      const nodes = new Map<string, FieldLineageNode>()
+      const edges: FieldLineageEdge[] = []
+
+      const ensureNode = (
+        side: FieldLineageSide,
+        assetId: string,
+        title: string,
+        subtitle: string,
+        badge: string
+      ) => {
+        const id = `${side}:${assetId || title}`
+        const existing = nodes.get(id)
+        if (existing) return existing
+        const node: FieldLineageNode = {
+          id,
+          assetId: assetId || title,
+          side,
+          title,
+          subtitle,
+          badge,
+          fields: [],
+          x: side === 'source' ? FIELD_LINEAGE_SOURCE_X : FIELD_LINEAGE_TARGET_X,
+          y: 0,
+          width: FIELD_LINEAGE_CARD_WIDTH,
+          height: 0
+        }
+        nodes.set(id, node)
+        return node
+      }
+
+      const addField = (node: FieldLineageNode, fieldName: string) => {
+        const normalized = fieldName || '表级关系'
+        if (!node.fields.includes(normalized)) {
+          node.fields.push(normalized)
+        }
+      }
+
+      groups.forEach((group, groupIndex) => {
+        const sourceNode = ensureNode(
+          'source',
+          group.sourceId,
+          group.sourceTitle,
+          group.sourceSubtitle,
+          group.direction === 'upstream' ? '来源' : '当前资产'
+        )
+        const targetNode = ensureNode(
+          'target',
+          group.targetId,
+          group.targetTitle,
+          group.targetSubtitle,
+          group.direction === 'upstream' ? '当前资产' : '去向'
+        )
+        const mappings = group.mappings.length
+          ? group.mappings
+          : [{ sourceField: '表级关系', targetField: '表级关系' }]
+
+        mappings.forEach((mapping, mappingIndex) => {
+          addField(sourceNode, mapping.sourceField)
+          addField(targetNode, mapping.targetField)
+          edges.push({
+            id: `field-lineage-edge:${groupIndex}:${mappingIndex}`,
+            sourceId: sourceNode.id,
+            targetId: targetNode.id,
+            sourceField: mapping.sourceField || '表级关系',
+            targetField: mapping.targetField || '表级关系',
+            badge: group.badge
+          })
+        })
+      })
+
+      const positionedNodes = Array.from(nodes.values())
+      const sortFieldsByMetadataOrder = (node: FieldLineageNode) => {
+        const fieldOrder = lineageFieldOrders.value[node.assetId] || []
+        if (!fieldOrder.length) return
+        const orderIndex = new Map(
+          fieldOrder.map((fieldName, index) => [fieldName.toLowerCase(), index])
+        )
+        node.fields = [...node.fields].sort((left, right) => {
+          const leftIndex = orderIndex.get(left.toLowerCase()) ?? Number.MAX_SAFE_INTEGER
+          const rightIndex = orderIndex.get(right.toLowerCase()) ?? Number.MAX_SAFE_INTEGER
+          if (leftIndex !== rightIndex) return leftIndex - rightIndex
+          return node.fields.indexOf(left) - node.fields.indexOf(right)
+        })
+      }
+      positionedNodes.forEach(sortFieldsByMetadataOrder)
+      const positionSide = (side: FieldLineageSide) => {
+        let cursorY = 34
+        positionedNodes
+          .filter((node) => node.side === side)
+          .forEach((node) => {
+            const rowCount = Math.max(node.fields.length, 1)
+            const savedSize = fieldLineageNodeSizes[node.id]
+            node.width = savedSize?.width || FIELD_LINEAGE_CARD_WIDTH
+            node.height = savedSize?.height
+              || FIELD_LINEAGE_HEADER_HEIGHT + rowCount * FIELD_LINEAGE_ROW_HEIGHT + 18
+            node.y = cursorY
+            cursorY += node.height + FIELD_LINEAGE_GAP
+          })
+        return cursorY
+      }
+      const sourceHeight = positionSide('source')
+      const targetHeight = positionSide('target')
+      positionedNodes.forEach((node) => {
+        const offset = fieldLineageNodeOffsets[node.id]
+        if (!offset) return
+        node.x += offset.x
+        node.y = Math.max(0, node.y + offset.y)
+      })
+      const badges = new Map<string, FieldLineageBadge>()
+      edges.forEach((edge) => {
+        const sourceNode = positionedNodes.find((node) => node.id === edge.sourceId)
+        const targetNode = positionedNodes.find((node) => node.id === edge.targetId)
+        if (!sourceNode || !targetNode) return
+        const id = `field-lineage-badge:${edge.sourceId}:${edge.targetId}`
+        const current = badges.get(id)
+        if (current) {
+          current.count += 1
+          return
+        }
+        badges.set(id, {
+          id,
+          x: (sourceNode.x + sourceNode.width + targetNode.x) / 2 - 52,
+          y: (sourceNode.y + targetNode.y) / 2 + Math.min(sourceNode.height, targetNode.height) / 2 - 18,
+          count: 1,
+          badge: edge.badge
+        })
+      })
+
+      return {
+        nodes: positionedNodes,
+        edges,
+        badges: Array.from(badges.values()),
+        height: Math.max(360, sourceHeight, targetHeight)
+      }
+    })
+
+    const lineageTransformStyle = computed(() => ({
+      transform: `translate(${lineageViewport.translateX}px, ${lineageViewport.translateY}px) scale(${lineageViewport.scale})`
+    }))
+
+    const updateLineageZoom = (step: number) => {
+      const nextScale = Number(Math.min(1.6, Math.max(0.55, lineageViewport.scale + step)).toFixed(2))
+      lineageViewport.scale = nextScale
+    }
+
+    const resetLineageView = () => {
+      Object.assign(lineageViewport, LINEAGE_DEFAULT_VIEW)
+    }
+
+    const fitLineageView = (fullscreen = false) => {
+      lineageViewport.scale = fullscreen ? 0.95 : 0.82
+      lineageViewport.translateX = 0
+      lineageViewport.translateY = 0
+    }
+
+    const centerLineageView = () => {
+      lineageViewport.scale = 1
+      lineageViewport.translateX = 0
+      lineageViewport.translateY = 0
+    }
+
+    const stopFieldLineageNodeDrag = () => {
+      draggingFieldLineageNode.value = null
+      window.removeEventListener('mousemove', handleFieldLineageNodeDragMove)
+      window.removeEventListener('mouseup', stopFieldLineageNodeDrag)
+    }
+
+    const handleFieldLineageNodeDragMove = (event: MouseEvent) => {
+      const dragging = draggingFieldLineageNode.value
+      if (!dragging) return
+      const scale = lineageViewport.scale || 1
+      fieldLineageNodeOffsets[dragging.nodeId] = {
+        x: dragging.startX + (event.clientX - dragging.startClientX) / scale,
+        y: dragging.startY + (event.clientY - dragging.startClientY) / scale
+      }
+    }
+
+    const startFieldLineageNodeDrag = (event: MouseEvent, node: FieldLineageNode) => {
+      if (event.button !== 0) return
+      event.preventDefault()
+      const currentOffset = fieldLineageNodeOffsets[node.id] || { x: 0, y: 0 }
+      draggingFieldLineageNode.value = {
+        nodeId: node.id,
+        startClientX: event.clientX,
+        startClientY: event.clientY,
+        startX: currentOffset.x,
+        startY: currentOffset.y
+      }
+      window.addEventListener('mousemove', handleFieldLineageNodeDragMove)
+      window.addEventListener('mouseup', stopFieldLineageNodeDrag)
+    }
+
+    const clampFieldLineageCardSize = (width: number, height: number) => ({
+      width: Math.min(FIELD_LINEAGE_CARD_MAX_WIDTH, Math.max(FIELD_LINEAGE_CARD_MIN_WIDTH, width)),
+      height: Math.min(FIELD_LINEAGE_CARD_MAX_HEIGHT, Math.max(FIELD_LINEAGE_CARD_MIN_HEIGHT, height))
+    })
+
+    const stopFieldLineageNodeResize = () => {
+      resizingFieldLineageNode.value = null
+      window.removeEventListener('mousemove', handleFieldLineageNodeResizeMove)
+      window.removeEventListener('mouseup', stopFieldLineageNodeResize)
+    }
+
+    const handleFieldLineageNodeResizeMove = (event: MouseEvent) => {
+      const resizing = resizingFieldLineageNode.value
+      if (!resizing) return
+      const scale = lineageViewport.scale || 1
+      const nextSize = clampFieldLineageCardSize(
+        resizing.startWidth + (event.clientX - resizing.startClientX) / scale,
+        resizing.startHeight + (event.clientY - resizing.startClientY) / scale
+      )
+      fieldLineageNodeSizes[resizing.nodeId] = nextSize
+    }
+
+    const startFieldLineageNodeResize = (event: MouseEvent, node: FieldLineageNode) => {
+      if (event.button !== 0) return
+      event.preventDefault()
+      event.stopPropagation()
+      stopFieldLineageNodeDrag()
+      const currentSize = fieldLineageNodeSizes[node.id] || {
+        width: node.width,
+        height: node.height
+      }
+      resizingFieldLineageNode.value = {
+        nodeId: node.id,
+        startClientX: event.clientX,
+        startClientY: event.clientY,
+        startWidth: currentSize.width,
+        startHeight: currentSize.height
+      }
+      window.addEventListener('mousemove', handleFieldLineageNodeResizeMove)
+      window.addEventListener('mouseup', stopFieldLineageNodeResize)
+    }
+
     const loadAssets = async () => {
-      if (!datasourceId.value || !databaseFilter.value) {
+      if (!hasAssetScope.value) {
         assets.value = []
         expandedAssetId.value = ''
         return
@@ -373,8 +784,8 @@ export default defineComponent({
       try {
         assets.value = await queryGovernanceAssets({
           keyword: trimmedKeyword.value,
-          datasourceId: datasourceId.value,
-          database: databaseFilter.value,
+          datasourceId: datasourceId.value || null,
+          database: databaseFilter.value || null,
           qualityStatus: qualityStatus.value || null,
           limit: ASSET_QUERY_LIMIT
         })
@@ -449,18 +860,53 @@ export default defineComponent({
       }
     }
 
+    const loadLineageFieldOrders = async (nextLineage: IGovernanceLineage) => {
+      if (!currentAsset.value) {
+        lineageFieldOrders.value = {}
+        return
+      }
+      const assetIds = Array.from(
+        new Set(
+          [
+            currentAsset.value.id,
+            ...(nextLineage.upstream || []).map((node) => node.assetId),
+            ...(nextLineage.downstream || []).map((node) => node.assetId)
+          ].filter(Boolean)
+        )
+      )
+      const results = await Promise.allSettled(
+        assetIds.map(async (assetId) => {
+          const assetFields = await queryGovernanceFields(assetId)
+          return {
+            assetId,
+            fields: (assetFields || []).map((field: IGovernanceField) => field.name)
+          }
+        })
+      )
+      const orders: Record<string, string[]> = {}
+      results.forEach((result) => {
+        if (result.status === 'fulfilled') {
+          orders[result.value.assetId] = result.value.fields
+        }
+      })
+      lineageFieldOrders.value = orders
+    }
+
     const reloadDetail = async (tab = activeTab.value) => {
       if (!currentAsset.value) return
       detailLoading.value = true
       try {
         if (tab === 'fields') {
           fields.value = await queryGovernanceFields(currentAsset.value.id)
+          updateAssetFieldCount(currentAsset.value.id, fields.value.length)
         }
         if (tab === 'quality') {
           rules.value = await queryGovernanceRules(currentAsset.value.id)
         }
         if (tab === 'lineage') {
-          lineage.value = await queryGovernanceLineage(currentAsset.value.id)
+          const nextLineage = await queryGovernanceLineage(currentAsset.value.id)
+          lineage.value = nextLineage
+          await loadLineageFieldOrders(nextLineage)
         }
         if (tab === 'issues') {
           issues.value = await queryGovernanceIssues(currentAsset.value.id)
@@ -470,17 +916,34 @@ export default defineComponent({
       }
     }
 
+    const updateAssetFieldCount = (assetId: string, fieldCount: number) => {
+      assets.value = assets.value.map((item) =>
+        item.id === assetId ? { ...item, fieldCount } : item
+      )
+    }
+
+    const loadCurrentAssetFields = async (assetId: string) => {
+      fields.value = await queryGovernanceFields(assetId)
+      updateAssetFieldCount(assetId, fields.value.length)
+    }
+
     const expandAsset = async (asset: IGovernanceAsset) => {
       if (expandedAssetId.value === asset.id) {
         expandedAssetId.value = ''
         return
       }
+      const shouldLoadLineageManually = activeTab.value === 'lineage'
       expandedAssetId.value = asset.id
       activeTab.value = 'overview'
       fields.value = []
+      lineageFieldOrders.value = {}
       rules.value = []
       issues.value = []
       lineage.value = { upstream: [], downstream: [] }
+      await loadCurrentAssetFields(asset.id)
+      if (shouldLoadLineageManually) {
+        await reloadDetail('lineage')
+      }
     }
 
     const handleDatasourceChange = async (value: number | null) => {
@@ -1024,6 +1487,11 @@ export default defineComponent({
       initializeDefaultAssetScope()
     })
 
+    onBeforeUnmount(() => {
+      stopFieldLineageNodeDrag()
+      stopFieldLineageNodeResize()
+    })
+
     const renderFieldTable = () => {
       if (!fields.value.length && !detailLoading.value) {
         return <NEmpty description='暂无字段信息' />
@@ -1151,6 +1619,275 @@ export default defineComponent({
       )
     }
 
+    const renderLineageGraphNode = (node: typeof lineageGraph.value.nodes[number]) => {
+      return (
+        <div
+          class={[
+            styles.lineageGraphNode,
+            node.type === 'current' ? styles.lineageGraphCurrent : ''
+          ]}
+          style={{ left: `${node.x}px`, top: `${node.y}px` }}
+        >
+          <div class={styles.lineageGraphNodeHead}>
+            <strong>{node.title}</strong>
+            <em>{node.badge}</em>
+          </div>
+          <span>{node.subtitle}</span>
+          <b>{node.mappings.length ? `${node.mappings.length} 个字段映射` : '表级血缘'}</b>
+        </div>
+      )
+    }
+
+    const renderLineageGraphEdge = (
+      edge: typeof lineageGraph.value.edges[number],
+      markerId = 'asset-lineage-arrow'
+    ) => {
+      const source = lineageGraph.value.nodes.find((node) => node.id === edge.sourceId)
+      const target = lineageGraph.value.nodes.find((node) => node.id === edge.targetId)
+      if (!source || !target) return null
+      const sourceX = source.x + LINEAGE_NODE_WIDTH
+      const targetX = target.x
+      const sourceY = source.y + LINEAGE_NODE_BASE_HEIGHT / 2
+      const targetY = target.y + LINEAGE_NODE_BASE_HEIGHT / 2
+      const c1 = sourceX + 96
+      const c2 = targetX - 96
+      return (
+        <g key={edge.id}>
+          <path
+            class={styles.lineageGraphEdge}
+            marker-end={`url(#${markerId})`}
+            d={`M ${sourceX} ${sourceY} C ${c1} ${sourceY}, ${c2} ${targetY}, ${targetX} ${targetY}`}
+          />
+          {edge.count ? (
+            <text
+              class={styles.lineageGraphEdgeText}
+              x={(sourceX + targetX) / 2}
+              y={(sourceY + targetY) / 2 - 8}
+            >
+              {edge.count} 字段
+            </text>
+          ) : null}
+        </g>
+      )
+    }
+
+    const renderLineageGraph = (fullscreen = false) => {
+      const graph = lineageGraph.value
+      const markerId = fullscreen ? 'asset-lineage-arrow-fullscreen' : 'asset-lineage-arrow'
+      const hasLineage = lineage.value.upstream.length || lineage.value.downstream.length
+      if (!hasLineage && !detailLoading.value) {
+        return (
+          <div class={styles.lineageEmpty}>
+            <NEmpty description='暂无血缘图。保存 SQL 工作流或同步任务后，会在这里展示表级和字段级关系。' />
+          </div>
+        )
+      }
+      return (
+        <div class={styles.lineageGraph}>
+          <div
+            class={styles.lineageGraphInner}
+            style={{ height: `${graph.height}px` }}
+          >
+            <div class={styles.lineageGraphViewport} style={lineageTransformStyle.value}>
+              <svg class={styles.lineageGraphSvg} viewBox={`0 0 ${LINEAGE_GRAPH_WIDTH} ${graph.height}`} preserveAspectRatio='none'>
+                <defs>
+                  <marker
+                    id={markerId}
+                    markerWidth='8'
+                    markerHeight='8'
+                    refX='7'
+                    refY='4'
+                    orient='auto'
+                    markerUnits='strokeWidth'
+                  >
+                    <path d='M 0 0 L 8 4 L 0 8 z' class={styles.lineageGraphArrow} />
+                  </marker>
+                </defs>
+                {graph.edges.map((edge) => renderLineageGraphEdge(edge, markerId))}
+              </svg>
+              {graph.nodes.map((node) => renderLineageGraphNode(node))}
+            </div>
+          </div>
+        </div>
+      )
+    }
+
+    const getFieldLineageRowY = (node: FieldLineageNode, fieldName: string) => {
+      const index = Math.max(0, node.fields.indexOf(fieldName || '表级关系'))
+      return node.y + FIELD_LINEAGE_HEADER_HEIGHT + index * FIELD_LINEAGE_ROW_HEIGHT + FIELD_LINEAGE_ROW_HEIGHT / 2
+    }
+
+    const renderFieldLineageCard = (node: FieldLineageNode) => {
+      return (
+        <div
+          class={styles.fieldLineageCard}
+          style={{
+            left: `${node.x}px`,
+            top: `${node.y}px`,
+            width: `${node.width}px`,
+            height: `${node.height}px`
+          }}
+        >
+          <div
+            class={styles.fieldLineageCardHead}
+            onMousedown={(event) => startFieldLineageNodeDrag(event, node)}
+          >
+            <strong>{node.title}</strong>
+            <em>{node.badge}</em>
+          </div>
+          <span>{node.subtitle}</span>
+          <div class={styles.fieldLineageRows}>
+            {node.fields.map((field, index) => (
+              <div class={styles.fieldLineageRow} key={`${node.id}:${field}:${index}`}>
+                <b>{field}</b>
+              </div>
+            ))}
+          </div>
+          <button
+            class={styles.fieldLineageResizeHandle}
+            title='拖动调整表框大小'
+            onMousedown={(event) => startFieldLineageNodeResize(event, node)}
+          />
+        </div>
+      )
+    }
+
+    const renderFieldLineageEdge = (
+      edge: FieldLineageEdge,
+      markerId = 'field-lineage-arrow'
+    ) => {
+      const sourceNode = fieldLineageGraph.value.nodes.find((node) => node.id === edge.sourceId)
+      const targetNode = fieldLineageGraph.value.nodes.find((node) => node.id === edge.targetId)
+      if (!sourceNode || !targetNode) return null
+      const sourceX = sourceNode.x + sourceNode.width
+      const targetX = targetNode.x
+      const sourceY = getFieldLineageRowY(sourceNode, edge.sourceField)
+      const targetY = getFieldLineageRowY(targetNode, edge.targetField)
+      const c1 = sourceX + 88
+      const c2 = targetX - 88
+      return (
+        <path
+          key={edge.id}
+          class={styles.fieldLineageEdge}
+          marker-end={`url(#${markerId})`}
+          d={`M ${sourceX} ${sourceY} C ${c1} ${sourceY}, ${c2} ${targetY}, ${targetX} ${targetY}`}
+        />
+      )
+    }
+
+    const renderFieldLineageGraph = (fullscreen = false) => {
+      const graph = fieldLineageGraph.value
+      const markerId = fullscreen ? 'field-lineage-arrow-fullscreen' : 'field-lineage-arrow'
+      if (!graph.nodes.length && !detailLoading.value) {
+        return (
+          <div class={styles.lineageEmpty}>
+            <NEmpty description='暂无字段级血缘。同步任务或 SQL 解析写入字段映射后，会在这里展示字段到字段的连线。' />
+          </div>
+        )
+      }
+      return (
+        <div class={styles.fieldLineageGraph}>
+          <div
+            class={styles.fieldLineageGraphInner}
+            style={{ height: `${graph.height}px` }}
+          >
+            <div class={styles.lineageGraphViewport} style={lineageTransformStyle.value}>
+              <svg class={styles.lineageGraphSvg} viewBox={`0 0 ${LINEAGE_GRAPH_WIDTH} ${graph.height}`} preserveAspectRatio='none'>
+                <defs>
+                  <marker
+                    id={markerId}
+                    markerWidth='8'
+                    markerHeight='8'
+                    refX='7'
+                    refY='4'
+                    orient='auto'
+                    markerUnits='strokeWidth'
+                  >
+                    <path d='M 0 0 L 8 4 L 0 8 z' class={styles.lineageGraphArrow} />
+                  </marker>
+                </defs>
+                {graph.edges.map((edge) => renderFieldLineageEdge(edge, markerId))}
+              </svg>
+              {graph.badges.map((badge) => (
+                <div key={badge.id}>
+                  <div
+                    class={styles.fieldLineageGroupBadge}
+                      style={{
+                        left: `${badge.x}px`,
+                        top: `${badge.y}px`
+                      }}
+                  >
+                    <strong>{badge.count}</strong>
+                    <span>字段</span>
+                    <em>{badge.badge}</em>
+                  </div>
+                </div>
+              ))}
+              {graph.nodes.map((node) => renderFieldLineageCard(node))}
+            </div>
+          </div>
+        </div>
+      )
+    }
+
+    const renderLineageToolbox = (fullscreen = false) => (
+      <div class={styles.lineageToolbox}>
+        <button title='放大' onClick={() => updateLineageZoom(0.12)}>
+          <NIcon size={15}><ZoomInOutlined /></NIcon>
+        </button>
+        <button title='缩小' onClick={() => updateLineageZoom(-0.12)}>
+          <NIcon size={15}><ZoomOutOutlined /></NIcon>
+        </button>
+        <button title='适配视图' onClick={() => fitLineageView(fullscreen)}>
+          <NIcon size={15}><CompressOutlined /></NIcon>
+        </button>
+        {!fullscreen && (
+          <button title='全屏' onClick={() => (lineageFullscreenVisible.value = true)}>
+            <NIcon size={15}><FullscreenOutlined /></NIcon>
+          </button>
+        )}
+        <button title='居中' onClick={centerLineageView}>
+          <NIcon size={15}><AimOutlined /></NIcon>
+        </button>
+        <button title='重置视图' onClick={resetLineageView}>
+          <NIcon size={15}><ReloadOutlined /></NIcon>
+        </button>
+      </div>
+    )
+
+    const renderLineageWorkbench = (fullscreen = false) => (
+      <div class={[styles.lineageWorkbench, fullscreen ? styles.lineageWorkbenchFullscreen : '']}>
+        <div class={styles.lineageToolbar}>
+          <div>
+            <strong>{lineageViewMode.value === 'field' ? '字段级血缘图' : '表级血缘图'}</strong>
+            <span>{currentAsset.value?.fullName || '当前资产'}</span>
+          </div>
+          <NSpace size={8}>
+            <NButton
+              size='small'
+              secondary={lineageViewMode.value !== 'table'}
+              type={lineageViewMode.value === 'table' ? 'primary' : 'default'}
+              onClick={() => (lineageViewMode.value = 'table')}
+            >
+              表级血缘
+            </NButton>
+            <NButton
+              size='small'
+              secondary={lineageViewMode.value !== 'field'}
+              type={lineageViewMode.value === 'field' ? 'primary' : 'default'}
+              onClick={() => (lineageViewMode.value = 'field')}
+            >
+              字段级血缘
+            </NButton>
+          </NSpace>
+        </div>
+        <div class={styles.lineageGraphShell}>
+          {lineageViewMode.value === 'field' ? renderFieldLineageGraph(fullscreen) : renderLineageGraph(fullscreen)}
+          {renderLineageToolbox(fullscreen)}
+        </div>
+      </div>
+    )
+
     const renderAssetDetail = (asset: IGovernanceAsset) => (
       <div class={styles.expandedPanel}>
         <div class={styles.expandedHeader}>
@@ -1167,7 +1904,7 @@ export default defineComponent({
             <div class={styles.overviewGrid}>
               {[
                 ['Owner', asset.owner || '未设置'],
-                ['字段数', asset.fieldCount ?? '进入字段页后加载'],
+                ['字段数', asset.fieldCount == null ? '加载中' : `${asset.fieldCount} 个`],
                 ['最近检测', asset.lastCheckTime || '暂无'],
                 ['最近同步', asset.lastSyncTask || '暂无'],
                 ['数据源', asset.datasourceName],
@@ -1199,43 +1936,7 @@ export default defineComponent({
           </NTabPane>
           <NTabPane name='lineage' tab='血缘'>
             <NSpin show={detailLoading.value}>
-              <div class={styles.lineageGuide}>
-                <strong>当前表血缘</strong>
-                <span>这里展示当前表和字段的上下游关系，来源于同步任务保存和执行时沉淀的源表、目标表、字段映射信息。</span>
-              </div>
-              <div class={styles.lineageCanvas}>
-                <div class={styles.lineageSide}>
-                  {lineage.value.upstream.length ? lineage.value.upstream.map((node) => (
-                    <div class={styles.lineageNode}>
-                      <strong>{node.assetName}</strong>
-                      <span>{node.relationType || '上游表'} · {node.syncTaskName || '同步任务'}</span>
-                      <em>{node.fieldMappings?.length ? `${node.fieldMappings.length} 个字段映射` : '表级血缘'}</em>
-                    </div>
-                  )) : <NEmpty description='暂无上游血缘' />}
-                </div>
-                <div class={styles.lineageCenter}>
-                  <strong>{asset.tableName}</strong>
-                  <span>当前资产</span>
-                </div>
-                <div class={styles.lineageSide}>
-                  {lineage.value.downstream.length ? lineage.value.downstream.map((node) => (
-                    <div class={styles.lineageNode}>
-                      <strong>{node.assetName}</strong>
-                      <span>{node.relationType || '下游表'} · {node.syncTaskName || '同步任务'}</span>
-                      <em>{node.fieldMappings?.length ? `${node.fieldMappings.length} 个字段映射` : '表级血缘'}</em>
-                    </div>
-                  )) : <NEmpty description='暂无下游血缘' />}
-                </div>
-              </div>
-              <div class={styles.lineageTask}>
-                <div>
-                  <strong>血缘来源：同步任务保存与执行记录</strong>
-                  <span>后续同步任务生成字段映射时，会沉淀当前表、字段的上下游关系。</span>
-                </div>
-                <NButton size='small' disabled={!asset.lastSyncTask}>
-                  查看同步任务
-                </NButton>
-              </div>
+              {renderLineageWorkbench()}
             </NSpin>
           </NTabPane>
           <NTabPane name='issues' tab='问题'>
@@ -1399,9 +2100,9 @@ export default defineComponent({
               <NButton type='primary' disabled={!hasAssetScope.value} onClick={loadAssets}>查询</NButton>
             </div>
             <NSpin show={loading.value}>
-              {!datasourceId.value || !databaseFilter.value ? (
+              {!hasAssetScope.value ? (
                 <div class={styles.emptyBlock}>
-                  <NEmpty description='请选择数据源和数据库后查询资产。' />
+                  <NEmpty description='请选择数据源和数据库，或直接输入表名关键词查询资产。' />
                 </div>
               ) : !displayedAssets.value.length && !loading.value ? (
                 <div class={styles.emptyBlock}>
@@ -1490,6 +2191,17 @@ export default defineComponent({
             <NButton onClick={() => (metadataModalVisible.value = false)}>取消</NButton>
             <NButton type='primary' onClick={saveMetadata}>保存</NButton>
           </NSpace>
+        </NModal>
+
+        <NModal
+          show={lineageFullscreenVisible.value}
+          preset='card'
+          title='数据血缘图'
+          class={styles.lineageFullscreenModal}
+          style={{ width: '96vw', maxWidth: 'none' }}
+          onClose={() => (lineageFullscreenVisible.value = false)}
+        >
+          {renderLineageWorkbench(true)}
         </NModal>
 
         <NModal

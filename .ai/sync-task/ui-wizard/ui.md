@@ -39,10 +39,20 @@ inherit: ../core/desc.md
 - 第 1 步不展示源表摘要、目标对象摘要、字段统计、主键数、可空字段数、表注释或预估行数。
 - 第 1 步不展示“目标表模式”切换控件；目标表名填写后由系统自动判断目标表是否存在，并提示“将新建”或“使用已有表”。
 - 第 2 步采用“配置同步方案”模块化工作台，左侧模块列表、右侧模块详情。
-- 第 2 步模块顺序固定为：字段映射关系、源端过滤条件、数据去向、数据处理。
+- 第 2 步模块顺序固定为：字段映射关系、数据去向、源端过滤条件、数据处理。
 - 左侧模块列表不展示“1 映射 / 2 过滤 / 3 去向 / 4 处理”等重复编号。
 - 源端过滤条件位于第 2 步，采用结构化条件行，不使用自由 SQL 编辑器作为主入口。
-- 数据去向只保留“同步前 SQL（custom_sql）”，不展示写入策略配置入口，不使用 `preSql` 文案。
+- 数据去向对普通 JDBC 目标只保留“同步前 SQL（custom_sql）”，不使用 `preSql` 文案。
+- 当第 1 步点选的目标端数据源类型为 `Doris` 时，第 2 步“数据去向”模块自动展示 Doris Sink 专用配置，不再只展示 custom_sql。
+- Dolphin 二开的数据源连接已支持 Doris 类型，数据同步模块应直接复用目标端数据源类型判断，不再额外提供 `Doris Stream Load / 普通 MySQL/JDBC` 选择。
+- Doris Sink 配置放在第 2 步“数据去向”模块，不放在第 1 步数据源连接里。第 1 步只确认目标连接、库表；第 2 步根据目标端类型配置 `fenodes`、`query-port`、`sink.label-prefix`、`sink.enable-2pc`、`sink.enable-delete`、批量/缓冲、`schema_save_mode`、`data_save_mode`、`save_mode_create_template`、`custom_sql` 和 `doris.config`。
+- Doris Sink 的子配置采用页签组织：`基础写入配置`、`写入模式`、`吞吐与提交`、`建表模板`、`doris.config 参数`。顶部保留 Doris 目标概览，底部常驻配置预览，切换页签不丢失已编辑内容。
+- Doris 必填项至少包括：`fenodes`、`username`、`password`、`database`、`table`、`sink.label-prefix`、`doris.config`。其中 `fenodes` 使用 FE HTTP 端口，不是 MySQL 查询端口。
+- Doris Sink 不把已废弃的 `table.identifier` 作为主要配置项展示，页面只使用 `database` + `table`。
+- Doris Sink 的 `custom_sql` 是 `data_save_mode = CUSTOM_PROCESSING` 的从属配置，必须放在“写入模式”页签内，紧跟 `data_save_mode` 控件展示；只有选择 `CUSTOM_PROCESSING` 时才展示、编辑并写入配置预览，其他数据处理模式下必须隐藏。
+- Doris Sink 开启 `sink.enable-2pc = true` 时，`sink.buffer-size` 在页面置灰并从配置预览中排除，因为提交由 checkpoint 控制；关闭 2PC 后再允许配置 `sink.buffer-size`。
+- Doris Sink 的 `doris.config` 按 Stream Load 格式联动：JSON 展示 `read_json_by_line`、`strip_outer_array`；CSV 展示 `column_separator`。
+- Doris Sink 必须展示 `case_sensitive`，用于处理 Doris 大小写敏感场景。
 - 数据处理模块本期只保留入口，展示“暂未实现”，不参与保存、执行或配置生成。
 
 ## 视觉要求

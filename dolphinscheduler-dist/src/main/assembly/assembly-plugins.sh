@@ -65,13 +65,14 @@ mkdir -p $SHARED_LIB_DIR
 for module in ${MODULES_PATH[@]}
 do
   MODULE_LIB_DIR="$BIN_DIR/$module/libs"
-  cd $MODULE_LIB_DIR
-  for jar in $(find $MODULE_LIB_DIR/* -name "*.jar" -execdir echo {} ';'); do
+  for jar_path in "$MODULE_LIB_DIR"/*.jar; do
+    [ -e "$jar_path" ] || continue
+    jar=$(basename "$jar_path")
     # move jar file to share lib directory
-    mv $MODULE_LIB_DIR/$jar $SHARED_LIB_DIR/$jar
+    mv "$jar_path" "$SHARED_LIB_DIR/$jar"
 
     # create a symbolic link in the subproject's lib directory
-    ln -s ../../libs/$jar $jar
+    ln -s "../../libs/$jar" "$MODULE_LIB_DIR/$jar"
   done
 done
 

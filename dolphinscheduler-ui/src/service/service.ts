@@ -74,14 +74,38 @@ const baseRequestConfig: AxiosRequestConfig = {
 
 const service = axios.create(baseRequestConfig)
 
+const clearClientSession = () => {
+  userStore.setSessionId('')
+  userStore.setSecurityConfigType('')
+  userStore.setUserInfo({})
+  userStore.setBaseResDir('')
+  userStore.setModulePermissions(null)
+  cookies.remove('sessionId', { path: '/' })
+  cookies.remove('sessionId')
+}
+
+const redirectToLogin = () => {
+  if (router.currentRoute.value.name === 'login') return
+  void router.push({
+    path: '/login',
+    query: { redirect: router.currentRoute.value.fullPath }
+  })
+}
+
+const isAuthFailureCode = (code: unknown) => code === 401 || code === 504
+
+const createAuthError = (message: string) => {
+  const error = new Error(message) as Error & {
+    response?: { status: number }
+  }
+  error.response = { status: 401 }
+  return error
+}
+
 const err = (err: AxiosError): Promise<AxiosError> => {
   if (err.response?.status === 401 || err.response?.status === 504) {
-    userStore.setSessionId('')
-    userStore.setSecurityConfigType('')
-    userStore.setUserInfo({})
-    userStore.setBaseResDir('')
-    userStore.setModulePermissions(null)
-    router.push({ path: '/login' })
+    clearClientSession()
+    redirectToLogin()
   }
 
   return Promise.reject(err)
@@ -104,6 +128,14 @@ service.interceptors.response.use((res: AxiosResponse) => {
   // No code will be processed
   if (res.data.code === undefined) {
     return res.data
+  }
+
+  if (isAuthFailureCode(res.data.code)) {
+    clearClientSession()
+    redirectToLogin()
+    throw createAuthError(
+      res.data.msg || res.data.message || '登录状态已失效，请重新登录'
+    )
   }
 
   if (

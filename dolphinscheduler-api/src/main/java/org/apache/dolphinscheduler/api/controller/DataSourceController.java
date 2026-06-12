@@ -21,8 +21,8 @@ import static org.apache.dolphinscheduler.api.enums.Status.AUTHORIZED_DATA_SOURC
 import static org.apache.dolphinscheduler.api.enums.Status.CONNECTION_TEST_FAILURE;
 import static org.apache.dolphinscheduler.api.enums.Status.CONNECT_DATASOURCE_FAILURE;
 import static org.apache.dolphinscheduler.api.enums.Status.CREATE_DATASOURCE_ERROR;
-import static org.apache.dolphinscheduler.api.enums.Status.DELETE_DATA_SOURCE_FAILURE;
 import static org.apache.dolphinscheduler.api.enums.Status.DATA_PREVIEW_QUERY_ERROR;
+import static org.apache.dolphinscheduler.api.enums.Status.DELETE_DATA_SOURCE_FAILURE;
 import static org.apache.dolphinscheduler.api.enums.Status.GET_DATASOURCE_DATABASES_ERROR;
 import static org.apache.dolphinscheduler.api.enums.Status.GET_DATASOURCE_TABLES_ERROR;
 import static org.apache.dolphinscheduler.api.enums.Status.GET_DATASOURCE_TABLE_COLUMNS_ERROR;
@@ -98,7 +98,6 @@ public class DataSourceController extends BaseController {
 
     @Autowired
     private DataPreviewViewService dataPreviewViewService;
-
 
     /**
      * create data source
@@ -411,8 +410,8 @@ public class DataSourceController extends BaseController {
     @ResponseStatus(HttpStatus.OK)
     @ApiException(DATA_PREVIEW_QUERY_ERROR)
     public Result<DataPreviewQueryResult> previewData(
-            @Parameter(hidden = true) @RequestAttribute(value = Constants.SESSION_USER) User loginUser,
-            @RequestBody DataPreviewQueryRequest request) {
+                                                      @Parameter(hidden = true) @RequestAttribute(value = Constants.SESSION_USER) User loginUser,
+                                                      @RequestBody DataPreviewQueryRequest request) {
         DataPreviewQueryResult result = dataSourceService.previewData(loginUser, request);
         return Result.success(result);
     }
@@ -422,11 +421,11 @@ public class DataSourceController extends BaseController {
     @ResponseStatus(HttpStatus.OK)
     @ApiException(DATA_PREVIEW_QUERY_ERROR)
     public Result<DataPreviewTableStructureResult> previewTableStructure(
-            @Parameter(hidden = true) @RequestAttribute(value = Constants.SESSION_USER) User loginUser,
-            @RequestParam("datasourceId") Integer datasourceId,
-            @RequestParam("database") String database,
-            @RequestParam(value = "schema", required = false) String schema,
-            @RequestParam("tableName") String tableName) {
+                                                                         @Parameter(hidden = true) @RequestAttribute(value = Constants.SESSION_USER) User loginUser,
+                                                                         @RequestParam("datasourceId") Integer datasourceId,
+                                                                         @RequestParam("database") String database,
+                                                                         @RequestParam(value = "schema", required = false) String schema,
+                                                                         @RequestParam("tableName") String tableName) {
         DataPreviewTableStructureResult result =
                 dataPreviewQueryService.queryTableStructure(loginUser, datasourceId, database, schema, tableName);
         return Result.success(result);
@@ -437,8 +436,8 @@ public class DataSourceController extends BaseController {
     @ResponseStatus(HttpStatus.OK)
     @ApiException(DATA_PREVIEW_QUERY_ERROR)
     public Result<DataPreviewQueryResult> previewSql(
-            @Parameter(hidden = true) @RequestAttribute(value = Constants.SESSION_USER) User loginUser,
-            @RequestBody DataPreviewSqlQueryRequest request) {
+                                                     @Parameter(hidden = true) @RequestAttribute(value = Constants.SESSION_USER) User loginUser,
+                                                     @RequestBody DataPreviewSqlQueryRequest request) {
         DataPreviewQueryResult result = dataPreviewQueryService.executePreviewSql(loginUser, request);
         return Result.success(result);
     }
@@ -448,8 +447,8 @@ public class DataSourceController extends BaseController {
     @ResponseStatus(HttpStatus.OK)
     @ApiException(DATA_PREVIEW_QUERY_ERROR)
     public Result<DataPreviewQueryResult> previewSqlExplain(
-            @Parameter(hidden = true) @RequestAttribute(value = Constants.SESSION_USER) User loginUser,
-            @RequestBody DataPreviewSqlQueryRequest request) {
+                                                            @Parameter(hidden = true) @RequestAttribute(value = Constants.SESSION_USER) User loginUser,
+                                                            @RequestBody DataPreviewSqlQueryRequest request) {
         DataPreviewQueryResult result = dataPreviewQueryService.explainPreviewSql(loginUser, request);
         return Result.success(result);
     }
@@ -459,11 +458,11 @@ public class DataSourceController extends BaseController {
     @ResponseStatus(HttpStatus.OK)
     @ApiException(DATA_PREVIEW_QUERY_ERROR)
     public Result<List<DataPreviewViewResponse>> queryDataPreviewViews(
-            @Parameter(hidden = true) @RequestAttribute(value = Constants.SESSION_USER) User loginUser,
-            @RequestParam("datasourceId") Integer datasourceId,
-            @RequestParam("database") String database,
-            @RequestParam(value = "schema", required = false) String schema,
-            @RequestParam("tableName") String tableName) {
+                                                                       @Parameter(hidden = true) @RequestAttribute(value = Constants.SESSION_USER) User loginUser,
+                                                                       @RequestParam("datasourceId") Integer datasourceId,
+                                                                       @RequestParam("database") String database,
+                                                                       @RequestParam(value = "schema", required = false) String schema,
+                                                                       @RequestParam("tableName") String tableName) {
         List<DataPreviewViewResponse> views =
                 dataPreviewViewService.queryViews(loginUser, datasourceId, database, schema, tableName);
         return Result.success(views);
@@ -474,8 +473,8 @@ public class DataSourceController extends BaseController {
     @ResponseStatus(HttpStatus.CREATED)
     @ApiException(DATA_PREVIEW_QUERY_ERROR)
     public Result<DataPreviewViewResponse> createDataPreviewView(
-            @Parameter(hidden = true) @RequestAttribute(value = Constants.SESSION_USER) User loginUser,
-            @RequestBody DataPreviewViewRequest request) {
+                                                                 @Parameter(hidden = true) @RequestAttribute(value = Constants.SESSION_USER) User loginUser,
+                                                                 @RequestBody DataPreviewViewRequest request) {
         return Result.success(dataPreviewViewService.createView(loginUser, request));
     }
 
@@ -484,9 +483,9 @@ public class DataSourceController extends BaseController {
     @ResponseStatus(HttpStatus.OK)
     @ApiException(DATA_PREVIEW_QUERY_ERROR)
     public Result<DataPreviewViewResponse> updateDataPreviewView(
-            @Parameter(hidden = true) @RequestAttribute(value = Constants.SESSION_USER) User loginUser,
-            @PathVariable("id") Integer id,
-            @RequestBody DataPreviewViewRequest request) {
+                                                                 @Parameter(hidden = true) @RequestAttribute(value = Constants.SESSION_USER) User loginUser,
+                                                                 @PathVariable("id") Integer id,
+                                                                 @RequestBody DataPreviewViewRequest request) {
         return Result.success(dataPreviewViewService.updateView(loginUser, id, request));
     }
 
@@ -495,8 +494,8 @@ public class DataSourceController extends BaseController {
     @ResponseStatus(HttpStatus.OK)
     @ApiException(DATA_PREVIEW_QUERY_ERROR)
     public Result<Void> deleteDataPreviewView(
-            @Parameter(hidden = true) @RequestAttribute(value = Constants.SESSION_USER) User loginUser,
-            @PathVariable("id") Integer id) {
+                                              @Parameter(hidden = true) @RequestAttribute(value = Constants.SESSION_USER) User loginUser,
+                                              @PathVariable("id") Integer id) {
         dataPreviewViewService.deleteView(loginUser, id);
         return Result.success();
     }

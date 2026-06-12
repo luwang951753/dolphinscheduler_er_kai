@@ -16,6 +16,7 @@
  */
 
 import { defineComponent, onMounted, reactive } from 'vue'
+import { useRouter } from 'vue-router'
 import {
   queryHomeAssetMap,
   queryHomeGovernance,
@@ -28,83 +29,84 @@ import {
 import type { HomeDashboardData, HomePanelHeader } from '@/service/modules/home/types'
 import styles from './index.module.scss'
 
-const fallbackDashboard: HomeDashboardData = {
-  metrics: [
-    { label: '接入数据源', value: '38' },
-    { label: '资产表总量', value: '12,846' },
-    { label: '主题库覆盖', value: '27' },
-    { label: '共享服务', value: '156' },
-    { label: '治理规则', value: '428' },
-    { label: '质量评分', value: '96.8' }
-  ],
+const emptyDashboard: HomeDashboardData = {
+  metrics: [],
   integration: {
-    header: { label: '数据汇聚', title: '来源系统接入状态', tag: '99.21%' },
-    summary: [
-      { value: '8.72TB', label: '本月入湖' },
-      { value: '430', label: '库表接入' }
-    ],
-    rows: [
-      { name: 'Oracle 警情库', value: '126 表', status: '稳定' },
-      { name: 'MySQL 业务库', value: '18 源', status: '稳定' },
-      { name: 'Hive 离线数仓', value: '9 源', status: '同步中' },
-      { name: 'SFTP 文件交换', value: '11 源', status: '待治理' }
-    ]
+    header: { label: '数据汇聚', title: '', tag: '' },
+    summary: [],
+    rows: []
   },
   returns: {
-    header: { label: '数据回传', title: '外部系统回传状态', tag: '5 类' },
-    rows: [
-      { name: '市局C3回传', value: '', status: '运行中' },
-      { name: 'APP预约回传', value: '', status: '正常' },
-      { name: '涉案财务回传', value: '', status: '待复核' },
-      { name: '回传到警综库', value: '', status: '稳定' },
-      { name: '回传到海淀数据中心', value: '', status: '同步中' }
-    ]
+    header: { label: '数据回传', title: '', tag: '' },
+    rows: []
   },
   theme: {
-    header: { label: '主题库建设', title: '重点主题域进度', tag: '27 个主题' },
-    domains: [
-      { name: '警情主题库', percent: '92%', asset: '资产 2,418', service: '服务 35', quality: '质量 98.1' },
-      { name: '人口主题库', percent: '86%', asset: '资产 1,906', service: '服务 28', quality: '质量 96.7' },
-      { name: '案件主题库', percent: '78%', asset: '资产 1,324', service: '服务 21', quality: '质量 94.9' },
-      { name: '车辆主题库', percent: '71%', asset: '资产 968', service: '服务 17', quality: '质量 92.6' }
-    ]
+    header: { label: '主题库建设', title: '', tag: '' },
+    domains: []
   },
   assetMap: {
-    header: { label: '资产地图', title: '从汇聚到共享的主链路', tag: '运营中' },
-    nodes: [
-      { name: '数据汇聚', value: '38 源', left: '8%', top: '50%' },
-      { name: '标准建模', value: '214 模型', left: '30%', top: '24%' },
-      { name: '主题沉淀', value: '27 主题', left: '52%', top: '50%' },
-      { name: '共享服务', value: '156 API', left: '74%', top: '24%' },
-      { name: '治理闭环', value: '96.8 分', left: '88%', top: '58%' }
-    ]
+    header: { label: '资产地图', title: '', tag: '' },
+    nodes: []
   },
   governance: {
-    header: { label: '治理闭环', title: '质量问题处理', tag: '97.4%' },
-    summary: [
-      { value: '37', label: '待处理' },
-      { value: '18', label: '今日修复' }
-    ],
-    issues: [
-      { level: '高', title: '人口主题库手机号空值异常', status: '处理中' },
-      { level: '中', title: '案件明细表枚举值超出标准', status: '待复核' },
-      { level: '中', title: '共享接口缺少调用方授权', status: '处理中' }
-    ]
+    header: { label: '治理闭环', title: '', tag: '' },
+    summary: [],
+    issues: []
   },
   sharing: {
-    header: { label: '数据共享', title: '服务调用与性能', tag: '82ms' },
-    hero: { value: '186.4万', label: '本月服务调用' },
-    rows: [
-      { name: '警情态势服务', value: '42.8万', status: '+18%' },
-      { name: '重点人员画像', value: '31.6万', status: '+9%' },
-      { name: '案件协同查询', value: '25.1万', status: '+12%' },
-      { name: '区域风险评估', value: '18.7万', status: '+6%' }
-    ]
+    header: { label: '数据共享', title: '', tag: '' },
+    hero: { value: '', label: '' },
+    rows: []
   }
 }
 
-const runSilently = <T,>(request: Promise<T>, apply: (data: T) => void) => {
-  request.then(apply).catch(() => undefined)
+const emptyText = '暂无数据'
+
+const homeRouteByBusiness = [
+  {
+    routeName: 'theme-library-index',
+    keywords: ['主题域', '主题库', '主题沉淀']
+  },
+  {
+    routeName: 'data-return-index',
+    keywords: ['回传']
+  },
+  {
+    routeName: 'data-issue-index',
+    keywords: ['下发', '数据问题']
+  }
+]
+
+const cloneEmptyDashboard = () =>
+  JSON.parse(JSON.stringify(emptyDashboard)) as HomeDashboardData
+
+const resolveHomeRoute = (...values: Array<string | undefined>) => {
+  const text = values.filter(Boolean).join(' ')
+  return homeRouteByBusiness.find((item) =>
+    item.keywords.some((keyword) => text.includes(keyword))
+  )?.routeName
+}
+
+const EmptyBlock = (props: { text?: string }) => (
+  <div class={styles.emptyBlock}>{props.text || emptyText}</div>
+)
+
+const applyDashboard = (
+  dashboard: HomeDashboardData,
+  data: HomeDashboardData
+) => {
+  dashboard.metrics = data.metrics || []
+  dashboard.integration = data.integration || cloneEmptyDashboard().integration
+  dashboard.returns = data.returns || cloneEmptyDashboard().returns
+  dashboard.theme = data.theme || cloneEmptyDashboard().theme
+  dashboard.assetMap = data.assetMap || cloneEmptyDashboard().assetMap
+  dashboard.governance = data.governance || cloneEmptyDashboard().governance
+  dashboard.sharing = data.sharing || cloneEmptyDashboard().sharing
+}
+
+const isAuthError = (error: unknown) => {
+  const status = (error as any)?.response?.status
+  return status === 401 || status === 504
 }
 
 const PanelHeader = (
@@ -124,85 +126,184 @@ const PanelHeader = (
 export default defineComponent({
   name: 'home',
   setup() {
-    const dashboard = reactive<HomeDashboardData>(
-      JSON.parse(JSON.stringify(fallbackDashboard))
-    )
+    const router = useRouter()
+    const dashboard = reactive<HomeDashboardData>(cloneEmptyDashboard())
+    const state = reactive({
+      loading: true,
+      error: ''
+    })
 
-    onMounted(() => {
-      runSilently(queryHomeMetrics(), (data) => {
-        dashboard.metrics = data
+    const navigateTo = (routeName?: string) => {
+      if (!routeName) return
+      void router.push({ name: routeName })
+    }
+
+    const handlePanelKeydown = (event: KeyboardEvent, routeName: string) => {
+      if (event.key !== 'Enter' && event.key !== ' ') return
+      event.preventDefault()
+      navigateTo(routeName)
+    }
+
+    onMounted(async () => {
+      state.loading = true
+      const fallback = cloneEmptyDashboard()
+      const results = await Promise.allSettled([
+        queryHomeMetrics(),
+        queryHomeIntegration(),
+        queryHomeReturns(),
+        queryHomeTheme(),
+        queryHomeAssetMap(),
+        queryHomeGovernance(),
+        queryHomeSharing()
+      ])
+
+      if (
+        results.some(
+          (item) => item.status === 'rejected' && isAuthError(item.reason)
+        )
+      ) {
+        state.error = '登录状态已失效，请重新登录'
+        state.loading = false
+        return
+      }
+
+      const [
+        metrics,
+        integration,
+        returns,
+        theme,
+        assetMap,
+        governance,
+        sharing
+      ] = results
+
+      applyDashboard(dashboard, {
+        metrics:
+          metrics.status === 'fulfilled' ? metrics.value : fallback.metrics,
+        integration:
+          integration.status === 'fulfilled'
+            ? integration.value
+            : fallback.integration,
+        returns:
+          returns.status === 'fulfilled' ? returns.value : fallback.returns,
+        theme: theme.status === 'fulfilled' ? theme.value : fallback.theme,
+        assetMap:
+          assetMap.status === 'fulfilled' ? assetMap.value : fallback.assetMap,
+        governance:
+          governance.status === 'fulfilled'
+            ? governance.value
+            : fallback.governance,
+        sharing:
+          sharing.status === 'fulfilled' ? sharing.value : fallback.sharing
       })
-      runSilently(queryHomeIntegration(), (data) => {
-        dashboard.integration = data
-      })
-      runSilently(queryHomeReturns(), (data) => {
-        dashboard.returns = data
-      })
-      runSilently(queryHomeTheme(), (data) => {
-        dashboard.theme = data
-      })
-      runSilently(queryHomeAssetMap(), (data) => {
-        dashboard.assetMap = data
-      })
-      runSilently(queryHomeGovernance(), (data) => {
-        dashboard.governance = data
-      })
-      runSilently(queryHomeSharing(), (data) => {
-        dashboard.sharing = data
-      })
+
+      const failedCount = results.filter(
+        (item) => item.status === 'rejected'
+      ).length
+      state.error = failedCount
+        ? `首页部分数据接口加载失败，已展示可用数据（失败 ${failedCount} 项）`
+        : ''
+      state.loading = false
     })
 
     return () => (
       <main class={styles.page}>
         <section class={styles.metrics}>
-          {dashboard.metrics.map((item) => (
-            <div class={styles.metric} key={item.label}>
+          {dashboard.metrics.length ? dashboard.metrics.map((item) => (
+            <button
+              class={[
+                styles.metric,
+                resolveHomeRoute(item.label) ? styles.clickable : ''
+              ]}
+              key={item.label}
+              type='button'
+              onClick={() => navigateTo(resolveHomeRoute(item.label))}
+            >
               <span>{item.label}</span>
               <strong>{item.value}</strong>
-            </div>
-          ))}
+            </button>
+          )) : <EmptyBlock text={state.loading ? '加载中' : state.error || emptyText} />}
         </section>
 
         <section class={styles.grid}>
           <div class={[styles.col, styles.left].join(' ')}>
-            <section class={styles.panel}>
+            <section
+              class={[styles.panel, styles.clickablePanel].join(' ')}
+              role='button'
+              tabindex={0}
+              data-home-target='data-issue'
+              onClickCapture={() => navigateTo('data-issue-index')}
+              onKeydown={(event) => handlePanelKeydown(event, 'data-issue-index')}
+            >
               <PanelHeader {...dashboard.integration.header} hideTag hideTitle />
-              <div class={styles.summary}>
+              {dashboard.integration.summary.length ? <div class={styles.summary}>
                 {dashboard.integration.summary.map((item) => (
                   <div key={item.label}><strong>{item.value}</strong><span>{item.label}</span></div>
                 ))}
-              </div>
-              <div class={styles.rows}>
+              </div> : null}
+              {dashboard.integration.rows.length ? <div class={styles.rows}>
                 {dashboard.integration.rows.map((item) => (
-                  <div class={styles.row} key={item.name}>
+                  <button
+                    class={[
+                      styles.row,
+                      resolveHomeRoute(item.name, item.status) ? styles.clickable : ''
+                    ]}
+                    key={item.name}
+                    type='button'
+                    onClick={() => navigateTo('data-issue-index')}
+                  >
                     <strong>{item.name}</strong>
                     <span>{item.value}</span>
                     <em>{item.status}</em>
-                  </div>
+                  </button>
                 ))}
-              </div>
+              </div> : <EmptyBlock />}
             </section>
 
-            <section class={[styles.panel, styles.returnPanel].join(' ')}>
+            <section
+              class={[styles.panel, styles.returnPanel, styles.clickablePanel].join(' ')}
+              role='button'
+              tabindex={0}
+              data-home-target='data-return'
+              onClickCapture={() => navigateTo('data-return-index')}
+              onKeydown={(event) => handlePanelKeydown(event, 'data-return-index')}
+            >
               <PanelHeader {...dashboard.returns.header} hideTag hideTitle />
-              <div class={styles.rows}>
+              {dashboard.returns.rows.length ? <div class={styles.rows}>
                 {dashboard.returns.rows.map((item) => (
-                  <div class={styles.row} key={item.name}>
+                  <button
+                    class={[styles.row, styles.clickable]}
+                    key={item.name}
+                    type='button'
+                    onClick={() => navigateTo('data-return-index')}
+                  >
                     <strong>{item.name}</strong>
                     {item.value ? <span>{item.value}</span> : null}
                     <em>{item.status}</em>
-                  </div>
+                  </button>
                 ))}
-              </div>
+              </div> : <EmptyBlock />}
             </section>
           </div>
 
           <div class={[styles.col, styles.center].join(' ')}>
-            <section class={styles.panel}>
+            <section
+              class={[styles.panel, styles.clickablePanel].join(' ')}
+              role='button'
+              tabindex={0}
+              data-home-target='theme-library'
+              onClickCapture={() => navigateTo('theme-library-index')}
+              onKeydown={(event) => handlePanelKeydown(event, 'theme-library-index')}
+            >
               <PanelHeader {...dashboard.theme.header} hideTitle />
-              <div class={styles.domains}>
+              {dashboard.theme.domains.length ? <div class={styles.domains}>
                 {dashboard.theme.domains.map((item) => (
-                  <div class={styles.domain} key={item.name}>
+                  <button
+                    class={[styles.domain, styles.clickable]}
+                    key={item.name}
+                    type='button'
+                    onClick={() => navigateTo('theme-library-index')}
+                  >
                     <div class={styles.domainTop}>
                       <strong>{item.name}</strong>
                       <span>{item.percent}</span>
@@ -215,62 +316,87 @@ export default defineComponent({
                       <span>{item.service}</span>
                       <span>{item.quality}</span>
                     </div>
-                  </div>
+                  </button>
                 ))}
-              </div>
+              </div> : <EmptyBlock />}
             </section>
 
             <section class={styles.panel}>
               <PanelHeader {...dashboard.assetMap.header} hideTitle />
-              <div class={styles.flow}>
+              {dashboard.assetMap.nodes.length ? <div class={styles.flow}>
                 <svg viewBox='0 0 100 70' preserveAspectRatio='none'>
                   <path d='M12 50 C 24 18, 38 18, 50 46 S 76 76, 88 32' />
                   <path d='M12 50 C 32 62, 48 12, 68 24 S 82 38, 88 32' />
                 </svg>
                 {dashboard.assetMap.nodes.map((item) => (
-                  <div class={styles.node} style={{ left: item.left, top: item.top }} key={item.name}>
+                  <button
+                    class={[
+                      styles.node,
+                      resolveHomeRoute(item.name, item.value) ? styles.clickable : ''
+                    ]}
+                    style={{ left: item.left, top: item.top }}
+                    key={item.name}
+                    type='button'
+                    onClick={() => navigateTo(resolveHomeRoute(item.name, item.value))}
+                  >
                     <strong>{item.name}</strong>
                     <span>{item.value}</span>
-                  </div>
+                  </button>
                 ))}
-              </div>
+              </div> : <EmptyBlock />}
             </section>
           </div>
 
           <div class={[styles.col, styles.right].join(' ')}>
             <section class={[styles.panel, styles.issue].join(' ')}>
               <PanelHeader {...dashboard.governance.header} hideTag hideTitle />
-              <div class={styles.summary}>
+              {dashboard.governance.summary.length ? <div class={styles.summary}>
                 {dashboard.governance.summary.map((item) => (
                   <div key={item.label}><strong>{item.value}</strong><span>{item.label}</span></div>
                 ))}
-              </div>
-              <div class={styles.rows}>
+              </div> : null}
+              {dashboard.governance.issues.length ? <div class={styles.rows}>
                 {dashboard.governance.issues.map((item) => (
-                  <div class={styles.row} key={item.title}>
+                  <button
+                    class={[
+                      styles.row,
+                      resolveHomeRoute(item.title, item.status) ? styles.clickable : ''
+                    ]}
+                    key={item.title}
+                    type='button'
+                    onClick={() => navigateTo(resolveHomeRoute(item.title, item.status))}
+                  >
                     <b>{item.level}</b>
                     <strong>{item.title}</strong>
                     <em>{item.status}</em>
-                  </div>
+                  </button>
                 ))}
-              </div>
+              </div> : <EmptyBlock />}
             </section>
 
             <section class={styles.panel}>
               <PanelHeader {...dashboard.sharing.header} hideTag hideTitle />
-              <div class={styles.shareHero}>
+              {dashboard.sharing.hero.value || dashboard.sharing.hero.label ? <div class={styles.shareHero}>
                 <strong>{dashboard.sharing.hero.value}</strong>
                 <span>{dashboard.sharing.hero.label}</span>
-              </div>
-              <div class={styles.rows}>
+              </div> : null}
+              {dashboard.sharing.rows.length ? <div class={styles.rows}>
                 {dashboard.sharing.rows.map((item) => (
-                  <div class={styles.row} key={item.name}>
+                  <button
+                    class={[
+                      styles.row,
+                      resolveHomeRoute(item.name, item.status) ? styles.clickable : ''
+                    ]}
+                    key={item.name}
+                    type='button'
+                    onClick={() => navigateTo(resolveHomeRoute(item.name, item.status))}
+                  >
                     <strong>{item.name}</strong>
                     <span>{item.value}</span>
                     <em>{item.status}</em>
-                  </div>
+                  </button>
                 ))}
-              </div>
+              </div> : <EmptyBlock />}
             </section>
           </div>
         </section>

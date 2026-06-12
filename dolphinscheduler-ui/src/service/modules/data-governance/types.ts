@@ -129,6 +129,32 @@ interface IGovernanceSyncTaskLineageRequest {
   }>
 }
 
+interface IDataFlowSyncInstanceStat {
+  id?: number
+  projectCode: number
+  workflowDefinitionCode: number
+  workflowInstanceId: number
+  taskInstanceId?: number | null
+  readRows?: number | null
+  writeRows?: number | null
+  failedRows?: number | null
+  durationSeconds?: number | null
+  runStatus?: string
+  statSource?: string
+  payloadJson?: string
+  createTime?: string
+  updateTime?: string
+}
+
+interface IDataFlowSyncStatQueryRequest {
+  projectCode: number
+  workflowDefinitionCode: number
+  workflowInstanceIds: number[]
+  refreshMissing?: boolean
+}
+
+interface IDataFlowSyncStatUpsertRequest extends IDataFlowSyncInstanceStat {}
+
 interface IGovernanceIssue {
   id: string
   assetId: string
@@ -141,6 +167,36 @@ interface IGovernanceIssue {
   updatedAt?: string
 }
 
+interface ISqlLineageParseRequest {
+  sql: string
+}
+
+interface ISqlLineageColumn {
+  name: string
+  type?: string
+}
+
+interface ISqlLineageTable {
+  id: string
+  name: string
+  schema?: string
+  columns: ISqlLineageColumn[]
+}
+
+interface ISqlLineageEdge {
+  sourceTable: string
+  sourceColumn?: string
+  targetTable: string
+  targetColumn?: string
+  lineageType: 'TABLE' | 'FIELD'
+}
+
+interface ISqlLineage {
+  tables: ISqlLineageTable[]
+  edges: ISqlLineageEdge[]
+  warnings?: string[]
+}
+
 export type {
   IGovernanceAsset,
   IGovernanceField,
@@ -151,5 +207,13 @@ export type {
   IGovernanceLineage,
   IGovernanceLineageNode,
   IGovernanceSyncTaskLineageRequest,
-  IGovernanceIssue
+  IDataFlowSyncInstanceStat,
+  IDataFlowSyncStatQueryRequest,
+  IDataFlowSyncStatUpsertRequest,
+  IGovernanceIssue,
+  ISqlLineageParseRequest,
+  ISqlLineage,
+  ISqlLineageTable,
+  ISqlLineageColumn,
+  ISqlLineageEdge
 }

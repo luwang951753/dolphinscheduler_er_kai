@@ -39,7 +39,8 @@ async function queryHomeMagic<T>(path: string): Promise<T> {
   const body = (await axios({
     url: `${homeMagicPrefix}/${path}`,
     method: 'get',
-    suppressErrorMessage: true
+    suppressErrorMessage: true,
+    acceptMagicApiSuccess: true
   } as any)) as MagicApiEnvelope<T> | T
   if (Array.isArray(body)) return body as T
 

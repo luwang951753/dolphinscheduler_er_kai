@@ -538,97 +538,362 @@
   font-weight: 700;
 }
 
-.lineageGuide {
+.lineageWorkbench {
   display: grid;
-  gap: 8px;
-  padding: 10px;
-  border: 1px solid #d7e7ff;
-  border-radius: 7px;
-  margin-bottom: 10px;
-  background: #f2f7ff;
-  color: #475467;
-  line-height: 1.6;
+  gap: 10px;
 }
 
-.lineageGuide strong {
-  color: #1f2937;
-}
-
-.lineageCanvas {
-  display: grid;
-  grid-template-columns: 1fr 120px 1fr;
-  gap: 16px;
-  align-items: center;
-  min-height: 160px;
-  padding: 16px;
-  border: 1px solid #edf1f6;
-  border-radius: 6px;
-  background: #fff;
-}
-
-.lineageSide {
-  min-height: 120px;
-}
-
-.lineageNode {
-  display: grid;
-  gap: 4px;
-  padding: 10px;
-  border: 1px solid #dbeafe;
-  border-radius: 6px;
-  margin-bottom: 8px;
-  background: #eff6ff;
-}
-
-.lineageNode strong {
-  color: #1f2937;
-}
-
-.lineageNode span {
-  color: #667085;
-  font-size: 12px;
-}
-
-.lineageNode em {
-  color: #2563eb;
-  font-size: 12px;
-  font-style: normal;
-}
-
-.lineageCenter {
-  display: grid;
-  gap: 4px;
-  text-align: center;
-  color: #1677ff;
-  font-weight: 700;
-}
-
-.lineageCenter span {
-  color: #667085;
-  font-size: 12px;
-  font-weight: 400;
-}
-
-.lineageTask {
+.lineageToolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 10px;
-  border: 1px solid #edf1f6;
-  border-radius: 6px;
-  margin-top: 10px;
-  background: #fbfcff;
+  padding: 10px 12px;
+  border: 1px solid #d7e7ff;
+  border-radius: 7px;
+  background: #f2f7ff;
 }
 
-.lineageTask div {
+.lineageToolbar > div:first-child {
   display: grid;
-  gap: 4px;
+  gap: 2px;
+  min-width: 0;
 }
 
-.lineageTask span {
+.lineageToolbar strong {
+  color: #1f2937;
+  font-size: 14px;
+}
+
+.lineageToolbar span {
+  overflow: hidden;
   color: #667085;
   font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lineageGraphShell {
+  position: relative;
+  min-width: 0;
+}
+
+.lineageGraph,
+.fieldLineageGraph {
+  overflow: auto;
+  border: 1px solid #edf1f6;
+  border-radius: 7px;
+  background:
+    linear-gradient(#f8fafc 1px, transparent 1px),
+    linear-gradient(90deg, #f8fafc 1px, transparent 1px),
+    #fff;
+  background-size: 24px 24px;
+}
+
+.lineageGraphInner,
+.fieldLineageGraphInner {
+  position: relative;
+  min-width: 1240px;
+  min-height: 320px;
+}
+
+.lineageGraphViewport {
+  position: absolute;
+  inset: 0;
+  transform-origin: 0 0;
+  transition: transform 160ms ease;
+}
+
+.lineageGraphSvg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.lineageGraphEdge {
+  fill: none;
+  stroke: #98a2b3;
+  stroke-width: 1.8;
+  opacity: 0.92;
+}
+
+.lineageGraphArrow {
+  fill: #98a2b3;
+}
+
+.lineageGraphEdgeText {
+  fill: #2563eb;
+  font-size: 12px;
+  font-weight: 700;
+  text-anchor: middle;
+}
+
+.lineageGraphNode {
+  position: absolute;
+  display: grid;
+  gap: 6px;
+  width: 320px;
+  padding: 10px;
+  border: 1px solid #dbeafe;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 10px 24px rgba(17, 24, 39, 0.08);
+}
+
+.lineageGraphCurrent {
+  border-color: #85b8ff;
+  background: #f8fbff;
+}
+
+.lineageGraphNodeHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.lineageGraphNodeHead strong {
+  min-width: 0;
+  overflow: hidden;
+  color: #1f2937;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lineageGraphNodeHead em {
+  flex: 0 0 auto;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: #eaf3ff;
+  color: #2563eb;
+  font-size: 11px;
+  font-style: normal;
+}
+
+.lineageGraphNode > span {
+  overflow: hidden;
+  color: #667085;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lineageGraphNode > b {
+  color: #2563eb;
+  font-size: 12px;
+}
+
+.lineageEmpty {
+  display: grid;
+  place-items: center;
+  min-height: 260px;
+  border: 1px solid #edf1f6;
+  border-radius: 7px;
+  background: #fff;
+}
+
+.lineageToolbox {
+  position: absolute;
+  top: 18px;
+  right: 14px;
+  z-index: 5;
+  display: grid;
+  gap: 0;
+  overflow: hidden;
+  border: 1px solid #d9e2ef;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.12);
+}
+
+.lineageToolbox button {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 30px;
+  border: 0;
+  border-bottom: 1px solid #e6edf7;
+  background: transparent;
+  color: #475467;
+  cursor: pointer;
+}
+
+.lineageToolbox button:last-child {
+  border-bottom: 0;
+}
+
+.lineageToolbox button:hover {
+  background: #eef5ff;
+  color: #1769e0;
+}
+
+.fieldLineageCard {
+  position: absolute;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  width: 320px;
+  min-width: 260px;
+  min-height: 168px;
+  border: 1px solid #dbeafe;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 10px 24px rgba(17, 24, 39, 0.08);
+  overflow: hidden;
+}
+
+.fieldLineageCard:hover {
+  border-color: #85b8ff;
+  box-shadow: 0 12px 28px rgba(37, 99, 235, 0.14);
+}
+
+.fieldLineageCardHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 38px;
+  padding: 0 12px;
+  background: #5b7ee5;
+  color: #fff;
+  cursor: move;
+  user-select: none;
+}
+
+.fieldLineageCardHead strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fieldLineageCardHead em {
+  flex: 0 0 auto;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.18);
+  font-size: 11px;
+  font-style: normal;
+}
+
+.fieldLineageCard > span {
+  min-height: 34px;
+  padding: 8px 12px 6px;
+  overflow: hidden;
+  border-bottom: 1px solid #e5ecf8;
+  color: #667085;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fieldLineageRows {
+  display: grid;
+  align-content: start;
+  overflow: auto;
+}
+
+.fieldLineageRow {
+  display: flex;
+  align-items: center;
+  height: 30px;
+  padding: 0 12px;
+  border-bottom: 1px solid #edf1f6;
+  color: #334155;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+}
+
+.fieldLineageRow:nth-child(even) {
+  background: #f3f6ff;
+}
+
+.fieldLineageRow b {
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fieldLineageResizeHandle {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 18px;
+  height: 18px;
+  border: 0;
+  border-radius: 8px 0 6px;
+  background:
+    linear-gradient(135deg, transparent 0 46%, rgba(37, 99, 235, 0.55) 48% 54%, transparent 56%),
+    linear-gradient(135deg, transparent 0 64%, rgba(37, 99, 235, 0.45) 66% 72%, transparent 74%);
+  cursor: nwse-resize;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.fieldLineageCard:hover .fieldLineageResizeHandle {
+  opacity: 1;
+}
+
+.fieldLineageEdge {
+  fill: none;
+  stroke: #2f62ff;
+  stroke-width: 1.6;
+  opacity: 0.9;
+}
+
+.fieldLineageGroupBadge {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  width: 104px;
+  min-height: 36px;
+  padding: 4px 8px;
+  border: 1px solid #c7d7fe;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: #2563eb;
+  box-shadow: 0 8px 18px rgba(37, 99, 235, 0.12);
+}
+
+.fieldLineageGroupBadge strong,
+.fieldLineageGroupBadge span,
+.fieldLineageGroupBadge em {
+  line-height: 1.15;
+}
+
+.fieldLineageGroupBadge strong {
+  font-size: 14px;
+}
+
+.fieldLineageGroupBadge span,
+.fieldLineageGroupBadge em {
+  font-size: 11px;
+}
+
+.fieldLineageGroupBadge em {
+  max-width: 86px;
+  overflow: hidden;
+  font-style: normal;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lineageFullscreenModal :global(.n-card__content) {
+  padding: 12px;
+}
+
+.lineageWorkbenchFullscreen .lineageGraph,
+.lineageWorkbenchFullscreen .fieldLineageGraph {
+  height: calc(92vh - 150px);
+}
+
+.lineageWorkbenchFullscreen .lineageGraphInner,
+.lineageWorkbenchFullscreen .fieldLineageGraphInner {
+  min-height: calc(92vh - 170px);
 }
 
 .ruleModalBody {
